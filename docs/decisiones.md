@@ -315,10 +315,31 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - La biblioteca (playlists, notas, rankings e historial) va en un JSON por dispositivo en una
   carpeta compartida, nunca el archivo de SQLite. Gana el cambio más reciente, lo borrado no
   vuelve y las escuchas se suman sin repetir.
+- Vincular: el PC enseña su id de Syncthing en un QR (ZXing) y el móvil lo escanea (ZXing
+  embebido, sin servicios de Google). El móvil añade el PC y comparte con él dos carpetas con id
+  fijo, `freedomplayer-musica` y `freedomplayer-biblioteca`. El PC, solo mientras enseña el QR,
+  acepta al dispositivo que pide conectar (`/rest/cluster/pending/devices`) y comparte con él las
+  mismas dos carpetas.
+- «Sincronizando con el PC 12 de 20»: de las canciones de la carpeta de música, las que ya están
+  en los dos (lo que le falta a cada uno, según `/rest/db/completion`).
+- Con la app abierta, la biblioteca se intercambia cada 20 s. Una canción del otro dispositivo
+  aparece cuando su audio ya ha llegado. En Android, Syncthing va en un servicio en primer plano
+  (`dataSync`) mientras se sincroniza.
+- Pruebas: la mezcla del JSON, el intercambio, la API (con un servidor falso), la pantalla (con un
+  Syncthing de mentira) y, en la CI, dos Syncthing de verdad que se vinculan y se pasan una
+  canción, su nota y una playlist, y el Syncthing del APK arrancando en el emulador.
 
 ### Lo que todavía no
 
-- Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.
+- Vincular con QR y sincronizar está en la rama `syncthing-wip`, sin pasar a `main`. Falta:
+  - Probarlo entre un móvil y un PC de verdad. En la CI, los dos Syncthing están en el mismo
+    equipo, con las direcciones puestas a mano.
+  - Fuera de la misma wifi puede no funcionar. El binario de Linux, en Android, probablemente no
+    sabe resolver nombres (no hay `/etc/resolv.conf`), y sin eso no hay descubrimiento global ni
+    relés. En la misma wifi se encuentran por descubrimiento local.
+  - Las carátulas no se sincronizan todavía: las canciones que llegan salen con su color.
+  - Preguntar «¿Vincular con este móvil?» en el PC. Ahora acepta al primero que pide conectar
+    mientras enseña el QR.
 - Elegir carpeta y calidad de las descargas.
 
 ## Hito 5: decisiones técnicas
