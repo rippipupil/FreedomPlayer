@@ -90,7 +90,7 @@ class MigrationTest {
         assertEquals(mapOf("yt:b" to 2000L, "yt:a" to 1000L), p.addedAt, "la fecha de cada una: cuándo entró en la biblioteca")
 
         assertEquals(listOf("yt:a"), lib.rankings.single().songIds)
-        assertEquals(listOf(PlayEvent("yt:a", 5000), PlayEvent("yt:a", 6000)), lib.plays)
+        assertEquals(listOf(PlayEvent("yt:a", 5000), PlayEvent("yt:a", 6000)), lib.playLog)
 
         val (again, reopened) = open()
         assertEquals("[00:01.00]Hola", reopened.lyrics("yt:a")?.synced)
