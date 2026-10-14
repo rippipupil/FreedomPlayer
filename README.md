@@ -66,12 +66,16 @@ Hace falta JDK 17 o posterior. Para Android, también el SDK de Android (compile
 ```bash
 ./gradlew :desktopApp:run                       # abrir la app de escritorio
 ./gradlew :androidApp:installDebug              # instalar en un móvil conectado
-./gradlew :shared:desktopTest                   # pruebas de la lógica
+./gradlew :shared:desktopTest                   # pruebas de la lógica y de la interfaz
 ./gradlew -Pfp.android=false :desktopApp:run    # sin el SDK de Android
 ./gradlew :desktopApp:packageMsi                # instalador de Windows (en Windows)
 ```
 
 En el PC, la variable `FP_REDUCE_MOTION=1` quita las animaciones aunque el sistema no lo pida.
+
+Las pruebas incluyen una prueba de humo de la interfaz (`AppSmokeTest`) que pinta la app sin
+ventana, con tamaño de móvil y de PC, y recorre todas las pantallas. Para probar el APK en un
+emulador de Android: Actions › «Probar en el emulador» › Run workflow.
 
 ### Estructura
 

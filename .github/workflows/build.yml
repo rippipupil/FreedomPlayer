@@ -41,7 +41,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Pruebas de la lógica (biblioteca, ranking, estadísticas, búsqueda…)
+      - name: Pruebas (lógica e interfaz)
         run: ./gradlew -Pfp.android=false :shared:desktopTest 2>&1 | tee build.log
 
       - name: Errores
