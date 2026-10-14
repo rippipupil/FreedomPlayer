@@ -3,6 +3,8 @@
 # Los resultados quedan como artefactos descargables en la página de cada ejecución (Actions).
 # Al subir una etiqueta vX.Y.Z se compila esa versión y se publica en Releases
 # (como pre-release si es v0.* o lleva guion, p. ej. v1.0.0-beta.1).
+# También se puede publicar sin subir la etiqueta: Actions › Compilar › «Run workflow» con
+# «version» (p. ej. 0.4.0). Entonces la etiqueta vX.Y.Z la crea la release, en el commit compilado.
 name: Compilar
 
 on:
@@ -12,6 +14,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Publicar como versión (X.Y.Z, p. ej. 0.4.0). Vacío = solo compilar.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -19,7 +27,7 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   # Una etiqueta nunca se cancela a medias; un push nuevo a main sí cancela el anterior.
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.version == '' }}
 
 # bash en todos los sistemas (en Windows, el de Git), con «pipefail» para que «| tee» no oculte
 # un fallo de Gradle.
@@ -108,9 +116,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Versión
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            if [[ ! "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+              echo "::error title=Versión::«$INPUT_VERSION» no es X.Y.Z"
+              exit 1
+            fi
+            version="$INPUT_VERSION"
           else
             version="0.4.${GITHUB_RUN_NUMBER}"
           fi
@@ -295,9 +311,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Versión
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            if [[ ! "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+              echo "::error title=Versión::«$INPUT_VERSION» no es X.Y.Z"
+              exit 1
+            fi
+            version="$INPUT_VERSION"
           else
             version="0.4.${GITHUB_RUN_NUMBER}"
           fi
@@ -328,7 +352,7 @@ jobs:
 
   release:
     name: Publicar la versión
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     needs: [test, android, emulator, windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -346,8 +370,17 @@ jobs:
       - name: Crear la release con el APK y la app de Windows
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
+          # Etiqueta subida: se usa tal cual. Lanzado a mano con «version»: la crea la release
+          # en el commit compilado (la versión ya se validó en los jobs de compilación).
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="$GITHUB_REF_NAME"
+            tag_flags=(--verify-tag)
+          else
+            TAG="v$INPUT_VERSION"
+            tag_flags=(--target "$GITHUB_SHA")
+          fi
           ls -la dist
           notes="docs/versiones/${TAG}.md"
           if [ ! -f "$notes" ]; then
@@ -362,6 +395,6 @@ jobs:
             # La release ya existe (p. ej. al repetir la ejecución): se reemplazan los archivos.
             gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" "${tag_flags[@]}" \
               --title "${TAG}" --notes-file "$notes" "${flags[@]}"
           fi
