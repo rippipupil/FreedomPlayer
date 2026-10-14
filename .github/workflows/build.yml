@@ -252,10 +252,11 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      # --rerun: si el código no ha cambiado, Gradle sacaría las pruebas de la caché sin pintar nada.
       - name: Pintar las pantallas
         env:
           FP_CAPTURAS: ${{ github.workspace }}/capturas-ci
-        run: ./gradlew -Pfp.android=false :shared:desktopTest --tests 'com.freedomplayer.ui.CapturasTest' 2>&1 | tee build.log
+        run: ./gradlew -Pfp.android=false :shared:desktopTest --tests 'com.freedomplayer.ui.CapturasTest' --rerun 2>&1 | tee build.log
 
       - name: Errores
         if: failure()
@@ -265,7 +266,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls capturas-ci
+          if ! ls capturas-ci/*.png > /dev/null 2>&1; then
+            echo "::error title=Capturas::No se ha pintado ninguna captura."
+            exit 1
+          fi
           header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           cd capturas-ci
           git init -q -b capturas-ci
