@@ -75,9 +75,6 @@ private val PcBuildings = listOf(
     Block(930f, 132f, 9f, 11f, 0xFF5B57D9, 0.5f), Block(1106f, 84f, 9f, 11f, 0xFFFF3FA4, 0.5f), Block(1150f, 112f, 9f, 11f, 0xFF2F9C82, 0.45f),
 )
 
-/** En el PC, el fondo acaba encima de la barra del reproductor; el diseño lo mide desde abajo de la ventana. */
-private const val PcBarHeight = 90f
-
 private val Neon = Color(0xFFFF3FA4)
 private val Pink = Color(0xFFF4A6CB)
 private val Violet = Color(0xFF5B57D9)
@@ -169,7 +166,7 @@ fun AlleyBackground(modifier: Modifier = Modifier, wide: Boolean, flicker: Boole
         val dens = LocalDensity.current
         // Sitio del diseño (left 140 / bottom 210 en el móvil; left 560 / bottom 150 en el PC), a escala del ancho.
         val ghostX = w * (if (wide) 560f / 1280f else 140f / 390f)
-        val ghostY = with(dens) { h - (if (wide) (150f - PcBarHeight).dp else 210.dp).toPx() - ghostSize.toPx() }
+        val ghostY = with(dens) { h - (if (wide) 150.dp else 210.dp).toPx() - ghostSize.toPx() }
         Box(
             Modifier
                 .offset { IntOffset(ghostX.toInt(), ghostY.toInt()) }
@@ -354,8 +351,8 @@ private fun DrawScope.drawPcAlley(glow: Float, d: Float) {
     drawCircle(Lamp, radius = 15f * d, center = lamp, alpha = 0.6f + 0.4f * glow)
 
     // Edificios (SVG de 1280×260 pegado abajo de la ventana, estirado al ancho): la barra del
-    // reproductor (90 px) tapa su parte de abajo, como en el diseño.
-    translate(0f, h + PcBarHeight * d - 260f * d) {
+    // reproductor tapa su parte de abajo, como en el diseño.
+    translate(0f, h - 260f * d) {
         for (r in PcBuildings) {
             drawRect(Color(r.color), topLeft = Offset(r.x * d * sx, r.y * d), size = Size(r.w * d * sx, r.h * d), alpha = r.alpha)
         }

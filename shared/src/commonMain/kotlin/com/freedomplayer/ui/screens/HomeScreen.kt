@@ -131,7 +131,8 @@ private fun HomeHeader(state: AppState, modifier: Modifier = Modifier) {
         SyncBadge(
             if (wide) "SYNC · MÓVIL" else "SYNC · PC",
             onClick = { state.soon("Sincronizar con " + if (wide) "el móvil" else "el PC") },
-            modifier = if (wide) Modifier else Modifier.padding(top = 6.dp),
+            // En el PC va abajo del todo de la cabecera (en el diseño, la caja del título es más alta).
+            modifier = if (wide) Modifier.offset(y = 12.dp) else Modifier.padding(top = 6.dp),
         )
     }
 }
