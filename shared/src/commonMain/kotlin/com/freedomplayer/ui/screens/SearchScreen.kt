@@ -252,7 +252,7 @@ private fun VideoList(state: AppState, videos: List<SearchResult>, pad: PaddingV
 }
 
 /** El «+» de un resultado: añadir, descargando (con su %) o ✓. */
-private fun AppState.addStateFor(r: SearchResult): AddState {
+internal fun AppState.addStateFor(r: SearchResult): AddState {
     val fraction = downloadFraction(r.id)
     return when {
         fraction != null -> AddState.Downloading(fraction)

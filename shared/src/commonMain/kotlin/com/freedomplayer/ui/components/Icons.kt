@@ -77,6 +77,9 @@ object FpIcons {
     val Next = FpIcon(null, "M6 5 L15 12 L6 19 Z M16.4 5 H19 V19 H16.4 Z")
     val Previous = FpIcon(null, "M18 5 L9 12 L18 19 Z M5 5 H7.6 V19 H5 Z")
     val Shuffle = FpIcon("M3 7 H7 L15 17 H21 M3 17 H7 L9.5 14 M13 10 L15 7 H21 M18 4 L21 7 L18 10 M18 14 L21 17 L18 20")
+    /** Orden de mayor a menor (flecha abajo) y de menor a mayor (flecha arriba). */
+    val SortDown = FpIcon("M12 4 V19 M6 13 L12 19 L18 13", strokeWidth = 2f)
+    val SortUp = FpIcon("M12 20 V5 M6 11 L12 5 L18 11", strokeWidth = 2f)
     val Repeat = FpIcon("M4 11 V7 H18 M15 4 L18 7 L15 10 M20 13 V17 H6 M9 20 L6 17 L9 14")
     val ChevronDown = FpIcon("M6 9 L12 15 L18 9", strokeWidth = 2f)
     val Back = FpIcon("M15 5 L8 12 L15 19", strokeWidth = 2f)

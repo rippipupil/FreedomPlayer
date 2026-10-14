@@ -230,7 +230,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                 now.coverColor,
                 46.dp,
                 Modifier
-                    .fpClickable(enabled = !now.isPreview, onClick = onOpen)
+                    .fpClickable(onClick = onOpen)
                     .semantics { contentDescription = "Abrir reproductor" },
                 image = now.cover,
             )
@@ -238,7 +238,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                 Modifier
                     .weight(1f)
                     .padding(start = 14.dp)
-                    .fpClickable(enabled = !now.isPreview, pressedScale = 0.98f, onClickLabel = "Abrir reproductor", onClick = onOpen),
+                    .fpClickable(pressedScale = 0.98f, onClickLabel = "Abrir reproductor", onClick = onOpen),
             ) {
                 AnimatedContent(
                     targetState = now,
@@ -303,7 +303,7 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxSize().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
             // Izquierda: lo que suena.
             Row(
-                Modifier.width(side).fpClickable(enabled = now != null && !now.isPreview, pressedScale = 0.98f, onClickLabel = "Abrir reproductor") {
+                Modifier.width(side).fpClickable(enabled = now != null, pressedScale = 0.98f, onClickLabel = "Abrir reproductor") {
                     state.playerOpen = !state.playerOpen
                 },
                 verticalAlignment = Alignment.CenterVertically,

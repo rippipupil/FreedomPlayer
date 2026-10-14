@@ -4,16 +4,21 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.freedomplayer.android.R
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
 /**
@@ -24,6 +29,13 @@ import com.google.common.util.concurrent.ListenableFuture
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
+
+    /** El botón de repetir cambia de icono cuando cambia el modo (desde la notificación o desde la app). */
+    private val repeatListener = object : Player.Listener {
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            session?.setMediaButtonPreferences(listOf(repeatButton(repeatMode)))
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -37,8 +49,12 @@ class PlaybackService : MediaSessionService() {
                 .build()
                 .apply { setSmallIcon(R.drawable.ic_stat_ghost) },
         )
-        session = MediaSession.Builder(this, Players.main(this))
+        val player = Players.main(this)
+        player.addListener(repeatListener)
+        session = MediaSession.Builder(this, player)
             .setCallback(Callback)
+            // Repetir (nada → todo → una), al lado de los mandos de siempre.
+            .setMediaButtonPreferences(listOf(repeatButton(player.repeatMode)))
             // Las carátulas llegan al sistema montadas en el tema (ver ThemedArtwork).
             .setBitmapLoader(ThemedBitmapLoader(DataSourceBitmapLoader(this)))
             .apply { if (open != null) setSessionActivity(open) }
@@ -49,7 +65,10 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         // El reproductor es de la app (sigue con su cola); aquí solo se suelta la sesión.
-        session?.release()
+        session?.let {
+            it.player.removeListener(repeatListener)
+            it.release()
+        }
         session = null
         super.onDestroy()
     }
@@ -57,6 +76,8 @@ class PlaybackService : MediaSessionService() {
     /**
      * La cola y su orden aleatorio los decide la app: los mandos de fuera (notificación, coche,
      * reloj) pueden tocar play, pausa, siguiente, anterior y la barra, pero no cambiar el orden.
+     * Repetir va con un botón propio ([REPEAT]) que cambia el modo en el orden de la app; la app
+     * lo ve en el siguiente vistazo al reproductor (AndroidEngine.snapshot).
      */
     private object Callback : MediaSession.Callback {
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
@@ -66,13 +87,55 @@ class PlaybackService : MediaSessionService() {
                 .remove(Player.COMMAND_CHANGE_MEDIA_ITEMS)
                 .remove(Player.COMMAND_SET_MEDIA_ITEM)
                 .build()
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                .add(REPEAT)
+                .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailablePlayerCommands(commands)
+                .setAvailableSessionCommands(sessionCommands)
                 .build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction != REPEAT.customAction) {
+                return super.onCustomCommand(session, controller, customCommand, args)
+            }
+            val player = session.player
+            player.repeatMode = nextRepeat(player.repeatMode)
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
     }
 
     companion object {
+        /** El botón de repetir de la notificación (un mando propio de la sesión). */
+        const val REPEAT_ACTION = "com.freedomplayer.REPEAT"
+        private val REPEAT = SessionCommand(REPEAT_ACTION, Bundle.EMPTY)
+
+        /** El mismo orden que el botón de la app (RepeatMode.next): nada → todo → una → nada. */
+        fun nextRepeat(mode: Int): Int = when (mode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+
+        /** El botón de repetir con el icono del modo actual y lo que hace al tocarlo. */
+        private fun repeatButton(mode: Int): CommandButton {
+            val (icon, name) = when (mode) {
+                Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL to "Repetir todo (toca para repetir una)"
+                Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE to "Repetir una (toca para no repetir)"
+                else -> CommandButton.ICON_REPEAT_OFF to "Sin repetir (toca para repetir todo)"
+            }
+            return CommandButton.Builder(icon)
+                .setDisplayName(name)
+                .setSessionCommand(REPEAT)
+                .build()
+        }
+
         /**
          * Conecta la app con el servicio mientras se ve la pantalla: así el servicio crea la
          * sesión y, cuando empieza a sonar, pone la notificación y pasa a primer plano.

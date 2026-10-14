@@ -148,7 +148,7 @@ private fun MobileShell(state: AppState) {
     val status = statusBarHeight()
     val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val showMini = state.nowPlaying() != null
-    val playerVisible = state.playerOpen && state.currentSong != null
+    val playerVisible = state.playerOpen && (state.currentSong != null || state.preview != null)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         AlleyBackground(Modifier.fillMaxSize(), wide = false, flicker = state.screen == Screen.Home && !playerVisible)
         Column(Modifier.fillMaxSize()) {
@@ -201,7 +201,7 @@ private fun MobileShell(state: AppState) {
 @Composable
 private fun DesktopShell(state: AppState, titleBar: (@Composable () -> Unit)?) {
     val reduce = LocalReduceMotion.current
-    val playerVisible = state.playerOpen && state.currentSong != null
+    val playerVisible = state.playerOpen && (state.currentSong != null || state.preview != null)
     Box(Modifier.fillMaxSize()) {
         // El callejón ocupa toda la ventana: la barra de título (translúcida) y la del reproductor van encima.
         AlleyBackground(Modifier.fillMaxSize(), wide = true, flicker = state.screen == Screen.Home && !playerVisible)

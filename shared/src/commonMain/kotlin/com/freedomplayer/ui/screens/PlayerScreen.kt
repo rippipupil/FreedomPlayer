@@ -66,15 +66,18 @@ import com.freedomplayer.core.LyricLine
 import com.freedomplayer.core.Lyrics
 import com.freedomplayer.core.Song
 import com.freedomplayer.core.formatTime
+import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.Prompt
 import com.freedomplayer.ui.Sheet
+import com.freedomplayer.ui.components.AddButton
 import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.CoverImage
 import com.freedomplayer.ui.components.FpIcon
 import com.freedomplayer.ui.components.FpIcons
 import com.freedomplayer.ui.components.Ghost
+import com.freedomplayer.ui.components.InLibraryBadge
 import com.freedomplayer.ui.components.IconButton
 import com.freedomplayer.ui.components.LocalReduceMotion
 import com.freedomplayer.ui.components.LocalScreenInsets
@@ -85,30 +88,38 @@ import com.freedomplayer.ui.components.PlayPauseButton
 import com.freedomplayer.ui.components.RepeatButton
 import com.freedomplayer.ui.components.SeekBar
 import com.freedomplayer.ui.components.ShuffleButton
-import com.freedomplayer.ui.components.StarsView
+import com.freedomplayer.ui.components.StarsInput
 import com.freedomplayer.ui.components.coverModel
 import com.freedomplayer.ui.components.cut
 import com.freedomplayer.ui.components.fpFloat
 import com.freedomplayer.ui.components.fpHop
 import com.freedomplayer.ui.components.fpTween
+import com.freedomplayer.ui.components.nowIsPlaying
+import com.freedomplayer.ui.components.nowPlaying
+import com.freedomplayer.ui.components.nowPositionMs
 import com.freedomplayer.ui.components.statusBarHeight
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
 
 /**
- * El reproductor: carátula grande, datos y nota, barra de 48 segmentos, controles, la letra
- * sincronizada y las herramientas. En el móvil ocupa toda la pantalla; en el PC es una página
- * entre la barra de título y la barra del reproductor, con la letra al lado.
+ * El reproductor: carátula grande, datos y nota (se puntúa aquí mismo), barra de 48 segmentos,
+ * controles, la letra sincronizada y las herramientas. En el móvil ocupa toda la pantalla; en el
+ * PC es una página entre la barra de título y la barra del reproductor, con la letra al lado.
+ *
+ * Con una vista previa sonando enseña esa canción: sin nota, cola ni herramientas, y con «+» para
+ * añadirla.
  */
 @Composable
 fun PlayerScreen(state: AppState, modifier: Modifier = Modifier) {
-    val song = state.currentSong ?: return
-    if (LocalWide.current) PlayerWide(state, song, modifier) else PlayerMobile(state, song, modifier)
+    val p = state.preview
+    val song = if (p != null) Song(p.id, p.title, p.artist, p.durationSec, p.coverColor, cover = p.cover) else state.currentSong ?: return
+    val preview = p != null
+    if (LocalWide.current) PlayerWide(state, song, preview, modifier) else PlayerMobile(state, song, preview, modifier)
 }
 
-/** «SONANDO · NOCHES DE NEÓN» con ⌄ para cerrar y ⋯ para más opciones. */
+/** «SONANDO · NOCHES DE NEÓN» (o «VISTA PREVIA») con ⌄ para cerrar y ⋯ para más opciones. */
 @Composable
-private fun PlayerTopBar(state: AppState, modifier: Modifier = Modifier) {
+private fun PlayerTopBar(state: AppState, preview: Boolean, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         IconButton(
             FpIcons.ChevronDown,
@@ -119,48 +130,53 @@ private fun PlayerTopBar(state: AppState, modifier: Modifier = Modifier) {
             color = Fp.Bone,
         )
         Chakra(
-            "SONANDO · ${state.queueSource}",
+            if (preview) "VISTA PREVIA" else "SONANDO · ${state.queueSource}",
             if (LocalWide.current) 12.sp else 11.sp,
             Modifier.weight(1f).padding(horizontal = 6.dp),
             color = Fp.Pink,
             spacing = 3.sp,
             align = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        IconButton(
-            FpIcons.More,
-            "Más opciones",
-            { state.sheet = Sheet.More },
-            Modifier.offset(x = 10.dp),
-            iconSize = 20.dp,
-            color = Fp.Bone,
-        )
+        if (preview) {
+            // Las opciones son de las canciones de la biblioteca; se deja el hueco para que el título siga centrado.
+            Spacer(Modifier.size(44.dp))
+        } else {
+            IconButton(
+                FpIcons.More,
+                "Más opciones",
+                { state.sheet = Sheet.More },
+                Modifier.offset(x = 10.dp),
+                iconSize = 20.dp,
+                color = Fp.Bone,
+            )
+        }
     }
 }
 
 // ---------- Móvil ----------
 
 @Composable
-private fun PlayerMobile(state: AppState, song: Song, modifier: Modifier) {
+private fun PlayerMobile(state: AppState, song: Song, preview: Boolean, modifier: Modifier) {
     val top = statusBarHeight()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(modifier.fillMaxSize().background(Fp.Night)) {
         AlleyBackground(Modifier.fillMaxSize(), wide = false, flicker = false, tint = Color(song.coverColor))
         BoxWithConstraints(Modifier.fillMaxSize().padding(start = 34.dp, end = 34.dp, top = top + 12.dp, bottom = bottom + 20.dp)) {
             // La carátula mide 268 dp como en el diseño, o menos si la pantalla es baja o estrecha
-            // (lo demás ocupa unos 480 dp contando un mínimo para la letra).
-            val coverSize = minOf(268.dp, maxWidth - 20.dp, maxHeight - 480.dp).coerceAtLeast(120.dp)
+            // (lo demás ocupa unos 520 dp contando las ✦ para puntuar y un mínimo para la letra).
+            val coverSize = minOf(268.dp, maxWidth - 20.dp, maxHeight - 520.dp).coerceAtLeast(120.dp)
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                PlayerTopBar(state)
+                PlayerTopBar(state, preview)
                 // El título va 18 px por debajo de la carátula, como en el diseño: el marco rosa
                 // desplazado se sale por debajo sin ocupar sitio.
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     BigCover(state, song, coverSize, Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
-                    SongInfo(song)
+                    SongInfo(state, song, preview)
                 }
-                Progress(state, song, segments = 48)
-                Controls(state, big = true)
-                LyricsBox(state, song, visibleLines = 4, modifier = Modifier.weight(1f).fillMaxWidth())
-                Tools(state)
+                Progress(state, segments = 48)
+                Controls(state, preview, big = true)
+                LyricsBox(state, song, visibleLines = 4, modifier = Modifier.weight(1f).fillMaxWidth(), preview = preview)
+                if (!preview) Tools(state)
             }
         }
     }
@@ -169,7 +185,7 @@ private fun PlayerMobile(state: AppState, song: Song, modifier: Modifier) {
 // ---------- PC ----------
 
 @Composable
-private fun PlayerWide(state: AppState, song: Song, modifier: Modifier) {
+private fun PlayerWide(state: AppState, song: Song, preview: Boolean, modifier: Modifier) {
     val insets = LocalScreenInsets.current
     BoxWithConstraints(modifier.fillMaxSize()) {
         val side = insets.wideSide
@@ -178,17 +194,17 @@ private fun PlayerWide(state: AppState, song: Song, modifier: Modifier) {
             Modifier.fillMaxSize().padding(start = side, end = side, top = 18.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            PlayerTopBar(state)
+            PlayerTopBar(state, preview)
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
                 Column(
                     Modifier.width(coverSize + 12.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     BigCover(state, song, coverSize, Modifier.padding(top = 22.dp, bottom = 10.dp))
-                    SongInfo(song, Modifier.padding(top = 8.dp))
-                    Tools(state)
+                    SongInfo(state, song, preview, Modifier.padding(top = 8.dp))
+                    if (!preview) Tools(state)
                 }
-                LyricsBox(state, song, visibleLines = 9, modifier = Modifier.weight(1f).fillMaxHeight(), big = true)
+                LyricsBox(state, song, visibleLines = 9, modifier = Modifier.weight(1f).fillMaxHeight(), big = true, preview = preview)
             }
         }
     }
@@ -287,16 +303,19 @@ private fun CoverArt(color: Long, size: Dp, image: String?) {
     }
 }
 
-/** Título (Nunito 24), «Artista · Álbum» y la nota en ✦ (solo se ve; se cambia en Ranking). */
+/**
+ * Título (Nunito 24), «Artista · Álbum» y debajo la nota en ✦, que se toca para puntuar mientras
+ * suena (mitad izquierda de una ✦: media). En la vista previa, «+» para añadirla.
+ */
 @Composable
-private fun SongInfo(song: Song, modifier: Modifier = Modifier) {
+private fun SongInfo(state: AppState, song: Song, preview: Boolean, modifier: Modifier = Modifier) {
     val wide = LocalWide.current
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         AnimatedContent(
             targetState = song,
             contentKey = { it.id },
             transitionSpec = { fadeIn(tween(Motion.STANDARD)) togetherWith fadeOut(tween(Motion.QUICK)) using SizeTransform(clip = false) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             label = "songInfo",
         ) { s ->
             Column {
@@ -312,12 +331,55 @@ private fun SongInfo(song: Song, modifier: Modifier = Modifier) {
                     if (s.album != null) "${s.artist} · ${s.album}" else s.artist,
                     14.sp,
                     Modifier.padding(top = 2.dp),
-                    color = Fp.Mist,
+                    color = if (preview) Fp.NeonSoft else Fp.Mist,
                     maxLines = 1,
                 )
             }
         }
-        StarsView(song.score, 14.dp, Modifier.padding(bottom = 4.dp), gap = 1.dp)
+        if (preview) PreviewAdd(state) else Rating(state, song)
+    }
+}
+
+/** Las ✦ para puntuar la que suena (se guarda al soltar, con «DESHACER» en el aviso). */
+@Composable
+private fun Rating(state: AppState, song: Song) {
+    val score = state.song(song.id)?.score
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Las casillas son más anchas que las ✦: se corre a la izquierda para que la primera quede alineada con el título.
+        StarsInput(
+            score = score,
+            onRate = { state.rate(song.id, it) },
+            label = "Nota para ${song.title}",
+            modifier = Modifier.offset(x = (-9).dp),
+            cell = 38.dp,
+            starSize = 20.dp,
+        )
+        Chakra(
+            if (score == null) "SIN NOTA" else "$score/10",
+            11.sp,
+            Modifier.offset(x = (-9).dp),
+            color = if (score == null) Fp.MistDim else Fp.Pink,
+            spacing = 1.5.sp,
+        )
+    }
+}
+
+/** Vista previa: «+» para añadirla (con el mismo selector de playlist que en Buscar) o EN BIBLIO si ya está. */
+@Composable
+private fun PreviewAdd(state: AppState) {
+    val r = state.previewTarget ?: return
+    val inLibrary = state.librarySongFor(r) != null && r.id !in state.addedIds
+    Row(
+        Modifier.padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (inLibrary) {
+            InLibraryBadge()
+        } else {
+            AddButton(state.addStateFor(r), "Añadir a la biblioteca", onClick = { state.requestAdd(AddTarget.Result(r)) })
+            Nunito("Añádela para guardarla con su carátula y su letra.", 13.sp, color = Fp.Mist, lineHeight = 17.sp)
+        }
     }
 }
 
@@ -328,14 +390,14 @@ private fun Modifier.visualHeight(visible: Dp): Modifier = this.layout { measura
     layout(placeable.width, h) { placeable.place(0, (h - placeable.height) / 2) }
 }
 
-/** Barra de segmentos con el rombo y los tiempos debajo (el actual en rosa). */
+/** Barra de segmentos con el rombo y los tiempos debajo (el actual en rosa). Sirve también para la vista previa. */
 @Composable
-private fun Progress(state: AppState, song: Song, segments: Int) {
-    val posSec by remember(state) { derivedStateOf { (state.positionMs / 1000).toInt() } }
-    val total = state.currentDurationSec
+private fun Progress(state: AppState, segments: Int) {
+    val posSec by remember(state) { derivedStateOf { (state.nowPositionMs() / 1000).toInt() } }
+    val total = state.nowPlaying()?.durationSec ?: 0
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SeekBar(
-            fraction = { state.positionMs / (state.currentDurationSec * 1000f).coerceAtLeast(1f) },
+            fraction = { state.nowPositionMs() / ((state.nowPlaying()?.durationSec ?: 0) * 1000f).coerceAtLeast(1f) },
             onSeek = { state.seekTo(it) },
             segments = segments,
             valueText = "${formatTime(posSec)} de ${formatTime(total)}",
@@ -351,21 +413,24 @@ private fun Progress(state: AppState, song: Song, segments: Int) {
     }
 }
 
-/** Aleatorio, anterior, reproducir/pausar (68 dp), siguiente y repetir. */
+/**
+ * Aleatorio, anterior, reproducir/pausar (68 dp), siguiente y repetir. En la vista previa no hay
+ * cola: «anterior» vuelve al principio y «siguiente» la cierra.
+ */
 @Composable
-private fun Controls(state: AppState, big: Boolean) {
+private fun Controls(state: AppState, preview: Boolean, big: Boolean) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        ShuffleButton(state.queue.shuffle, { state.toggleShuffle() })
-        IconButton(FpIcons.Previous, "Anterior", { state.previous() }, size = 52.dp, iconSize = 24.dp, color = Fp.Bone)
+        if (preview) Spacer(Modifier.size(44.dp)) else ShuffleButton(state.queue.shuffle, { state.toggleShuffle() })
+        IconButton(FpIcons.Previous, if (preview) "Volver a empezar" else "Anterior", { state.previous() }, size = 52.dp, iconSize = 24.dp, color = Fp.Bone)
         PlayPauseButton(
-            state.isPlaying,
+            state.nowIsPlaying(),
             { state.togglePlay() },
             size = if (big) 68.dp else 56.dp,
             cutSize = if (big) 16.dp else 13.dp,
             iconSize = 24.dp,
         )
-        IconButton(FpIcons.Next, "Siguiente", { state.next() }, size = 52.dp, iconSize = 24.dp, color = Fp.Bone)
-        RepeatButton(state.queue.repeat, { state.cycleRepeat() })
+        IconButton(FpIcons.Next, if (preview) "Cerrar vista previa" else "Siguiente", { state.next() }, size = 52.dp, iconSize = 24.dp, color = Fp.Bone)
+        if (preview) Spacer(Modifier.size(44.dp)) else RepeatButton(state.queue.repeat, { state.cycleRepeat() })
     }
 }
 
@@ -374,8 +439,9 @@ private fun Controls(state: AppState, big: Boolean) {
  * las anteriores apagadas y las siguientes en gris violeta. Al avanzar, las líneas suben deslizando.
  */
 @Composable
-private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: Modifier = Modifier, big: Boolean = false) {
-    val data = state.lyricsFor(song.id)
+private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: Modifier = Modifier, big: Boolean = false, preview: Boolean = false) {
+    // La vista previa no tiene letra guardada: se busca al añadirla.
+    val data = if (preview) null else state.lyricsFor(song.id)
     val lines = remember(data) { data?.lines().orEmpty() }
     // Sin tiempos (o con la letra sincronizada apagada en Ajustes) se ve entera, sin resaltar.
     val synced = state.settings.syncedLyrics && lines.firstOrNull()?.atMs != LyricLine.UNSYNCED
@@ -397,7 +463,7 @@ private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: 
             Chakra(if (lines.isEmpty()) "LRCLIB" else "LRCLIB · OFFLINE", 11.sp, color = Fp.MistDim, spacing = 3.sp)
         }
         if (lines.isEmpty()) {
-            NoLyrics(instrumental = data?.instrumental == true, online = state.online)
+            NoLyrics(instrumental = data?.instrumental == true, online = state.online, preview = preview)
         } else {
             val scroll = rememberScrollState()
             val tops = remember(song.id) { mutableStateMapOf<Int, Int>() }
@@ -451,7 +517,7 @@ private fun LyricText(text: String, state: LineState, big: Boolean, modifier: Mo
 
 /** Sin letra todavía (la busca LRCLIB al descargar o al escucharla con conexión). */
 @Composable
-private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean) {
+private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean, preview: Boolean = false) {
     Row(
         Modifier.weight(1f).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -460,6 +526,7 @@ private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean) {
         Ghost(Mood.Dormido, 36.dp, Modifier.fpFloat())
         Nunito(
             when {
+                preview -> "La letra llega al añadirla: se busca en LRCLIB y se guarda con la canción."
                 instrumental -> "Es instrumental: no tiene letra."
                 online -> "LRCLIB no tiene la letra de esta canción. Se vuelve a mirar dentro de unos días."
                 else -> "Esta canción no tiene letra todavía. Se buscará en LRCLIB cuando haya conexión."

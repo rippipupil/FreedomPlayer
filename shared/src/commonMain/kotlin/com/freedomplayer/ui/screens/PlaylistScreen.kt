@@ -3,8 +3,10 @@ package com.freedomplayer.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -13,13 +15,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.PlaylistOrder
+import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.songCount
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.Screen
 import com.freedomplayer.ui.components.Chakra
+import com.freedomplayer.ui.components.ChoiceChip
 import com.freedomplayer.ui.components.EmptyState
+import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
 import com.freedomplayer.ui.components.Ghost
 import com.freedomplayer.ui.components.IconButton
@@ -30,6 +38,7 @@ import com.freedomplayer.ui.components.SecondaryButton
 import com.freedomplayer.ui.components.SongRow
 import com.freedomplayer.ui.components.StackedCover
 import com.freedomplayer.ui.components.fpBob
+import com.freedomplayer.ui.components.fpClickable
 import com.freedomplayer.ui.components.itemMotion
 import com.freedomplayer.ui.components.screenPadding
 import com.freedomplayer.ui.theme.Fp
@@ -51,7 +60,11 @@ internal fun BackHeader(state: AppState, label: String, title: String, modifier:
     }
 }
 
-/** Detalle de una playlist: REPRODUCIR y ALEATORIO, y sus canciones (tocar una la pone a sonar). */
+/**
+ * Detalle de una playlist: REPRODUCIR y aleatorio (el icono de las dos líneas cruzadas), el orden
+ * (por fecha o por nota, con la flecha para darle la vuelta) y sus canciones (tocar una la pone a
+ * sonar y la cola sigue en ese orden).
+ */
 @Composable
 fun PlaylistScreen(state: AppState, id: String, modifier: Modifier = Modifier) {
     val playlist = state.playlist(id)
@@ -63,7 +76,7 @@ fun PlaylistScreen(state: AppState, id: String, modifier: Modifier = Modifier) {
         return
     }
     val wide = LocalWide.current
-    val songs = playlist.songIds.mapNotNull { state.song(it) }.let { if (state.library.isEmpty()) emptyList() else it }
+    val songs = state.playlistSongs(playlist).let { if (state.library.isEmpty()) emptyList() else it }
     val ids = songs.map { it.id }
     val minutes = songs.sumOf { it.durationSec } / 60
     val current = state.currentSong?.id
@@ -106,14 +119,19 @@ fun PlaylistScreen(state: AppState, id: String, modifier: Modifier = Modifier) {
                             icon = FpIcons.Play,
                         )
                         SecondaryButton(
-                            "ALEATORIO",
+                            "Aleatorio",
                             { state.playPlaylist(playlist.id, shuffle = true) },
                             height = 40.dp,
-                            fontSize = 12.sp,
                             enabled = songs.isNotEmpty(),
+                            icon = FpIcons.Shuffle,
                         )
                     }
                 }
+            }
+        }
+        if (songs.size > 1) {
+            item(key = "order") {
+                OrderBar(state, state.settings.playlistOrder, Modifier.padding(bottom = 8.dp))
             }
         }
         if (songs.isEmpty()) {
@@ -136,6 +154,38 @@ fun PlaylistScreen(state: AppState, id: String, modifier: Modifier = Modifier) {
                 modifier = itemMotion(),
                 coverSize = if (wide) 40.dp else 36.dp,
             )
+        }
+    }
+}
+
+/** «ORDEN»: fecha o nota, y la flecha que pasa de mayor a menor a al revés. */
+@Composable
+private fun OrderBar(state: AppState, order: PlaylistOrder, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Chakra("ORDEN", 11.sp, color = Fp.Mist, spacing = 1.5.sp)
+        for (sort in PlaylistSort.entries) {
+            ChoiceChip(sort.label, order.by == sort) { state.sortPlaylistsBy(sort) }
+        }
+        Spacer(Modifier.weight(1f))
+        val (now, then) = when (order.by) {
+            PlaylistSort.Added -> if (order.descending) "RECIENTES" to "las más antiguas" else "ANTIGUAS" to "las más recientes"
+            PlaylistSort.Score -> if (order.descending) "MEJORES" to "las de menos nota" else "PEORES" to "las de más nota"
+        }
+        Row(
+            Modifier
+                .heightIn(min = 44.dp)
+                .fpClickable(onClickLabel = "Poner primero $then", onClick = { state.flipPlaylistOrder() })
+                .semantics { contentDescription = "Primero ${now.lowercase()}" }
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            FpIconView(if (order.descending) FpIcons.SortDown else FpIcons.SortUp, 16.dp, Fp.Pink)
+            Chakra(now, 11.sp, color = Fp.Pink, spacing = 1.5.sp)
         }
     }
 }
