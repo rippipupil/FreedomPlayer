@@ -182,6 +182,9 @@ fun ColumnScope.SongsPanelContent(state: AppState) {
             }
         }
     }
+    if (state.canImportFiles) {
+        SecondaryButton("+ TUS ARCHIVOS DE AUDIO", { state.importFiles() }, Modifier.fillMaxWidth(), height = if (wide) 40.dp else 44.dp, fontSize = 12.sp)
+    }
 }
 
 /** Panel derecho: el menú, «Playlists», la lista y los botones de crear e importar. */
@@ -192,7 +195,7 @@ fun ColumnScope.PlaylistsPanelContent(state: AppState) {
     PanelTitle("Playlists", state.playlists.size)
     LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) 12.dp else 10.dp)) {
         items(state.playlists, key = { it.id }) { p ->
-            PlaylistRow(p, onClick = { state.go(Screen.PlaylistDetail(p.id)) }, modifier = itemMotion())
+            PlaylistRow(p, onClick = { state.go(Screen.PlaylistDetail(p.id)) }, modifier = itemMotion(), covers = state.coversOf(p))
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

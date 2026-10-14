@@ -67,8 +67,9 @@ class LibraryLogicTest {
     @Test
     fun lyricsFollowThePosition() {
         val lines = SampleData.lyricsFor("s5")
-        assertEquals(-1, Lyrics.currentIndex(lines, 10))
-        assertEquals(2, Lyrics.currentIndex(lines, 84))
+        assertEquals(6, lines.size)
+        assertEquals(-1, Lyrics.currentIndex(lines, 10_000))
+        assertEquals(2, Lyrics.currentIndex(lines, 84_000))
         assertEquals(1, Lyrics.windowStart(lines, 2))
         assertEquals(2, Lyrics.windowStart(lines, 5), "al final se ven las 4 últimas")
         assertEquals(0, Lyrics.windowStart(lines, -1))

@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -246,29 +247,47 @@ fun HintNote(text: String, modifier: Modifier = Modifier, barColor: Color = Fp.V
 
 // ---------- Carátulas ----------
 
-/** Carátula pequeña: color liso con esquinas un poco redondeadas (3 px). */
+/**
+ * Carátula pequeña con esquinas un poco redondeadas (3 px): la imagen ([image], un archivo o una
+ * dirección) sobre su color, que es lo que se ve mientras carga o si no hay imagen.
+ */
 @Composable
-fun Cover(color: Long, size: Dp, modifier: Modifier = Modifier) {
+fun Cover(color: Long, size: Dp, modifier: Modifier = Modifier, image: String? = null) {
     val c by animateColorAsState(Color(color), fpTween(Motion.SLOW), label = "cover")
-    Box(modifier.size(size).clip(RoundedCornerShape(3.dp)).background(c))
+    Box(modifier.size(size).clip(RoundedCornerShape(3.dp)).background(c)) {
+        CoverImage(image, Modifier.fillMaxSize())
+    }
 }
 
 /**
  * Dos carátulas apiladas (playlists y álbumes): la de atrás, más pequeña y transparente,
- * asoma arriba a la derecha.
+ * asoma arriba a la derecha. [image] es la de delante y [backImage] la de detrás.
  */
 @Composable
-fun StackedCover(color: Long, front: Dp, back: Dp, backX: Dp, frontY: Dp, modifier: Modifier = Modifier) {
+fun StackedCover(
+    color: Long,
+    front: Dp,
+    back: Dp,
+    backX: Dp,
+    frontY: Dp,
+    modifier: Modifier = Modifier,
+    image: String? = null,
+    backImage: String? = image,
+) {
     Box(modifier.size(maxOf(front, backX + back), frontY + front)) {
         Box(
             Modifier.offset(x = backX, y = 0.dp).size(back).clip(RoundedCornerShape(3.dp))
                 .background(Color(color).copy(alpha = 0.45f)),
-        )
+        ) {
+            CoverImage(backImage, Modifier.fillMaxSize().graphicsLayer { alpha = 0.45f })
+        }
         Box(
             Modifier.offset(x = 0.dp, y = frontY).size(front)
                 .shadow(6.dp, RoundedCornerShape(3.dp), ambientColor = Color.Black, spotColor = Color.Black)
                 .clip(RoundedCornerShape(3.dp)).background(Color(color)),
-        )
+        ) {
+            CoverImage(image, Modifier.fillMaxSize())
+        }
     }
 }
 

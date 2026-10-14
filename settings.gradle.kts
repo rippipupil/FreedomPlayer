@@ -25,6 +25,15 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // NewPipe Extractor (y su nanojson) solo se publica en JitPack. Solo esos grupos salen de
+        // ahí, y de ningún otro sitio: así nadie puede colar otra librería con el mismo nombre.
+        exclusiveContent {
+            forRepository { maven("https://jitpack.io") { name = "JitPack" } }
+            filter {
+                includeGroupAndSubgroups("com.github.teamnewpipe")
+                includeGroupAndSubgroups("com.github.TeamNewPipe")
+            }
+        }
     }
 }
 

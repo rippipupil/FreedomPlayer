@@ -83,6 +83,8 @@ fun PlaylistScreen(state: AppState, id: String, modifier: Modifier = Modifier) {
                     back = if (wide) 112.dp else 86.dp,
                     backX = if (wide) 14.dp else 10.dp,
                     frontY = if (wide) 12.dp else 9.dp,
+                    image = songs.firstOrNull { it.cover != null }?.cover,
+                    backImage = songs.filter { it.cover != null }.getOrNull(1)?.cover ?: songs.firstOrNull { it.cover != null }?.cover,
                 )
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Chakra(

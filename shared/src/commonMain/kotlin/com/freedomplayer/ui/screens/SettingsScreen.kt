@@ -62,7 +62,14 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
 
             SectionHeader(next(), "DESCARGAS", Modifier.padding(top = 18.dp))
             SwitchRow("Guardar para escuchar sin conexión", "Audio, carátula y letra se quedan en el dispositivo.", settings.keepOffline, { settings.keepOffline = it })
-            ActionRow(FpIcons.Download, "Carpeta y calidad", "Llega en una próxima versión.") { state.soon("Elegir carpeta y calidad") }
+            ActionRow(FpIcons.Download, "Carpeta y calidad", "Se guarda el mejor audio que da YouTube. Elegir carpeta llega en una próxima versión.") {
+                state.soon("Elegir carpeta y calidad")
+            }
+            if (state.canImportFiles) {
+                ActionRow(FpIcons.Plus, "Añadir tus archivos de audio", "MP3, M4A, FLAC, OGG… Se copian a la biblioteca con su carátula.") {
+                    state.importFiles()
+                }
+            }
 
             if (wide) {
                 SectionHeader(next(), "PC", Modifier.padding(top = 18.dp))
@@ -99,7 +106,11 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Chakra("FREEDOMPLAYER ${LocalAppVersion.current}", 14.sp, color = Fp.Pink, spacing = 2.sp)
                     Nunito(
-                        "Hito 1: la interfaz completa con datos de ejemplo. Todavía no busca, descarga ni reproduce audio de verdad.",
+                        if (state.isDemo) {
+                            "Modo de ejemplo: datos inventados, sin buscar ni descargar de verdad."
+                        } else {
+                            "Busca en YouTube Music y YouTube con NewPipe Extractor, descarga el mejor audio y las letras de LRCLIB."
+                        },
                         12.sp,
                         color = Fp.Mist,
                         lineHeight = 17.sp,

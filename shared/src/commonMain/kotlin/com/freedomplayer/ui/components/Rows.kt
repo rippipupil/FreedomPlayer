@@ -55,7 +55,7 @@ fun SongRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Cover(song.coverColor, coverSize)
+        Cover(song.coverColor, coverSize, image = song.cover)
         Column(Modifier.weight(1f)) {
             SongTitle(song.title, color = titleColor)
             SubText(song.artist)
@@ -64,15 +64,15 @@ fun SongRow(
     }
 }
 
-/** Fila de playlist: dos carátulas apiladas, nombre y «42 CANCIONES». */
+/** Fila de playlist: dos carátulas apiladas (las de sus primeras canciones), nombre y «42 CANCIONES». */
 @Composable
-fun PlaylistRow(playlist: Playlist, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun PlaylistRow(playlist: Playlist, onClick: () -> Unit, modifier: Modifier = Modifier, covers: List<String> = emptyList()) {
     Row(
         modifier.fillMaxWidth().fpClickable(onClickLabel = "Abrir playlist", pressedScale = 0.98f, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        StackedCover(playlist.coverColor, front = 40.dp, back = 38.dp, backX = 6.dp, frontY = 6.dp)
+        StackedCover(playlist.coverColor, front = 40.dp, back = 38.dp, backX = 6.dp, frontY = 6.dp, image = covers.firstOrNull(), backImage = covers.getOrNull(1) ?: covers.firstOrNull())
         Column(Modifier.weight(1f)) {
             SongTitle(playlist.name)
             Chakra(songCount(playlist.songIds.size), 11.sp, color = Fp.Mist, spacing = 1.sp)

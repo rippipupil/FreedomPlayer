@@ -64,7 +64,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.Lyrics
-import com.freedomplayer.core.SampleData
+import com.freedomplayer.core.LyricLine
 import com.freedomplayer.core.Song
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.ui.AppState
@@ -84,6 +84,8 @@ import com.freedomplayer.ui.components.PlayPauseButton
 import com.freedomplayer.ui.components.RepeatButton
 import com.freedomplayer.ui.components.SeekBar
 import com.freedomplayer.ui.components.ShuffleButton
+import com.freedomplayer.ui.components.CoverImage
+import com.freedomplayer.ui.components.coverModel
 import com.freedomplayer.ui.components.StarsView
 import com.freedomplayer.ui.components.cut
 import com.freedomplayer.ui.components.fpFloat
@@ -217,7 +219,7 @@ private fun BigCover(state: AppState, song: Song, size: Dp, modifier: Modifier =
             },
             label = "bigCover",
         ) { s ->
-            CoverArt(s.coverColor, size)
+            CoverArt(s.coverColor, size, s.cover)
         }
         Ghost(
             Mood.Feliz,
@@ -230,10 +232,25 @@ private fun BigCover(state: AppState, song: Song, size: Dp, modifier: Modifier =
     }
 }
 
-/** El dibujo de la carátula del diseño (luna, edificios y destello) sobre el color de la canción. */
+/**
+ * La carátula de la canción con las esquinas cortadas. Sin imagen, el dibujo del diseño (luna,
+ * edificios y destello) sobre el color de la canción.
+ */
 @Composable
-private fun CoverArt(color: Long, size: Dp) {
+private fun CoverArt(color: Long, size: Dp, image: String?) {
     val shape = cut(22.dp * (size / 268.dp))
+    if (coverModel(image) != null) {
+        Box(
+            Modifier
+                .size(size)
+                .shadow(24.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+                .clip(shape)
+                .background(Color(color)),
+        ) {
+            CoverImage(image, Modifier.fillMaxSize())
+        }
+        return
+    }
     val base = Color(color)
     val dark1 = lerp(base, Color.Black, 0.37f)
     val dark2 = lerp(base, Color.Black, 0.5f)
@@ -309,12 +326,13 @@ private fun Modifier.visualHeight(visible: Dp): Modifier = this.layout { measura
 @Composable
 private fun Progress(state: AppState, song: Song, segments: Int) {
     val posSec by remember(state) { derivedStateOf { (state.positionMs / 1000).toInt() } }
+    val total = state.currentDurationSec
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SeekBar(
-            fraction = { state.positionMs / (song.durationSec * 1000f).coerceAtLeast(1f) },
+            fraction = { state.positionMs / (state.currentDurationSec * 1000f).coerceAtLeast(1f) },
             onSeek = { state.seekTo(it) },
             segments = segments,
-            valueText = "${formatTime(posSec)} de ${formatTime(song.durationSec)}",
+            valueText = "${formatTime(posSec)} de ${formatTime(total)}",
             modifier = Modifier.visualHeight(24.dp),
             segmentHeight = 4.dp,
             knob = 12.dp,
@@ -322,7 +340,7 @@ private fun Progress(state: AppState, song: Song, segments: Int) {
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Chakra(formatTime(posSec), 12.sp, color = Fp.Pink, weight = FontWeight.Medium)
-            Chakra(formatTime(song.durationSec), 12.sp, color = Fp.Mist, weight = FontWeight.Medium)
+            Chakra(formatTime(total), 12.sp, color = Fp.Mist, weight = FontWeight.Medium)
         }
     }
 }
@@ -351,10 +369,13 @@ private fun Controls(state: AppState, big: Boolean) {
  */
 @Composable
 private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: Modifier = Modifier, big: Boolean = false) {
-    val lines = remember(song.id) { SampleData.lyricsFor(song.id) }
-    val synced = state.settings.syncedLyrics
-    val posSec by remember(state) { derivedStateOf { (state.positionMs / 1000).toInt() } }
-    val current = if (synced) Lyrics.currentIndex(lines, posSec) else -1
+    val data = state.lyricsFor(song.id)
+    val lines = remember(data) { data?.lines().orEmpty() }
+    // Sin tiempos (o con la letra sincronizada apagada en Ajustes) se ve entera, sin resaltar.
+    val synced = state.settings.syncedLyrics && lines.firstOrNull()?.atMs != LyricLine.UNSYNCED
+    val current by remember(state, lines, synced) {
+        derivedStateOf { if (synced) Lyrics.currentIndex(lines, state.positionMs + 150) else -1 }
+    }
     val start = if (synced) Lyrics.windowStart(lines, current, visibleLines) else 0
     val reduce = LocalReduceMotion.current
     Column(
@@ -370,7 +391,7 @@ private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: 
             Chakra(if (lines.isEmpty()) "LRCLIB" else "LRCLIB · OFFLINE", 11.sp, color = Fp.MistDim, spacing = 3.sp)
         }
         if (lines.isEmpty()) {
-            NoLyrics()
+            NoLyrics(instrumental = data?.instrumental == true, online = state.online)
         } else {
             val scroll = rememberScrollState()
             val tops = remember(song.id) { mutableStateMapOf<Int, Int>() }
@@ -422,9 +443,9 @@ private fun LyricText(text: String, state: LineState, big: Boolean, modifier: Mo
     Nunito(text, size.sp, modifier, color = color, weight = FontWeight.ExtraBold, lineHeight = (size * 1.3f).sp)
 }
 
-/** Sin letra todavía (la busca LRCLIB al descargar). */
+/** Sin letra todavía (la busca LRCLIB al descargar o al escucharla con conexión). */
 @Composable
-private fun ColumnScope.NoLyrics() {
+private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean) {
     Row(
         Modifier.weight(1f).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -432,7 +453,11 @@ private fun ColumnScope.NoLyrics() {
     ) {
         Ghost(Mood.Dormido, 36.dp, Modifier.fpFloat())
         Nunito(
-            "Esta canción no tiene letra todavía. Se busca en LRCLIB al descargarla.",
+            when {
+                instrumental -> "Es instrumental: no tiene letra."
+                online -> "LRCLIB no tiene la letra de esta canción. Se vuelve a mirar dentro de unos días."
+                else -> "Esta canción no tiene letra todavía. Se buscará en LRCLIB cuando haya conexión."
+            },
             13.sp,
             Modifier.widthIn(max = 320.dp),
             color = Fp.Mist,

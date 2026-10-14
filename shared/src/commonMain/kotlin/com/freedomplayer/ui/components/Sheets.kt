@@ -56,7 +56,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.ResultKind
-import com.freedomplayer.core.SampleData
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.core.songCount
 import com.freedomplayer.ui.AddTarget
@@ -109,6 +108,7 @@ fun SheetHost(state: AppState, modifier: Modifier = Modifier) {
             when (current) {
                 is Sheet.Add -> SheetSurface { AddSheet(state, current.target) }
                 is Sheet.More -> SheetSurface { MoreSheet(state) }
+                is Sheet.AddToRanking -> SheetSurface { RankingPicker(state, current.songId) }
                 is Prompt -> SheetSurface { NamePrompt(state, current) }
                 else -> Box(Modifier.size(0.dp))
             }
@@ -212,11 +212,17 @@ private fun ColumnScope.AddSheet(state: AppState, target: AddTarget) {
         UnderlineField(artist, { artist = it }, "Artista", "Artista", leadingIcon = FpIcons.Pencil)
     }
     if (target is AddTarget.Album) {
-        val ids = target.album.songIds
-        val have = ids.count { id -> SampleData.catalog.firstOrNull { it.id == id }?.let { r -> state.librarySongFor(r) } != null }
-        SubText("${songCount(ids.size).lowercase()} · $have ya en tu biblioteca")
+        val tracks = state.albumTracks[target.album.key]
+        if (tracks != null) {
+            val have = tracks.count { state.librarySongFor(it) != null }
+            SubText("${songCount(tracks.size).lowercase()} · $have ya en tu biblioteca")
+        } else {
+            SubText("${target.album.artist} · se descargan todas sus canciones, con carátula y letra.")
+        }
     }
-    if (result != null && !isVideo) SubText("${result.artist} · ${result.album ?: "Sencillo"} · ${formatTime(result.durationSec)}")
+    if (result != null && !isVideo) {
+        SubText(listOfNotNull(result.artist.ifBlank { null }, result.album, formatTime(result.durationSec)).joinToString(" · "))
+    }
     val songId = (target as? AddTarget.LibrarySong)?.songId
     if (target !is AddTarget.LibrarySong) {
         OptionRow(FpIcons.Download, "Solo a la biblioteca", "Se descarga con carátula y letra.") {
@@ -232,6 +238,7 @@ private fun ColumnScope.AddSheet(state: AppState, target: AddTarget) {
                     p,
                     onClick = { if (!already) state.confirmAdd(target, p.id, title, artist) },
                     modifier = Modifier.weight(1f),
+                    covers = state.coversOf(p),
                 )
                 if (already) InLibraryBadge(text = "YA ESTÁ")
             }
@@ -256,10 +263,49 @@ private fun ColumnScope.MoreSheet(state: AppState) {
             state.rankTab = RankTab.General
             state.editingScoreId = song.id
         }
+        OptionRow(FpIcons.Ranking, "Añadir a un ranking tuyo", "«Top gym», «Para noches tristes»…") {
+            state.sheet = Sheet.AddToRanking(song.id)
+        }
     }
     OptionRow(FpIcons.Pencil, "Editar datos de la canción", "Llega en una próxima versión.") { state.soon("Editar los datos") }
     OptionRow(FpIcons.Queue, "Ver la cola", "Llega en una próxima versión.") { state.soon("La cola") }
     SecondaryButton("CERRAR", { state.sheet = null }, Modifier.fillMaxWidth(), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
+}
+
+/** Elegir un ranking personal para la canción (o crear uno nuevo con ella). */
+@Composable
+private fun ColumnScope.RankingPicker(state: AppState, songId: String) {
+    SheetHeader("AÑADIR A UN RANKING", state.song(songId)?.title ?: "")
+    if (state.rankings.isEmpty()) {
+        SubText("Todavía no tienes rankings propios. Crea el primero con esta canción.")
+    } else {
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 250.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(state.rankings, key = { it.id }) { r ->
+                val already = songId in r.songIds
+                val first = state.song(r.songIds.firstOrNull())
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .fpClickable(enabled = !already, pressedScale = 0.98f) { state.addToRanking(r.id, songId) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Cover(first?.coverColor ?: 0xFF241A38, 34.dp, image = first?.cover)
+                    Column(Modifier.weight(1f)) {
+                        Nunito(r.name, 14.sp, weight = FontWeight.ExtraBold, maxLines = 1)
+                        Chakra(songCount(r.songIds.size), 11.sp, color = Fp.Mist, spacing = 1.sp)
+                    }
+                    if (already) InLibraryBadge(text = "YA ESTÁ")
+                }
+            }
+        }
+    }
+    OptionRow(FpIcons.Plus, "Nuevo ranking…") {
+        state.sheet = null
+        state.prompt = Prompt.NewRankingWith(songId)
+    }
+    SecondaryButton("CANCELAR", { state.sheet = null }, Modifier.fillMaxWidth(), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
 }
 
 /** Nombre de una playlist o un ranking nuevo. */

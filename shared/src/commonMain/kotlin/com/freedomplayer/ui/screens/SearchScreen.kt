@@ -33,12 +33,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -55,19 +57,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.ResultKind
-import com.freedomplayer.core.SampleData
-import com.freedomplayer.core.Search
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.core.songCount
 import com.freedomplayer.ui.AddTarget
+import com.freedomplayer.data.FailureKind
+import com.freedomplayer.data.explain
 import com.freedomplayer.ui.AppState
+import com.freedomplayer.ui.TabResults
 import com.freedomplayer.ui.Screen
 import com.freedomplayer.ui.SearchTab
 import com.freedomplayer.ui.Side
 import com.freedomplayer.ui.components.AddButton
 import com.freedomplayer.ui.components.AddState
 import com.freedomplayer.ui.components.Chakra
+import com.freedomplayer.ui.components.CoverImage
 import com.freedomplayer.ui.components.EmptyState
 import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
@@ -170,41 +174,73 @@ private fun PaddingValues.sidesOnly(top: Dp = 0.dp, bottom: Dp = 0.dp): PaddingV
         bottom = bottom,
     )
 
+/**
+ * Qué enseña una pestaña: buscando (filas fantasma), el error con «REINTENTAR», «Nada por aquí»
+ * o los resultados. Mientras llega una búsqueda nueva se siguen viendo los anteriores.
+ */
+@Composable
+private fun <T> TabContent(
+    state: AppState,
+    tab: SearchTab,
+    results: TabResults<T>,
+    pad: PaddingValues,
+    skeleton: @Composable () -> Unit,
+    content: @Composable (List<T>) -> Unit,
+) {
+    val q = state.query.trim()
+    val error = results.error
+    val fresh = results.query == q
+    Crossfade(
+        targetState = when {
+            q.isEmpty() -> 0
+            error != null && fresh -> 1
+            results.items.isNotEmpty() -> 2
+            results.loading || !fresh -> 3
+            else -> 0
+        },
+        animationSpec = tween(Motion.STANDARD),
+        label = "searchState",
+    ) { mode ->
+        when (mode) {
+            1 -> SearchFailed(state, error ?: FailureKind.Unknown, pad)
+            2 -> content(results.items)
+            3 -> Box(Modifier.padding(pad)) { skeleton() }
+            else -> NoResults(state, tab, pad)
+        }
+    }
+}
+
 @Composable
 private fun SongResults(state: AppState, pad: PaddingValues) {
-    val results by remember(state) { derivedStateOf { Search.results(SampleData.catalog, state.query, ResultKind.Cancion) } }
-    if (results.isEmpty()) {
-        NoResults(state, SearchTab.Songs, pad)
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        items(results, key = { it.id }) { r ->
-            ResultRow(state, r, itemMotion())
+    TabContent(state, SearchTab.Songs, state.songResults, pad, skeleton = { SkeletonRows(48.dp, 48.dp, gap = 14.dp) }) { results ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            items(results, key = { it.id }) { r ->
+                ResultRow(state, r, itemMotion())
+            }
         }
     }
 }
 
 @Composable
 private fun AlbumResults(state: AppState, pad: PaddingValues) {
-    val albums by remember(state) { derivedStateOf { Search.albums(SampleData.albums, SampleData.catalog, state.query) } }
-    if (albums.isEmpty()) {
-        NoResults(state, SearchTab.Albums, pad)
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        items(albums, key = { it.title }) { album ->
-            AlbumRow(state, album, itemMotion())
+    TabContent(state, SearchTab.Albums, state.albumResults, pad, skeleton = { SkeletonRows(76.dp, 76.dp, gap = 24.dp, rows = 4) }) { albums ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(albums, key = { it.key }) { album ->
+                AlbumRow(state, album, itemMotion())
+            }
         }
     }
 }
 
 @Composable
 private fun VideoResults(state: AppState, pad: PaddingValues) {
-    val videos by remember(state) { derivedStateOf { Search.results(SampleData.catalog, state.query, ResultKind.Video) } }
-    if (videos.isEmpty()) {
-        NoResults(state, SearchTab.Videos, pad)
-        return
+    TabContent(state, SearchTab.Videos, state.videoResults, pad, skeleton = { SkeletonRows(96.dp, 54.dp, gap = 16.dp, rows = 5) }) { videos ->
+        VideoList(state, videos, pad)
     }
+}
+
+@Composable
+private fun VideoList(state: AppState, videos: List<SearchResult>, pad: PaddingValues) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item(key = "note") {
             HintNote("YouTube normal: directos, remixes y covers que no están en YouTube Music.", barColor = Fp.Violet)
@@ -237,6 +273,7 @@ private fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Mod
     ) {
         PreviewCover(
             color = r.coverColor,
+            image = r.cover,
             width = 48.dp,
             height = 48.dp,
             previewing = previewing,
@@ -254,7 +291,7 @@ private fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Mod
                 ) { state.togglePreview(r) },
         ) {
             Nunito(r.title, 14.sp, color = if (previewing) Fp.NeonSoft else Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
-            SubText("${r.artist} · ${r.album ?: "Sencillo"} · ${formatTime(r.durationSec)}")
+            SubText(listOfNotNull(r.artist.ifBlank { null }, r.album, formatTime(r.durationSec)).joinToString(" · "))
         }
         if (inLibrary) {
             InLibraryBadge()
@@ -271,6 +308,7 @@ private fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Mod
 @Composable
 private fun PreviewCover(
     color: Long,
+    image: String?,
     width: Dp,
     height: Dp,
     previewing: Boolean,
@@ -301,6 +339,11 @@ private fun PreviewCover(
             .background(Color(color)),
         contentAlignment = Alignment.Center,
     ) {
+        if (image != null) {
+            CoverImage(image, Modifier.fillMaxSize())
+            // Un velo para que el ▶ se vea sobre cualquier imagen.
+            Box(Modifier.fillMaxSize().background(Color(0x5908050E)))
+        }
         content()
         Crossfade(targetState = previewing, animationSpec = tween(Motion.QUICK), label = "previewIcon") { on ->
             if (on) {
@@ -354,15 +397,16 @@ private fun EqCanvas(level: (Int) -> Float) {
 /** Fila de álbum: carátulas apiladas, título, «ARTISTA · AÑO · N CANCIONES» y «+ ÁLBUM ENTERO». */
 @Composable
 private fun AlbumRow(state: AppState, album: AlbumResult, modifier: Modifier = Modifier) {
-    val results = album.songIds.mapNotNull { id -> SampleData.catalog.firstOrNull { it.id == id } }
-    val have = results.count { state.librarySongFor(it) != null }
+    LaunchedEffect(album.key) { state.loadAlbumTracks(album) }
+    val results = state.albumTracks[album.key]
+    val have = results?.count { state.librarySongFor(it) != null } ?: 0
     val job = state.albumJob(album)
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        StackedCover(album.coverColor, front = 76.dp, back = 74.dp, backX = 8.dp, frontY = 9.dp)
+        StackedCover(album.coverColor, front = 76.dp, back = 74.dp, backX = 8.dp, frontY = 9.dp, image = album.cover)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Nunito(album.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 1)
             Chakra(
-                "${album.artist.uppercase()} · ${album.year} · ${songCount(album.songIds.size)}",
+                listOfNotNull(album.artist.uppercase().ifBlank { null }, album.year, results?.let { songCount(it.size) } ?: "ÁLBUM").joinToString(" · "),
                 11.sp,
                 color = Fp.Mist,
                 spacing = 1.sp,
@@ -371,7 +415,7 @@ private fun AlbumRow(state: AppState, album: AlbumResult, modifier: Modifier = M
             Crossfade(
                 targetState = when {
                     job != null -> 1
-                    have == results.size && results.isNotEmpty() -> 2
+                    results != null && have == results.size && results.isNotEmpty() -> 2
                     else -> 0
                 },
                 animationSpec = tween(Motion.STANDARD),
@@ -382,13 +426,17 @@ private fun AlbumRow(state: AppState, album: AlbumResult, modifier: Modifier = M
                         val j = state.albumJob(album)
                         Column(Modifier.heightIn(min = 44.dp), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
                             Chakra(
-                                if (j == null) "LISTO" else "DESCARGANDO ${minOf(j.done + 1, j.total)} DE ${j.total}",
+                                when {
+                                    j == null -> "LISTO"
+                                    j.resolving -> "BUSCANDO CANCIONES…"
+                                    else -> "DESCARGANDO ${minOf(j.done + 1, j.total)} DE ${j.total}"
+                                },
                                 11.sp,
                                 color = Fp.JadeLight,
                                 spacing = 1.5.sp,
                             )
                             SegmentBar(
-                                count = (j?.total ?: 1).coerceIn(4, 24),
+                                count = (j?.total ?: 12).coerceIn(4, 24),
                                 fraction = j?.fraction ?: 1f,
                                 modifier = Modifier.widthIn(max = 180.dp),
                                 color = Fp.Jade,
@@ -421,6 +469,7 @@ private fun VideoRow(state: AppState, v: SearchResult, modifier: Modifier = Modi
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         PreviewCover(
             color = v.coverColor,
+            image = v.cover,
             width = 96.dp,
             height = 54.dp,
             previewing = previewing,
@@ -509,5 +558,55 @@ private fun SpotifyLink(onClick: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         FpIconView(FpIcons.Link, 18.dp, Fp.JadeLight)
         Chakra("PEGAR PLAYLIST DE SPOTIFY", 12.sp, color = Fp.JadeLight, spacing = 1.5.sp)
+    }
+}
+
+/**
+ * Mientras se busca: filas fantasma (carátula y dos rayas) que laten despacio. Quietas si se
+ * reduce el movimiento.
+ */
+@Composable
+private fun SkeletonRows(coverWidth: Dp, coverHeight: Dp, gap: Dp, rows: Int = 7) {
+    val reduce = LocalReduceMotion.current
+    val pulse = if (reduce) {
+        null
+    } else {
+        rememberInfiniteTransition(label = "skeleton").animateFloat(
+            initialValue = 0.45f,
+            targetValue = 0.9f,
+            animationSpec = infiniteRepeatable(tween(900, easing = Motion.EaseInOut), RepeatMode.Reverse),
+            label = "skeletonAlpha",
+        )
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .graphicsLayer { alpha = pulse?.value ?: 0.7f }
+            .semantics { contentDescription = "Buscando" },
+        verticalArrangement = Arrangement.spacedBy(gap),
+    ) {
+        Chakra("BUSCANDO…", 11.sp, color = Fp.Mist, spacing = 3.sp)
+        repeat(rows) { i ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(coverWidth, coverHeight).clip(RoundedCornerShape(3.dp)).background(Fp.Panel))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.fillMaxWidth(if (i % 2 == 0) 0.7f else 0.55f).height(11.dp).background(Fp.Panel))
+                    Box(Modifier.fillMaxWidth(if (i % 3 == 0) 0.45f else 0.35f).height(9.dp).background(Fp.Panel.copy(alpha = 0.7f)))
+                }
+            }
+        }
+    }
+}
+
+/** La búsqueda ha fallado: qué ha pasado y «REINTENTAR». */
+@Composable
+private fun SearchFailed(state: AppState, kind: FailureKind, pad: PaddingValues) {
+    EmptyState(
+        title = "No se pudo buscar",
+        body = kind.explain(),
+        modifier = Modifier.padding(pad),
+        ghosts = { Ghost(Mood.Triste, 52.dp, Modifier.fpBob()) },
+    ) {
+        PrimaryButton("REINTENTAR", { state.retrySearch() }, Modifier.width(220.dp), fill = true)
     }
 }

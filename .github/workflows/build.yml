@@ -61,6 +61,36 @@ jobs:
           path: shared/build/reports/tests/
           if-no-files-found: ignore
 
+  # YouTube y LRCLIB de verdad: buscar, sacar el audio y pedir una letra. Solo avisa: YouTube a
+  # veces bloquea los servidores de GitHub, y eso no debe parar una compilación.
+  red:
+    name: YouTube y LRCLIB (solo aviso)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Buscar, escuchar y letras
+        run: ./gradlew -Pfp.android=false :shared:networkSmoke 2>&1 | tee red.log
+
+      - name: Resumen
+        if: always()
+        run: |
+          msg="$(grep -E '^(OK|FALLO)' red.log | sed -e 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }')"
+          if grep -q '^FALLO' red.log || ! grep -q '^Todo bien' red.log; then
+            echo "::warning title=YouTube o LRCLIB (desde GitHub)::$msg"
+          else
+            echo "::notice title=YouTube y LRCLIB responden::$msg"
+          fi
+
   android:
     name: Android (APK)
     runs-on: ubuntu-latest
@@ -80,7 +110,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="0.1.${GITHUB_RUN_NUMBER}"
+            version="0.2.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"
@@ -202,7 +232,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="0.1.${GITHUB_RUN_NUMBER}"
+            version="0.2.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"

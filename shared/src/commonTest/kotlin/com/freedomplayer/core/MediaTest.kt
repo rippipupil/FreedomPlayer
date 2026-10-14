@@ -1,0 +1,68 @@
+package com.freedomplayer.core
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/** Elegir el audio que se descarga, la letra de LRCLIB y los ids de YouTube. */
+class MediaTest {
+    private fun option(ext: String, kbps: Int, progressive: Boolean = true, original: Boolean = true) =
+        AudioOption("https://example.invalid/$ext$kbps", "audio/$ext", ext, kbps * 1000, progressive, original = original)
+
+    @Test
+    fun bestAudioIsTheOriginalTrackWithMoreQuality() {
+        val opus = option("webm", 160)
+        val aac = option("m4a", 128)
+        assertEquals(opus, AudioPicker.best(listOf(aac, opus, option("webm", 70))))
+        assertEquals(aac, AudioPicker.best(listOf(aac, option("webm", 256, original = false))), "nunca la doblada si hay original")
+        assertEquals(aac, AudioPicker.best(listOf(aac, option("webm", 300, progressive = false))), "los manifiestos no se descargan")
+        assertEquals(option("m4a", 128), AudioPicker.best(listOf(option("webm", 128), option("m4a", 128))), "empate: m4a")
+        assertNull(AudioPicker.best(listOf(option("webm", 160, progressive = false))))
+        assertNull(AudioPicker.best(emptyList()))
+    }
+
+    private fun lyric(track: String, artist: String, sec: Double, synced: Boolean = true, plain: Boolean = true) =
+        LyricsCandidate(track, artist, null, sec, if (synced) "[00:01.00] x" else null, if (plain) "x" else null, false)
+
+    @Test
+    fun lyricsMatchArtistAndDurationAndPreferSynced() {
+        val right = lyric("Luz de farola", "Ghostline", 167.0)
+        val plainOnly = lyric("Luz de farola", "Ghostline", 167.0, synced = false)
+        val otherArtist = lyric("Luz de farola", "Otro", 167.0)
+        val tooLong = lyric("Luz de farola", "Ghostline", 175.0)
+        assertEquals(right, LyricsMatch.best(listOf(plainOnly, otherArtist, tooLong, right), "Luz de farola", "Ghostline", 168))
+        assertEquals(plainOnly, LyricsMatch.best(listOf(plainOnly, tooLong), "Luz de farola", "Ghostline", 168))
+        assertNull(LyricsMatch.best(listOf(otherArtist, tooLong), "Luz de farola", "Ghostline", 168))
+        assertEquals(tooLong, LyricsMatch.best(listOf(tooLong), "Luz de farola", "Ghostline", 0), "sin duración no se filtra por ella")
+        assertNull(LyricsMatch.best(listOf(lyric("Luz", "Ghostline", 167.0, synced = false, plain = false)), "Luz", "Ghostline", 167))
+    }
+
+    @Test
+    fun youtubeIdsComeFromAnyLink() {
+        assertEquals("dQw4w9WgXcQ", SongIds.videoIdOf("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVM"))
+        assertEquals("dQw4w9WgXcQ", SongIds.videoIdOf("https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ"))
+        assertEquals("dQw4w9WgXcQ", SongIds.videoIdOf("https://youtu.be/dQw4w9WgXcQ?t=4"))
+        assertEquals("yt:dQw4w9WgXcQ", SongIds.fromUrl("https://www.youtube.com/shorts/dQw4w9WgXcQ"))
+        assertNull(SongIds.videoIdOf("https://music.youtube.com/playlist?list=OLAK5uy_abc"))
+        assertTrue(SongIds.isLocal(SongIds.local("123")))
+    }
+
+    @Test
+    fun bigNumbersAreShort() {
+        assertEquals("950", compactCount(950))
+        assertEquals("1,2 k", compactCount(1_234))
+        assertEquals("88 k", compactCount(88_000))
+        assertEquals("999 k", compactCount(999_400))
+        assertEquals("1 M", compactCount(999_600))
+        assertEquals("1,2 M", compactCount(1_200_000))
+        assertEquals("640 M", compactCount(640_000_000))
+        assertEquals("2,1 mil M", compactCount(2_100_000_000))
+    }
+
+    @Test
+    fun coverColorsAreStablePerId() {
+        assertEquals(CoverPalette.forKey("yt:abc"), CoverPalette.forKey("yt:abc"))
+        assertTrue(CoverPalette.forKey("yt:xyz") in CoverPalette.colors)
+    }
+}

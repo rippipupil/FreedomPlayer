@@ -220,7 +220,7 @@ private fun TopSongRow(position: Int, song: Song, plays: Int, modifier: Modifier
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Position(position, Fp.Neon, 16.sp, 24.dp)
-        Cover(song.coverColor, 40.dp)
+        Cover(song.coverColor, 40.dp, image = song.cover)
         Column(Modifier.weight(1f)) {
             Nunito(song.title, 14.sp, weight = FontWeight.ExtraBold, maxLines = 1)
             SubText(song.artist)

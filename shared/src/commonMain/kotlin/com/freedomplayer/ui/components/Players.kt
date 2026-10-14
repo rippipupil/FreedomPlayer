@@ -65,13 +65,17 @@ data class NowPlaying(
     val isPreview: Boolean,
     val coverColor: Long,
     val durationSec: Int,
+    val cover: String? = null,
 )
 
 fun AppState.nowPlaying(): NowPlaying? {
     val p = preview
-    if (p != null) return NowPlaying(p.id, p.title, "Vista previa", true, p.coverColor, p.durationSec)
+    if (p != null) {
+        val sec = if (previewDurationMs > 0) ((previewDurationMs + 500) / 1000).toInt() else p.durationSec
+        return NowPlaying(p.id, p.title, "Vista previa", true, p.coverColor, sec, p.cover)
+    }
     val s = currentSong ?: return null
-    return NowPlaying(s.id, s.title, s.artist, false, s.coverColor, s.durationSec)
+    return NowPlaying(s.id, s.title, s.artist, false, s.coverColor, currentDurationSec, s.cover)
 }
 
 fun AppState.nowPositionMs(): Long = if (preview != null) previewPositionMs else positionMs
@@ -226,6 +230,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                 Modifier
                     .fpClickable(enabled = !now.isPreview, onClick = onOpen)
                     .semantics { contentDescription = "Abrir reproductor" },
+                image = now.cover,
             )
             Box(
                 Modifier
@@ -292,7 +297,7 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Box {
-                    Cover(now?.coverColor ?: 0xFF241A38, 56.dp)
+                    Cover(now?.coverColor ?: 0xFF241A38, 56.dp, image = now?.cover)
                     Ghost(Mood.Contento, 30.dp, Modifier.offset(x = 40.dp, y = (-20).dp).fpFloat().fpHop(state.reaction))
                 }
                 AnimatedContent(

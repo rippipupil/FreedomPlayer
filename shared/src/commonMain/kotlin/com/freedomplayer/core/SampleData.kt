@@ -87,19 +87,26 @@ object SampleData {
         AlbumResult("Rosa", "Lumen Club", "2025", 0xFF7A1F55, listOf("s4", "s5", "c3", "c5")),
     )
 
-    /** Letra sincronizada de ejemplo (la del tablero del reproductor). */
+    /** Letra sincronizada de ejemplo (la del tablero del reproductor), en LRC como la da LRCLIB. */
     private val lyrics = mapOf(
-        "s5" to listOf(
-            LyricLine(60, "Bajo la luz de la farola"),
-            LyricLine(72, "nadie ve lo que yo veo"),
-            LyricLine(84, "un fantasma rosa me saluda"),
-            LyricLine(96, "y se esconde en el neón"),
-            LyricLine(108, "cuando apagan la ciudad"),
-            LyricLine(120, "sigue brillando en el callejón"),
+        "s5" to LyricsData(
+            synced = """
+                [ar:Lumen Club]
+                [ti:Fantasma rosa]
+                [01:00.00] Bajo la luz de la farola
+                [01:12.00] nadie ve lo que yo veo
+                [01:24.00] un fantasma rosa me saluda
+                [01:36.00] y se esconde en el neón
+                [01:48.00] cuando apagan la ciudad
+                [02:00.00] sigue brillando en el callejón
+            """.trimIndent(),
+            plain = null,
         ),
     )
 
-    fun lyricsFor(songId: String): List<LyricLine> = lyrics[songId].orEmpty()
+    fun lyricsData(songId: String): LyricsData? = lyrics[songId]
+
+    fun lyricsFor(songId: String): List<LyricLine> = lyrics[songId]?.lines().orEmpty()
 
     /** Lo que «devuelve» Spotify al pegar cualquier enlace de playlist mientras no esté la importación real. */
     const val SPOTIFY_PLAYLIST_NAME = "Noches en el coche"

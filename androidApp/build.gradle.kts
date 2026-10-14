@@ -28,8 +28,8 @@ if (releaseKeystore != null && !signWithReleaseKey) {
 
 val buildNumber = env("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
-// En una etiqueta vX.Y.Z el workflow pone FP_VERSION=X.Y.Z; si no, «0.1.<n.º de compilación>».
-val appVersion = env("FP_VERSION") ?: "0.1.$buildNumber"
+// En una etiqueta vX.Y.Z el workflow pone FP_VERSION=X.Y.Z; si no, «0.2.<n.º de compilación>».
+val appVersion = env("FP_VERSION") ?: "0.2.$buildNumber"
 
 android {
     namespace = "com.freedomplayer.android"
@@ -64,14 +64,27 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // NewPipe Extractor usa java.nio y java.time, que en Android anterior al 13 no están
+        // enteros: se completan al compilar («desugaring», como pide NewPipe).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        resources.excludes += listOf(
+            "/META-INF/{AL2.0,LGPL2.1}",
+            "/META-INF/DEPENDENCIES",
+            "/META-INF/LICENSE*",
+            "/META-INF/NOTICE*",
+            "/META-INF/*.md",
+        )
     }
 }
 
 dependencies {
     implementation(project(":shared"))
     implementation("androidx.activity:activity-compose:1.10.1")
+    // Reproducción: ExoPlayer y la sesión multimedia (notificación, bloqueo, auriculares).
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation("androidx.media3:media3-session:1.8.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 }

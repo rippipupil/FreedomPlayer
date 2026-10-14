@@ -14,18 +14,37 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.media3.session.MediaController
+import com.freedomplayer.android.playback.PlaybackService
+import com.freedomplayer.platform.AndroidLibrary
 import com.freedomplayer.ui.App
 import com.freedomplayer.ui.AppState
-
-/** El estado vive mientras viva el proceso: girar la pantalla o cambiar el tema no lo pierde. */
-private object StateHolder {
-    val state: AppState by lazy { AppState() }
-}
+import com.freedomplayer.ui.components.Mood
+import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private val state: AppState get() = StateHolder.state
+    /** El estado es del proceso ([FreedomApp]): girar la pantalla o cambiar el tema no lo pierde. */
+    private val app: FreedomApp get() = application as FreedomApp
+    private val state: AppState get() = app.state
     private val main = Handler(Looper.getMainLooper())
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var playback: ListenableFuture<MediaController>? = null
+
+    /** «Añadir tus archivos de audio»: el selector de archivos del sistema, solo audio. */
+    private val pickAudio = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@registerForActivityResult
+        val s = state
+        s.toast(if (uris.size == 1) "Añadiendo el archivo…" else "Añadiendo ${uris.size} archivos…", Mood.Owo)
+        // En el ámbito de la app: si se sale de la pantalla a mitad, la copia sigue.
+        app.scope.launch {
+            val (songs, failed) = AudioImporter(applicationContext, AndroidLibrary.dirs(applicationContext)).import(uris)
+            s.addImported(songs, failed)
+        }
+    }
+
+    private val openPicker: () -> Unit = { pickAudio.launch(arrayOf("audio/*")) }
 
     /** «Quitar animaciones» de Android pone la escala de animaciones a 0: entonces se reduce el movimiento. */
     private val animationObserver = object : ContentObserver(main) {
@@ -43,12 +62,20 @@ class MainActivity : ComponentActivity() {
         setContent {
             // Atrás cierra lo que esté abierto (hojas, paneles, reproductor…) antes de salir de la app.
             BackHandler(enabled = state.canGoBack) { state.back() }
-            App(state = state, wide = false, version = version)
+            App(state = state, wide = false, version = version, runLoop = false)
         }
+        state.fileImporter = openPicker
+    }
+
+    override fun onDestroy() {
+        if (state.fileImporter === openPicker) state.fileImporter = null
+        super.onDestroy()
     }
 
     override fun onStart() {
         super.onStart()
+        // Mientras se ve la app, conectada al servicio de reproducción (notificación, bloqueo…).
+        playback = PlaybackService.connect(this)
         readReduceMotion()
         contentResolver.registerContentObserver(
             Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
@@ -59,6 +86,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        PlaybackService.disconnect(playback)
+        playback = null
         contentResolver.unregisterContentObserver(animationObserver)
         networkCallback?.let { cb ->
             runCatching { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) }

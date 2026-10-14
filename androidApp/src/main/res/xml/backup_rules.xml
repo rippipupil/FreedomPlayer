@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copia de seguridad en la nube (Android 11 o anterior): la música no cabe en los 25 MB que da
+     Google, y la biblioteca sin sus archivos no sirve, así que no se copia nada de la biblioteca. -->
+<full-backup-content>
+    <exclude domain="file" path="biblioteca/" />
+    <exclude domain="database" path="freedomplayer.db" />
+    <exclude domain="database" path="freedomplayer.db-wal" />
+    <exclude domain="database" path="freedomplayer.db-shm" />
+    <exclude domain="database" path="freedomplayer.db-journal" />
+</full-backup-content>

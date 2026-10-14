@@ -281,7 +281,7 @@ private fun GeneralRow(
                 align = TextAlign.Center,
             )
             Box {
-                Cover(song.coverColor, 40.dp)
+                Cover(song.coverColor, 40.dp, image = song.cover)
                 if (first) {
                     Ghost(Mood.Owo, 24.dp, Modifier.offset(x = 18.dp, y = (-16).dp).fpFloat())
                 }
@@ -361,7 +361,7 @@ private fun MineList(state: AppState, pad: PaddingValues) {
                 item(key = "empty-" + open.id) {
                     CardPiece(modifier = itemMotion()) {
                         Nunito(
-                            "Este ranking está vacío. Añadir canciones a un ranking llega en una próxima versión.",
+                            "Este ranking está vacío. Añade canciones desde «⋯» del reproductor: «Añadir a un ranking tuyo».",
                             13.sp,
                             Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                             color = Fp.Mist,
@@ -538,7 +538,7 @@ private fun MineRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Position(index + 1, Fp.Neon, 16.sp, 20.dp)
-        Cover(song.coverColor, 34.dp)
+        Cover(song.coverColor, 34.dp, image = song.cover)
         Nunito(
             song.title,
             14.sp,
@@ -563,7 +563,8 @@ private fun MineRow(
 /** Otro ranking, plegado: carátula, nombre y «10 CANCIONES». Tocarlo lo abre arriba. */
 @Composable
 private fun OtherRanking(state: AppState, ranking: CustomRanking, modifier: Modifier = Modifier) {
-    val cover = state.song(ranking.songIds.firstOrNull())?.coverColor ?: 0xFF241A38
+    val first = state.song(ranking.songIds.firstOrNull())
+    val cover = first?.coverColor ?: 0xFF241A38
     Row(
         modifier
             .fillMaxWidth()
@@ -575,7 +576,7 @@ private fun OtherRanking(state: AppState, ranking: CustomRanking, modifier: Modi
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Cover(cover, 34.dp)
+        Cover(cover, 34.dp, image = first?.cover)
         Column(Modifier.weight(1f)) {
             Nunito(ranking.name, 14.sp, weight = FontWeight.ExtraBold, maxLines = 1)
             Chakra(songCount(ranking.songIds.size), 11.sp, color = Fp.Mist, spacing = 1.sp)
@@ -631,7 +632,7 @@ private fun UnratedRow(state: AppState, song: Song, wide: Boolean, modifier: Mod
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Cover(song.coverColor, 40.dp)
+            Cover(song.coverColor, 40.dp, image = song.cover)
             Column(Modifier.weight(1f)) {
                 Nunito(song.title, 14.sp, weight = FontWeight.ExtraBold, maxLines = 1)
                 SubText("${song.artist} · ${song.plays} ${if (song.plays == 1) "escucha" else "escuchas"}")

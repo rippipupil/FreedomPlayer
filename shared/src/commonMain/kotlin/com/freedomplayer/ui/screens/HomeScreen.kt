@@ -49,7 +49,9 @@ import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.Screen
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.Cover
+import com.freedomplayer.ui.components.CoverImage
 import com.freedomplayer.ui.components.EmptyState
+import com.freedomplayer.ui.components.HintNote
 import com.freedomplayer.ui.components.Ghost
 import com.freedomplayer.ui.components.Mood
 import com.freedomplayer.ui.components.Motion
@@ -88,10 +90,10 @@ private fun rememberHomeData(state: AppState, recentCount: Int): HomeData {
         derivedStateOf {
             val library = state.library
             HomeData(
-                // Recientes = lo último que ha sonado.
-                recent = Stats.recentlyPlayed(library, state.playLog, recentCount),
+                // Recientes = lo último que ha sonado (historial guardado).
+                recent = state.recentSongs(recentCount),
                 // Más escuchadas = las de los últimos 30 días.
-                most = Stats.mostPlayedRecently(library, state.playLog, nowMillis(), days = 30, top = 3),
+                most = state.mostPlayed(days = 30, top = 3),
                 top = Ranking.general(library).take(3),
             )
         }
@@ -181,6 +183,11 @@ private fun HomeMobile(state: AppState, modifier: Modifier) {
         item(key = "mostHeader") {
             SectionHeader("02", "MÁS ESCUCHADAS", Modifier.padding(bottom = 9.dp))
         }
+        if (data.most.isEmpty()) {
+            item(key = "mostEmpty") {
+                HintNote("Aquí salen las que más escuchas en los últimos 30 días.", Modifier.padding(bottom = 8.dp))
+            }
+        }
         itemsIndexed(data.most, key = { _, p -> "most-" + p.first.id }) { i, (song, count) ->
             MostPlayedRow(
                 position = i + 1,
@@ -226,6 +233,7 @@ private fun HomeWide(state: AppState, modifier: Modifier) {
             val most: @Composable (Modifier) -> Unit = { m ->
                 Column(m, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SectionHeader("02", "MÁS ESCUCHADAS", Modifier.padding(bottom = 2.dp))
+                    if (data.most.isEmpty()) HintNote("Aquí salen las que más escuchas en los últimos 30 días.")
                     data.most.forEachIndexed { i, (song, count) ->
                         androidx.compose.runtime.key(song.id) {
                             MostPlayedRow(
@@ -278,6 +286,10 @@ private val Tilts = listOf(-3f to 0, 2f to 6, -1.5f to 0, 2.5f to 4, -2f to 6, 1
  */
 @Composable
 private fun RecentRow(state: AppState, recent: List<Song>, cover: Dp, gap: Dp) {
+    if (recent.isEmpty()) {
+        HintNote("Aún no ha sonado nada. Toca una canción en el panel de la izquierda y aparecerá aquí.")
+        return
+    }
     val ids = recent.map { it.id }
     val wide = LocalWide.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -323,7 +335,9 @@ private fun PinnedCard(song: Song, size: Dp, tilt: Float, drop: Dp, onClick: () 
                     .shadow(if (wide) 16.dp else 12.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
                     .clip(shape)
                     .background(Color(song.coverColor)),
-            )
+            ) {
+                CoverImage(song.cover, Modifier.fillMaxSize())
+            }
             // La chincheta.
             val pin = if (wide) 12.dp else 10.dp
             Box(
@@ -361,7 +375,7 @@ private fun MostPlayedRow(position: Int, song: Song, count: Int, playing: Boolea
         horizontalArrangement = Arrangement.spacedBy(if (wide) 14.dp else 12.dp),
     ) {
         Position(position, Fp.MostPlayedPos.getOrElse(position - 1) { Fp.MistDim }, 20.sp, if (wide) 24.dp else 22.dp)
-        Cover(song.coverColor, if (wide) 40.dp else 42.dp)
+        Cover(song.coverColor, if (wide) 40.dp else 42.dp, image = song.cover)
         Column(Modifier.weight(1f)) {
             Nunito(song.title, 14.sp, color = if (playing) Fp.NeonSoft else Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
             SubText(song.artist)

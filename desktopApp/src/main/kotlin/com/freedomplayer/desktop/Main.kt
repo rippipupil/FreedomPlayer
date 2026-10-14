@@ -57,6 +57,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.isTraySupported
 import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
+import com.freedomplayer.platform.DesktopLibrary
 import com.freedomplayer.ui.App
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.components.Chakra
@@ -86,7 +87,7 @@ import java.awt.Rectangle
  * mini-reproductor flotante.
  */
 fun main() = application {
-    val state = remember { AppState() }
+    val state = remember { AppState(System.currentTimeMillis(), DesktopLibrary.services(SilentEngine())) }
     var mainVisible by remember { mutableStateOf(true) }
     var miniOpen by remember { mutableStateOf(false) }
     var trayNoticeShown by remember { mutableStateOf(false) }

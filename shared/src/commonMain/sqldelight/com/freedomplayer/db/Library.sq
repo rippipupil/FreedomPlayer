@@ -1,0 +1,189 @@
+-- La biblioteca de FreedomPlayer: canciones, playlists, rankings, escuchas, letras y ajustes.
+
+CREATE TABLE song (
+    id TEXT NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT,
+    duration_sec INTEGER NOT NULL,
+    cover_color INTEGER NOT NULL,
+    -- Nota de 1 a 10 (medias estrellas); NULL = sin nota.
+    score INTEGER,
+    audio_path TEXT,
+    cover TEXT,
+    source_url TEXT,
+    added_at INTEGER NOT NULL
+);
+
+CREATE TABLE playlist (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    cover_color INTEGER NOT NULL,
+    position INTEGER NOT NULL
+);
+
+CREATE TABLE playlist_song (
+    playlist_id TEXT NOT NULL,
+    song_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, position)
+);
+
+CREATE TABLE ranking (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL
+);
+
+CREATE TABLE ranking_song (
+    ranking_id TEXT NOT NULL,
+    song_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (ranking_id, position)
+);
+
+-- Una fila por escucha (cuenta a los 30 s). Alimenta Recientes, Más escuchadas, Sin nota y Estadísticas.
+CREATE TABLE play_event (
+    song_id TEXT NOT NULL,
+    at_millis INTEGER NOT NULL
+);
+
+CREATE INDEX play_event_song ON play_event(song_id);
+CREATE INDEX play_event_time ON play_event(at_millis);
+
+-- Letras de LRCLIB guardadas para usarlas sin conexión. Sin letra: synced y plain a NULL.
+CREATE TABLE lyrics (
+    song_id TEXT NOT NULL PRIMARY KEY,
+    synced TEXT,
+    plain TEXT,
+    instrumental INTEGER NOT NULL DEFAULT 0,
+    checked_at INTEGER NOT NULL
+);
+
+CREATE TABLE setting (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+-- Canciones
+
+allSongs:
+SELECT * FROM song;
+
+upsertSong:
+INSERT OR REPLACE INTO song(id, title, artist, album, duration_sec, cover_color, score, audio_path, cover, source_url, added_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+setScore:
+UPDATE song SET score = :score WHERE id = :id;
+
+deleteSong:
+DELETE FROM song WHERE id = ?;
+
+deleteSongFromPlaylists:
+DELETE FROM playlist_song WHERE song_id = ?;
+
+deleteSongFromRankings:
+DELETE FROM ranking_song WHERE song_id = ?;
+
+-- Playlists
+
+allPlaylists:
+SELECT * FROM playlist ORDER BY position, name;
+
+allPlaylistSongs:
+SELECT * FROM playlist_song ORDER BY playlist_id, position;
+
+upsertPlaylist:
+INSERT OR REPLACE INTO playlist(id, name, cover_color, position) VALUES (?, ?, ?, ?);
+
+clearPlaylistSongs:
+DELETE FROM playlist_song WHERE playlist_id = ?;
+
+insertPlaylistSong:
+INSERT OR REPLACE INTO playlist_song(playlist_id, song_id, position) VALUES (?, ?, ?);
+
+deletePlaylist:
+DELETE FROM playlist WHERE id = ?;
+
+-- Rankings personales
+
+allRankings:
+SELECT * FROM ranking ORDER BY position, name;
+
+allRankingSongs:
+SELECT * FROM ranking_song ORDER BY ranking_id, position;
+
+upsertRanking:
+INSERT OR REPLACE INTO ranking(id, name, position) VALUES (?, ?, ?);
+
+clearRankingSongs:
+DELETE FROM ranking_song WHERE ranking_id = ?;
+
+insertRankingSong:
+INSERT OR REPLACE INTO ranking_song(ranking_id, song_id, position) VALUES (?, ?, ?);
+
+deleteRanking:
+DELETE FROM ranking WHERE id = ?;
+
+-- Historial de escuchas
+
+insertPlay:
+INSERT INTO play_event(song_id, at_millis) VALUES (?, ?);
+
+allPlays:
+SELECT * FROM play_event ORDER BY at_millis;
+
+deletePlaysOf:
+DELETE FROM play_event WHERE song_id = ?;
+
+-- Escuchas de cada canción (las de siempre).
+playCounts:
+SELECT song_id, COUNT(*) AS plays FROM play_event GROUP BY song_id;
+
+-- «Recientes»: lo último que ha sonado, sin repetir.
+recentlyPlayed:
+SELECT play_event.song_id, MAX(play_event.at_millis) AS last_played
+FROM play_event JOIN song ON song.id = play_event.song_id
+GROUP BY play_event.song_id
+ORDER BY last_played DESC
+LIMIT :top;
+
+-- «Más escuchadas»: escuchas desde una fecha (los últimos 30 días en Inicio).
+mostPlayedSince:
+SELECT play_event.song_id, COUNT(*) AS plays
+FROM play_event JOIN song ON song.id = play_event.song_id
+WHERE play_event.at_millis >= :since
+GROUP BY play_event.song_id
+ORDER BY plays DESC, song.title COLLATE NOCASE
+LIMIT :top;
+
+-- «Sin nota»: escuchadas al menos una vez y sin nota, primero las que más.
+unratedPlayed:
+SELECT song.id, COUNT(play_event.song_id) AS plays
+FROM song JOIN play_event ON play_event.song_id = song.id
+WHERE song.score IS NULL
+GROUP BY song.id
+ORDER BY plays DESC, song.title COLLATE NOCASE;
+
+-- Letras
+
+lyricsFor:
+SELECT * FROM lyrics WHERE song_id = ?;
+
+upsertLyrics:
+INSERT OR REPLACE INTO lyrics(song_id, synced, plain, instrumental, checked_at) VALUES (?, ?, ?, ?, ?);
+
+deleteLyrics:
+DELETE FROM lyrics WHERE song_id = ?;
+
+-- Ajustes
+
+getSetting:
+SELECT value FROM setting WHERE key = ?;
+
+putSetting:
+INSERT OR REPLACE INTO setting(key, value) VALUES (?, ?);
+
+deleteSetting:
+DELETE FROM setting WHERE key = ?;

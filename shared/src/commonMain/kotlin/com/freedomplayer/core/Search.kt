@@ -4,11 +4,19 @@ package com.freedomplayer.core
 data class AlbumResult(
     val title: String,
     val artist: String,
-    val year: String,
+    /** Año o tipo («2025», «EP 2026»); null si YouTube Music no lo da. */
+    val year: String?,
     val coverColor: Long,
-    /** Canciones del álbum (ids de resultados de tipo canción). */
-    val songIds: List<String>,
-)
+    /** Canciones del álbum (ids de resultados de tipo canción), si ya se conocen. */
+    val songIds: List<String> = emptyList(),
+    /** Dirección del álbum en YouTube Music («https://music.youtube.com/playlist?list=…»). */
+    val url: String = "",
+    /** Carátula (dirección web). */
+    val cover: String? = null,
+) {
+    /** Identifica el álbum aunque cambie el resto de datos. */
+    val key: String get() = url.ifEmpty { "$artist/$title" }
+}
 
 object Search {
     private val stopWords = setOf("de", "del", "la", "las", "el", "los", "y", "a", "al", "en", "un", "una", "the")

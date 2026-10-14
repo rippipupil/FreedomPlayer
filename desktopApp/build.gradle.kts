@@ -28,7 +28,7 @@ val buildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toI
 val appVersion = providers.environmentVariable("FP_VERSION").orNull
     ?.substringBefore('-')
     ?.takeIf { Regex("""\d+\.\d+\.\d+""").matches(it) }
-    ?: "0.1.$buildNumber"
+    ?: "0.2.$buildNumber"
 
 compose.desktop {
     application {
@@ -39,8 +39,13 @@ compose.desktop {
             packageVersion = appVersion
             description = "Reproductor de música personal"
             vendor = "FreedomPlayer"
-            // Módulos de Java que se meten en el instalador (además de java.base y java.desktop).
-            modules("java.instrument", "java.management", "java.naming", "jdk.unsupported")
+            // Módulos de Java que se meten en el instalador (además de java.base y java.desktop):
+            // java.sql para la base de datos (SQLite), jdk.crypto.ec para HTTPS con YouTube y
+            // LRCLIB, java.logging y java.scripting para OkHttp y Rhino (NewPipe).
+            modules(
+                "java.instrument", "java.management", "java.naming", "jdk.unsupported",
+                "java.sql", "jdk.crypto.ec", "java.logging", "java.scripting", "java.xml",
+            )
             windows {
                 menuGroup = "FreedomPlayer"
                 shortcut = true

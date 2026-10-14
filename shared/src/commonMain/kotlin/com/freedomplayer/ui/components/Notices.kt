@@ -88,9 +88,13 @@ fun DownloadCard(job: DownloadJob, online: Boolean, modifier: Modifier = Modifie
     ) {
         Ghost(if (online) Mood.Owo else Mood.Dormido, 30.dp, Modifier.fpFloat())
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val text = if (online) downloadMessage(job.done, job.total) else "En pausa: sin conexión"
+            val text = when {
+                !online -> "En pausa: sin conexión"
+                job.resolving -> "Buscando las canciones de «${job.title}»…"
+                else -> downloadMessage(job.done, job.total)
+            }
             Nunito(text, 13.sp, weight = FontWeight.ExtraBold, maxLines = 2)
-            if (job.isCollection) Nunito("«${job.title}»", 12.sp, color = Fp.Mist, maxLines = 1)
+            if (job.isCollection && !job.resolving) Nunito("«${job.title}»", 12.sp, color = Fp.Mist, maxLines = 1)
             SegmentBar(count = if (job.total > 1) job.total.coerceAtMost(24) else 12, fraction = job.fraction, height = 3.dp)
         }
     }

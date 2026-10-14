@@ -74,13 +74,15 @@ fun App(
     modifier: Modifier = Modifier,
     version: String = "dev",
     titleBar: (@Composable () -> Unit)? = null,
+    /** En Android el bucle vive en el proceso (sigue con la pantalla apagada); aquí, con la ventana. */
+    runLoop: Boolean = true,
 ) {
     FreedomTheme(wide) {
         CompositionLocalProvider(
             LocalReduceMotion provides state.reduceMotion,
             LocalAppVersion provides version,
         ) {
-            LaunchedEffect(state) { state.run() }
+            if (runLoop) LaunchedEffect(state) { state.run() }
             Box(modifier.fillMaxSize().background(Fp.Night)) {
                 if (wide) DesktopShell(state, titleBar) else MobileShell(state)
             }
