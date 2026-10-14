@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -60,6 +61,7 @@ import androidx.compose.ui.window.isTraySupported
 import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
 import com.freedomplayer.platform.DesktopAudioImporter
+import com.freedomplayer.platform.ImageFiles
 import com.freedomplayer.platform.DesktopEngine
 import com.freedomplayer.platform.DesktopLibrary
 import com.freedomplayer.platform.DesktopUpdateInstaller
@@ -118,7 +120,9 @@ fun main() = application {
     )
     val trayState = rememberTrayState()
     val tray = isTraySupported
-    val icon = remember { GhostPainter(Mood.Feliz) }
+    // El icono de la ventana y de la bandeja es el fantasma que se lleva puesto.
+    val skin = state.settings.ghostSkin
+    val icon = remember(skin) { GhostPainter(Mood.Feliz, skin = skin) }
 
     // Red y «reducir movimiento» del sistema.
     LaunchedEffect(state) {
@@ -151,6 +155,16 @@ fun main() = application {
         }
         state.fileImporter = open
         onDispose { if (state.fileImporter === open) state.fileImporter = null }
+    }
+
+    // Wrapped → «GUARDAR IMAGEN»: la tarjeta, en PNG, en Imágenes › FreedomPlayer.
+    DisposableEffect(state) {
+        val save: (ImageBitmap, String) -> String? = { image, name ->
+            val file = ImageFiles.savePng(image, ImageFiles.picturesDir(), name)
+            "Imágenes › FreedomPlayer › ${file.name}"
+        }
+        state.imageSharer = save
+        onDispose { if (state.imageSharer === save) state.imageSharer = null }
     }
 
     // Ajustes → «Carpeta de descargas»: el selector de carpetas de Windows. Lo ya descargado no se mueve.

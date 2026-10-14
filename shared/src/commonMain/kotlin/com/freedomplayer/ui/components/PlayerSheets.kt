@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.freedomplayer.core.EqBands
 import com.freedomplayer.core.EqPreset
+import com.freedomplayer.core.Tempo
 import com.freedomplayer.core.songCount
 import com.freedomplayer.core.timerLeftText
 import com.freedomplayer.ui.AppState
@@ -386,4 +387,43 @@ private fun BandSlider(label: String, db: Float, onChange: (Float) -> Unit) {
         }
         Chakra(dbText(db), 12.sp, Modifier.width(60.dp), color = if (abs(db) < 0.05f) Fp.Mist else Fp.Neon, align = TextAlign.End)
     }
+}
+
+/**
+ * Velocidad y tono: estilos hechos (Slowed, Nightcore…), la velocidad y, donde se puede (Android),
+ * el tono aparte en semitonos o pegado a la velocidad como un vinilo. Se recuerda.
+ */
+@Composable
+internal fun ColumnScope.SpeedSheet(state: AppState) {
+    val tempo = state.settings.tempo
+    SheetHeader("VELOCIDAD Y TONO", if (tempo.isNormal) "Tal cual suena" else tempo.label())
+    Chakra("ESTILOS", 11.sp, color = Fp.Pink, spacing = 3.sp)
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((name, preset) in Tempo.PRESETS) {
+            ChoiceChip(name, tempo == preset) { state.settings.tempo = preset }
+        }
+    }
+    Chakra("VELOCIDAD", 11.sp, color = Fp.Pink, spacing = 3.sp)
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (percent in Tempo.SPEEDS) {
+            ChoiceChip(Tempo.speedText(percent), tempo.speedPercent == percent) { state.settings.tempo = tempo.copy(speedPercent = percent) }
+        }
+    }
+    if (state.separatePitch) {
+        SwitchRow(
+            "El tono va con la velocidad",
+            "Como un vinilo: más rápido, más agudo (slowed, nightcore).",
+            tempo.pitchWithSpeed,
+            { state.settings.tempo = tempo.copy(pitchWithSpeed = it) },
+        )
+        Chakra("TONO (SEMITONOS)", 11.sp, color = Fp.Pink, spacing = 3.sp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (st in Tempo.SEMITONES) {
+                ChoiceChip(Tempo.semitoneText(st), tempo.semitones == st) { state.settings.tempo = tempo.copy(semitones = st) }
+            }
+        }
+    } else {
+        HintNote("En el PC el tono va siempre con la velocidad, como un vinilo.")
+    }
+    SecondaryButton("CERRAR", { state.sheet = null }, Modifier.fillMaxWidth(), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
 }

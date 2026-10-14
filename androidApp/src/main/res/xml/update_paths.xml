@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lo que el FileProvider puede enseñar al instalador de Android: solo el APK de la versión nueva. -->
+<!--
+  Lo que el FileProvider puede enseñar a otras apps: el APK de la versión nueva (al instalador de
+  Android) y las tarjetas del Wrapped que se comparten.
+-->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <cache-path name="shared" path="shared/" />
 </paths>

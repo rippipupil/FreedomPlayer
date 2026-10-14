@@ -24,6 +24,7 @@ import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.LineUnavailableException
 import javax.sound.sampled.SourceDataLine
+import kotlin.math.floor
 
 /** Por dónde sale el sonido: la tarjeta de sonido (Java Sound) o, en las pruebas, ninguna. */
 interface AudioOut {
@@ -98,6 +99,9 @@ class JavaSoundOut(private val bufferMillis: Int = 500) : AudioOut {
  * Por el camino pasa por el ecualizador ([eqGains]), el volumen igualado ([gain]) y los fundidos:
  * de entrada los primeros [fadeInMs] y de salida los últimos [fadeOutMs] de la canción. Los
  * fundidos se calculan con el tiempo de la canción, así que no importa lo que haya en el búfer.
+ *
+ * Con [speed] distinta de 1 se remuestrea (interpolación lineal): cambian a la vez la velocidad y
+ * el tono, como un vinilo. La posición sigue siendo la de la canción.
  */
 class StreamPlayer(
     val source: String,
@@ -109,9 +113,14 @@ class StreamPlayer(
     private val fadeInMs: Long = 0,
     gain: Float = 1f,
     eq: List<Float> = EqBands.flat,
+    speed: Float = 1f,
 ) {
     @Volatile
     var volume: Float = volume
+
+    /** Velocidad (y con ella el tono): 1 = tal cual. */
+    @Volatile
+    var speed: Float = speed
 
     /** Volumen igualado de esta canción (lineal; 1 = tal cual). */
     @Volatile
@@ -155,6 +164,15 @@ class StreamPlayer(
     private var baseMs = startMs.coerceAtLeast(0)
     private var baseFrames = 0L
 
+    /** Velocidad de lo que hay en la salida desde [baseFrames] (para la posición). */
+    private var baseSpeed = 1f
+
+    // Remuestreo (solo lo toca el hilo de audio): por dónde va, relativo al trozo siguiente, y la
+    // última trama del trozo anterior (la «-1» al interpolar).
+    private var resPos = 0.0
+    private val resPrev = IntArray(2)
+    private var resHavePrev = false
+
     init {
         if (startMs > 0) seekRequest.set(startMs)
         Thread(::run, "FreedomPlayer audio").apply {
@@ -172,7 +190,7 @@ class StreamPlayer(
             synchronized(lock) {
                 if (!outOpen || rate <= 0) return baseMs
                 val played = (out.playedFrames - baseFrames).coerceAtLeast(0)
-                val p = baseMs + played * 1000 / rate
+                val p = baseMs + (played * 1000 * baseSpeed / rate).toLong()
                 return if (durationMs > 0) p.coerceAtMost(durationMs) else p
             }
         }
@@ -227,6 +245,8 @@ class StreamPlayer(
             loading = false
             var bytes = ByteArray(16 * 1024)
             var floats = FloatArray(4 * 1024)
+            var mixed = IntArray(4 * 1024)
+            var appliedSpeed = 1f
             val eq = Equalizer(sampleRate, channels)
             var eqApplied: List<Float>? = null
             var preamp = 1f
@@ -245,6 +265,23 @@ class StreamPlayer(
                     finished = false
                     clock = target * sampleRate / 1000
                     eq.reset()
+                    resPos = 0.0
+                    resHavePrev = false
+                }
+                // Cambio de velocidad: la posición sigue desde donde iba, con la nueva.
+                val wantedSpeed = speed.coerceIn(0.25f, 4f)
+                if (wantedSpeed != appliedSpeed) {
+                    synchronized(lock) {
+                        if (rate > 0) {
+                            val played = (out.playedFrames - baseFrames).coerceAtLeast(0)
+                            baseMs += (played * 1000 * baseSpeed / rate).toLong()
+                        }
+                        baseFrames = out.playedFrames
+                        baseSpeed = wantedSpeed
+                    }
+                    appliedSpeed = wantedSpeed
+                    resPos = 0.0
+                    resHavePrev = false
                 }
                 val frame = g.grabSamples()
                 if (frame == null) {
@@ -257,8 +294,8 @@ class StreamPlayer(
                 val samples = frame.samples?.firstOrNull() as? ShortBuffer ?: continue
                 val n = samples.remaining()
                 val frames = n / channels
-                if (bytes.size < n * 2) bytes = ByteArray(n * 2)
                 if (floats.size < n) floats = FloatArray(n)
+                if (mixed.size < n) mixed = IntArray(n)
                 val start = samples.position()
                 for (i in 0 until n) floats[i] = samples.get(start + i) / 32768f
                 val wanted = eqGains
@@ -282,15 +319,21 @@ class StreamPlayer(
                         if (fadeOut > 0 && total > 0 && t >= total - fadeOut) k *= Crossfade.fadeOut((t - (total - fadeOut)).toFloat() / fadeOut)
                     }
                     for (ch in 0 until channels) {
-                        val s = (floats[i] * k).toInt().coerceIn(-32768, 32767)
-                        bytes[2 * i] = (s and 0xFF).toByte()
-                        bytes[2 * i + 1] = ((s shr 8) and 0xFF).toByte()
+                        mixed[i] = (floats[i] * k).toInt().coerceIn(-32768, 32767)
                         i++
                     }
                 }
                 clock += frames
                 if (seekRequest.get() >= 0 || stopped) continue
-                out.write(bytes, frames * channels * 2)
+                val outFrames = if (appliedSpeed == 1f) frames else maxResampled(frames, appliedSpeed)
+                if (bytes.size < outFrames * channels * 2) bytes = ByteArray(outFrames * channels * 2)
+                val written = if (appliedSpeed == 1f) {
+                    for (j in 0 until frames * channels) put(bytes, j, mixed[j])
+                    frames
+                } else {
+                    resample(mixed, frames, channels, appliedSpeed, bytes)
+                }
+                out.write(bytes, written * channels * 2)
             }
         } catch (e: Throwable) {
             if (!stopped) error = e
@@ -305,6 +348,44 @@ class StreamPlayer(
                 grabber?.release()
             }
         }
+    }
+
+    /** Cuántas tramas puede dar como mucho [resample] con [frames] de entrada. */
+    private fun maxResampled(frames: Int, step: Float): Int = ((frames + 2) / step).toInt() + 4
+
+    /**
+     * [frames] tramas de [input] a velocidad [step] en [output] (16 bits): interpolación lineal,
+     * siguiendo entre trozos sin saltos. Devuelve cuántas tramas ha escrito.
+     */
+    private fun resample(input: IntArray, frames: Int, channels: Int, step: Float, output: ByteArray): Int {
+        if (frames <= 0) return 0
+        if (!resHavePrev) {
+            for (ch in 0 until channels) resPrev[ch] = input[ch]
+            resHavePrev = true
+        }
+        var p = resPos
+        var o = 0
+        while (p < frames - 1) {
+            val i0 = floor(p).toInt()
+            val t = (p - i0).toFloat()
+            for (ch in 0 until channels) {
+                val a = if (i0 < 0) resPrev[ch] else input[i0 * channels + ch]
+                val b = input[(i0 + 1) * channels + ch]
+                put(output, o * channels + ch, (a + (b - a) * t).toInt())
+            }
+            o++
+            p += step
+        }
+        resPos = p - frames
+        for (ch in 0 until channels) resPrev[ch] = input[(frames - 1) * channels + ch]
+        return o
+    }
+
+    /** Una muestra de 16 bits (little endian) en la posición [index] de [bytes]. */
+    private fun put(bytes: ByteArray, index: Int, sample: Int) {
+        val v = sample.coerceIn(-32768, 32767)
+        bytes[2 * index] = (v and 0xFF).toByte()
+        bytes[2 * index + 1] = ((v shr 8) and 0xFF).toByte()
     }
 
     private fun configure(g: FFmpegFrameGrabber) {
@@ -351,6 +432,9 @@ class StreamPlayer(
  * segundos antes de que acabe la que suena, que se va apagando mientras la otra sube.
  */
 class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : AudioEngine {
+    /** En el PC la velocidad se consigue remuestreando: el tono va con ella, como un vinilo. */
+    override val separatePitch: Boolean get() = false
+
     private var tracks: List<Track> = emptyList()
     private var index = -1
     private var repeat = RepeatMode.Off
@@ -386,7 +470,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
         current = null
         val t = tracks.getOrNull(index) ?: return
         idlePosition = positionMs
-        current = StreamPlayer(t.uri, emptyMap(), positionMs, play, volume, output(), fadeInMs, gainOf(t), sound.eqGains)
+        current = StreamPlayer(t.uri, emptyMap(), positionMs, play, volume, output(), fadeInMs, gainOf(t), sound.eqGains, sound.speed)
     }
 
     private fun gainOf(t: Track): Float = if (sound.normalize) Loudness.linear(t.gainDb) else 1f
@@ -491,6 +575,8 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
         val before = this.sound
         this.sound = sound
         for (p in listOfNotNull(current, fading, preview)) p.eqGains = sound.eqGains
+        // La vista previa suena tal cual: la velocidad es de la cola.
+        for (p in listOfNotNull(current, fading)) p.speed = sound.speed
         if (before.normalize != sound.normalize) tracks.getOrNull(index)?.let { t -> current?.gain = gainOf(t) }
         if (sound.crossfadeMs <= 0) current?.fadeOutMs = 0
     }

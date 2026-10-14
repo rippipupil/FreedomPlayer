@@ -10,8 +10,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -23,10 +25,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import com.freedomplayer.core.GhostAccessory
+import com.freedomplayer.core.GhostSkin
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -85,6 +90,14 @@ private object GhostArt {
     // «z z» del dormido
     val zBig by lazy { svgPath("M47 6 H54 L47 13 H54") }
     val zSmall by lazy { svgPath("M55 15 H59 L55 19 H59") }
+
+    // Accesorios de los fantasmas coleccionables (los sombreros asoman por encima de la cabeza).
+    val crown by lazy { svgPath("M21 11 L20 -1 L26.5 4.5 L32 -5 L37.5 4.5 L44 -1 L43 11 Q32 13.5 21 11 Z") }
+    val partyHat by lazy { svgPath("M23 10 Q32 13 41 9 L34 -6 Z") }
+    val partyStripes by lazy { svgPath("M25.6 4.8 Q31 6.6 38.4 3.6 M28.8 -0.8 Q32 0.2 36 -1.4") }
+    val nightcap by lazy { svgPath("M17 13 Q20 1 33 -1 Q46 -2 52 9 Q55 14 56 21 L51.5 13 Q46 8 38 8.5 Q26 9.5 17 13 Z") }
+    val nightcapBrim by lazy { svgPath("M16.5 13.5 Q30 6.5 46 9.5") }
+    val headband by lazy { svgPath("M12.5 27 C12.5 -6 51.5 -6 51.5 27") }
 }
 
 private val PinkBody = Color(0xFFF4A6CB)
@@ -93,25 +106,47 @@ private val PinkInk = Color(0xFFC2326F)
 private val WhiteInk = Color(0xFF1A1420)
 private val PinkCheek = Color(0xFFFF6FAE)
 
+/**
+ * El fantasma que se lleva puesto (el coleccionable elegido). [Ghost], [SearchingGhost] y los
+ * demás fantasmas de la app lo leen de aquí.
+ */
+val LocalGhostSkin = compositionLocalOf { GhostSkin.Clasico }
+
+private val Gold = Color(0xFFFFD27A)
+private val GoldInk = Color(0xFF7A4A00)
+private val Cyan = Color(0xFF7CF5FF)
+private val Magenta = Color(0xFFFF4FD8)
+private val Shade = Color(0xFF14101C)
+
+private fun GhostAccessory.isHat(): Boolean =
+    this == GhostAccessory.Crown || this == GhostAccessory.Halo || this == GhostAccessory.PartyHat || this == GhostAccessory.Nightcap
+
 private fun isWhite(mood: Mood, tint: GhostTint): Boolean =
     tint == GhostTint.Blanco || (tint == GhostTint.Auto && (mood == Mood.Triste || mood == Mood.Sorpresa || mood == Mood.Dormido))
 
 /**
  * Dibuja el fantasma ocupando el lienzo (el SVG original mide 64×64). [spin] gira los remolinos
- * de [Mood.Buscando] (en grados).
+ * de [Mood.Buscando] (en grados). [skin] le cambia los colores (solo a las caras rosas: las blancas
+ * siguen siendo blancas, que avisan de algo) y le pone su accesorio; si es un sombrero, el
+ * fantasma se encoge un poco para que quepa.
  */
-fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto, spin: Float = 0f) {
+fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto, spin: Float = 0f, skin: GhostSkin = GhostSkin.Clasico) {
     val white = isWhite(mood, tint)
-    val body = if (white) WhiteBody else PinkBody
-    val ink = if (white) WhiteInk else PinkInk
-    val cheek = if (white) PinkBody else PinkCheek
-    val k = this.size.minDimension / 64f
+    val body = if (white) WhiteBody else skin.body?.let { Color(it) } ?: PinkBody
+    val ink = if (white) WhiteInk else skin.ink?.let { Color(it) } ?: PinkInk
+    val cheek = if (white) PinkBody else skin.cheek?.let { Color(it) } ?: PinkCheek
+    val unit = this.size.minDimension / 64f
+    val fit = if (skin.accessory.isHat()) HAT_FIT else 1f
 
     fun line(width: Float) = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round)
     fun DrawScope.oval(cx: Float, cy: Float, rx: Float, ry: Float, color: Color, alpha: Float = 1f) =
         drawOval(color, topLeft = Offset(cx - rx, cy - ry), size = Size(rx * 2, ry * 2), alpha = alpha)
 
-    scale(k, k, pivot = Offset.Zero) {
+    withTransform({
+        // Encogido hacia los pies (32, 60): la cabeza baja y deja sitio al sombrero.
+        translate(32f * (1f - fit) * unit, 60f * (1f - fit) * unit)
+        scale(unit * fit, unit * fit, pivot = Offset.Zero)
+    }) {
         drawPath(GhostArt.body, body)
         oval(23f, 16f, 7f, 4f, Color.White, if (white) 0.6f else 0.35f)
         if (mood == Mood.Owo || mood == Mood.Uwu || mood == Mood.Guino) {
@@ -150,8 +185,8 @@ fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto, spin: Floa
             Mood.Dormido -> {
                 drawPath(GhostArt.sleepyEyes, ink, style = line(2.4f))
                 oval(32f, 35f, 1.8f, 2.2f, ink)
-                drawPath(GhostArt.zBig, PinkBody, style = line(2f))
-                drawPath(GhostArt.zSmall, PinkBody, style = line(1.6f))
+                drawPath(GhostArt.zBig, skin.body?.let { Color(it) } ?: PinkBody, style = line(2f))
+                drawPath(GhostArt.zSmall, skin.body?.let { Color(it) } ?: PinkBody, style = line(1.6f))
             }
             Mood.Buscando -> {
                 // Remolinos que giran en sentidos contrarios (mareado de tanto buscar) y una «o».
@@ -165,6 +200,58 @@ fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto, spin: Floa
                 oval(32f, 37f, 2.2f, 3f, ink)
             }
         }
+        drawAccessory(skin.accessory)
+    }
+}
+
+/** Con sombrero, el fantasma se dibuja a este tamaño (encogido hacia los pies) para que quepa. */
+private const val HAT_FIT = 0.88f
+
+/** El accesorio, en las coordenadas del fantasma (64×64). */
+private fun DrawScope.drawAccessory(accessory: GhostAccessory) {
+    fun line(width: Float) = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    when (accessory) {
+        GhostAccessory.None -> Unit
+        GhostAccessory.Crown -> {
+            drawPath(GhostArt.crown, Gold)
+            drawPath(GhostArt.crown, GoldInk, style = line(1.3f))
+            drawCircle(PinkCheek, radius = 1.8f, center = Offset(32f, 6f))
+            drawCircle(Cyan, radius = 1.2f, center = Offset(25f, 8f))
+            drawCircle(Cyan, radius = 1.2f, center = Offset(39f, 8f))
+        }
+        GhostAccessory.Halo -> {
+            val box = Size(24f, 6.8f)
+            val at = Offset(20f, -4.4f)
+            drawOval(Gold, topLeft = at, size = box, style = Stroke(width = 5f), alpha = 0.3f)
+            drawOval(Color(0xFFFFE89A), topLeft = at, size = box, style = Stroke(width = 2.2f))
+        }
+        GhostAccessory.PartyHat -> {
+            drawPath(GhostArt.partyHat, Cyan)
+            drawPath(GhostArt.partyHat, Color(0xFF1E5C70), style = line(1.2f))
+            drawPath(GhostArt.partyStripes, PinkCheek, style = Stroke(width = 2f))
+            drawCircle(Gold, radius = 2.6f, center = Offset(34f, -6.5f))
+        }
+        GhostAccessory.Nightcap -> {
+            drawPath(GhostArt.nightcap, Color(0xFF5B57D9))
+            drawPath(GhostArt.nightcap, Color(0xFF1E1A4A), style = line(1.2f))
+            drawPath(GhostArt.nightcapBrim, WhiteBody, style = line(4f))
+            drawCircle(WhiteBody, radius = 3f, center = Offset(56f, 21.5f))
+        }
+        GhostAccessory.Headphones -> {
+            drawPath(GhostArt.headband, Color(0xFFB8329A), style = line(3f))
+            for (x in listOf(7.5f, 47.5f)) {
+                val r = CornerRadius(3.5f)
+                drawRoundRect(Magenta, topLeft = Offset(x, 21f), size = Size(9f, 14f), cornerRadius = r)
+                drawRoundRect(Color(0xFF2A1F3D), topLeft = Offset(x, 21f), size = Size(9f, 14f), cornerRadius = r, style = Stroke(width = 1.2f))
+            }
+        }
+        GhostAccessory.Shades -> {
+            for (x in listOf(16.5f, 34.5f)) {
+                drawRoundRect(Shade, topLeft = Offset(x, 22.5f), size = Size(13f, 8f), cornerRadius = CornerRadius(3f))
+                drawLine(Color.White.copy(alpha = 0.7f), Offset(x + 2.5f, 24.8f), Offset(x + 5.5f, 24.8f), strokeWidth = 1.2f, cap = StrokeCap.Round)
+            }
+            drawLine(Shade, Offset(29.5f, 25f), Offset(34.5f, 25f), strokeWidth = 1.8f)
+        }
     }
 }
 
@@ -173,9 +260,9 @@ fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto, spin: Floa
  * Si cambia de cara, cambia con un fundido corto.
  */
 @Composable
-fun Ghost(mood: Mood, size: Dp, modifier: Modifier = Modifier, tint: GhostTint = GhostTint.Auto) {
+fun Ghost(mood: Mood, size: Dp, modifier: Modifier = Modifier, tint: GhostTint = GhostTint.Auto, skin: GhostSkin = LocalGhostSkin.current) {
     Crossfade(targetState = mood, modifier = modifier.size(size), animationSpec = tween(Motion.STANDARD), label = "ghostMood") { m ->
-        Canvas(Modifier.size(size)) { drawGhost(m, tint) }
+        Canvas(Modifier.size(size)) { drawGhost(m, tint, skin = skin) }
     }
 }
 
@@ -185,8 +272,9 @@ fun Ghost(mood: Mood, size: Dp, modifier: Modifier = Modifier, tint: GhostTint =
  */
 @Composable
 fun SearchingGhost(size: Dp, modifier: Modifier = Modifier) {
+    val skin = LocalGhostSkin.current
     if (LocalReduceMotion.current) {
-        Canvas(modifier.size(size)) { drawGhost(Mood.Buscando) }
+        Canvas(modifier.size(size)) { drawGhost(Mood.Buscando, skin = skin) }
         return
     }
     val t = rememberInfiniteTransition(label = "searching")
@@ -201,14 +289,18 @@ fun SearchingGhost(size: Dp, modifier: Modifier = Modifier) {
                 rotationZ = sway
                 translationY = -bob * lift
             },
-    ) { drawGhost(Mood.Buscando, spin = spin) }
+    ) { drawGhost(Mood.Buscando, spin = spin, skin = skin) }
 }
 
 /** El fantasma como Painter: icono de la ventana y de la bandeja en el PC. */
-class GhostPainter(private val mood: Mood = Mood.Feliz, private val tint: GhostTint = GhostTint.Auto) : Painter() {
+class GhostPainter(
+    private val mood: Mood = Mood.Feliz,
+    private val tint: GhostTint = GhostTint.Auto,
+    private val skin: GhostSkin = GhostSkin.Clasico,
+) : Painter() {
     override val intrinsicSize: Size get() = Size(64f, 64f)
 
     override fun DrawScope.onDraw() {
-        drawGhost(mood, tint)
+        drawGhost(mood, tint, skin = skin)
     }
 }

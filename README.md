@@ -4,7 +4,7 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 7 (0.8).** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> **Estado: 0.11.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
 > añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
@@ -15,7 +15,8 @@ tus propios rankings.
 > rankings e historial). Las playlists se ordenan por fecha o por nota, se puntúa desde el
 > reproductor y la notificación tiene botón de repetir. De las listas de otra gente en YouTube
 > Music o YouTube (buscadas o con su enlace) y de los álbumes se añaden solo las canciones que
-> quieras. Avisa de las versiones nuevas y se actualiza desde la propia app sin perder la
+> quieras. Se cambia la velocidad y el tono de lo que suena, hay un Wrapped de cada mes y de cada
+> año en tarjetas para compartir y fantasmas coleccionables que se ganan escuchando. Avisa de las versiones nuevas y se actualiza desde la propia app sin perder la
 > biblioteca. Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.

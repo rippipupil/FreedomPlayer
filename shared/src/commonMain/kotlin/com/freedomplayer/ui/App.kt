@@ -36,6 +36,7 @@ import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Centered
 import com.freedomplayer.ui.components.DesktopPanels
 import com.freedomplayer.ui.components.EdgeZone
+import com.freedomplayer.ui.components.LocalGhostSkin
 import com.freedomplayer.ui.components.LocalReduceMotion
 import com.freedomplayer.ui.components.LocalScreenInsets
 import com.freedomplayer.ui.components.LocalStatusBar
@@ -51,6 +52,7 @@ import com.freedomplayer.ui.components.SideTabs
 import com.freedomplayer.ui.components.nowPlaying
 import com.freedomplayer.ui.components.statusBarHeight
 import com.freedomplayer.ui.screens.AlbumScreen
+import com.freedomplayer.ui.screens.GhostsScreen
 import com.freedomplayer.ui.screens.HomeScreen
 import com.freedomplayer.ui.screens.PlayerScreen
 import com.freedomplayer.ui.screens.OtherListScreen
@@ -61,6 +63,7 @@ import com.freedomplayer.ui.screens.SettingsScreen
 import com.freedomplayer.ui.screens.SpotifyScreen
 import com.freedomplayer.ui.screens.StatsScreen
 import com.freedomplayer.ui.screens.SyncScreen
+import com.freedomplayer.ui.screens.WrappedScreen
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.FreedomTheme
 
@@ -89,6 +92,7 @@ fun App(
             LocalReduceMotion provides state.reduceMotion,
             LocalAppVersion provides version,
             LocalStatusBar provides statusBar,
+            LocalGhostSkin provides state.settings.ghostSkin,
         ) {
             if (runLoop) LaunchedEffect(state) { state.run() }
             Box(modifier.fillMaxSize().background(Fp.Night)) {
@@ -136,6 +140,8 @@ private fun ScreenHost(state: AppState, modifier: Modifier = Modifier) {
             is Screen.AlbumDetail -> AlbumScreen(state, screen.key)
             Screen.SpotifyImport -> SpotifyScreen(state)
             Screen.Sync -> SyncScreen(state)
+            Screen.Wrapped -> WrappedScreen(state)
+            Screen.Ghosts -> GhostsScreen(state)
         }
     }
 }

@@ -1,6 +1,9 @@
 package com.freedomplayer.android
 
+import android.content.ClipData
+import android.content.Intent
 import android.database.ContentObserver
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.Network
@@ -15,6 +18,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.core.content.FileProvider
 import androidx.media3.session.MediaController
 import com.freedomplayer.android.playback.PlaybackService
 import com.freedomplayer.platform.AndroidLibrary
@@ -25,6 +31,8 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.IOException
 
 class MainActivity : ComponentActivity() {
     /** El estado es del proceso ([FreedomApp]): girar la pantalla o cambiar el tema no lo pierde. */
@@ -65,6 +73,30 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    /**
+     * Wrapped → «COMPARTIR»: la tarjeta en PNG en la caché (la comparte el FileProvider,
+     * res/xml/update_paths.xml) y el «Compartir» de Android (WhatsApp, Instagram, Galería…).
+     */
+    private val shareImage: (ImageBitmap, String) -> String? = { image, name ->
+        val dir = File(cacheDir, "shared")
+        dir.listFiles()?.forEach { it.delete() }
+        if (!dir.isDirectory && !dir.mkdirs()) throw IOException("No se puede crear $dir")
+        val file = File(dir, name)
+        // Copia normal (no HARDWARE) para poder pasarla a PNG.
+        val bitmap = image.asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, false)
+        file.outputStream().use { out ->
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) throw IOException("No se pudo pasar la imagen a PNG")
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("image/png")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        send.clipData = ClipData.newRawUri(name, uri)
+        startActivity(Intent.createChooser(send, "Compartir tu Wrapped"))
+        null
+    }
+
     /** «Quitar animaciones» de Android pone la escala de animaciones a 0: entonces se reduce el movimiento. */
     private val animationObserver = object : ContentObserver(main) {
         override fun onChange(selfChange: Boolean) = readReduceMotion()
@@ -85,11 +117,13 @@ class MainActivity : ComponentActivity() {
         }
         state.fileImporter = openPicker
         state.qrScanner = openScanner
+        state.imageSharer = shareImage
     }
 
     override fun onDestroy() {
         if (state.fileImporter === openPicker) state.fileImporter = null
         if (state.qrScanner === openScanner) state.qrScanner = null
+        if (state.imageSharer === shareImage) state.imageSharer = null
         super.onDestroy()
     }
 

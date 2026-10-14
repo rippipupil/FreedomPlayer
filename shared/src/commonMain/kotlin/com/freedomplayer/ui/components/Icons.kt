@@ -88,6 +88,8 @@ object FpIcons {
     val Back = FpIcon("M15 5 L8 12 L15 19", strokeWidth = 2f)
     val More = FpIcon(null, "M4 11 H7 V14 H4 Z M10.5 11 H13.5 V14 H10.5 Z M17 11 H20 V14 H17 Z")
     val Equalizer = FpIcon("M6 4 V20 M12 4 V20 M18 4 V20 M4 14 H8 M10 8 H14 M16 16 H20")
+    /** Velocidad: medio cuentarrevoluciones con su aguja. */
+    val Speed = FpIcon("M4 17 A8 8 0 1 1 20 17 M12 17 L16.5 10.5", strokeWidth = 2f)
     val Moon = FpIcon("M20 14.5 A8 8 0 1 1 9.5 4 A6.5 6.5 0 0 0 20 14.5 Z")
     val Pencil = FpIcon("M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11")
     val Queue = FpIcon("M4 6 H20 M4 12 H14 M4 18 H11 M17 15 V21 L21 18 Z")

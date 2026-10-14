@@ -7,6 +7,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
+import com.freedomplayer.core.GhostSkin
 import com.freedomplayer.core.MatchKind
 import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.ResultKind
@@ -216,6 +217,18 @@ class AppSmokeTest {
         settle()
         state.statsTab = StatsTab.Recent
         settle()
+
+        // Wrapped (un mes y un año) y la colección de fantasmas
+        state.openWrapped()
+        settle()
+        assertEquals(Screen.Wrapped, state.screen)
+        state.wrappedPeriod = state.wrappedPeriods().firstOrNull { it.month == null }
+        settle()
+        state.go(Screen.Ghosts)
+        settle()
+        state.settings.ghostSkin = GhostSkin.Buho
+        settle()
+        state.settings.ghostSkin = GhostSkin.Clasico
 
         // Detalle de playlist
         val playlist = state.playlists.first()

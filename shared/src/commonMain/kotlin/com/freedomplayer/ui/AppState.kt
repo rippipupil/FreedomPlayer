@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.ImageBitmap
 import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.AppRelease
 import com.freedomplayer.core.AppVersions
@@ -17,6 +18,9 @@ import com.freedomplayer.core.CoverPalette
 import com.freedomplayer.core.Crossfade
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
+import com.freedomplayer.core.GhostCollection
+import com.freedomplayer.core.GhostFacts
+import com.freedomplayer.core.GhostSkin
 import com.freedomplayer.core.Loudness
 import com.freedomplayer.core.LyricsData
 import com.freedomplayer.core.OtherList
@@ -37,8 +41,12 @@ import com.freedomplayer.core.Song
 import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.SpotifyLink
 import com.freedomplayer.core.Stats
+import com.freedomplayer.core.Tempo
 import com.freedomplayer.core.SyncIds
 import com.freedomplayer.core.TrackMatch
+import com.freedomplayer.core.Wrapped
+import com.freedomplayer.core.WrappedPeriod
+import com.freedomplayer.core.WrappedReport
 import com.freedomplayer.core.YearMonth
 import com.freedomplayer.core.YouTubeLinks
 import com.freedomplayer.core.folderName
@@ -89,6 +97,12 @@ sealed interface Screen {
     data object SpotifyImport : Screen
     data object Sync : Screen
 
+    /** El resumen de un mes o un año en tarjetas, para guardarlas o compartirlas. */
+    data object Wrapped : Screen
+
+    /** Los fantasmas coleccionables: los ganados (para ponérselos) y lo que falta para los demás. */
+    data object Ghosts : Screen
+
     val inMenu: Boolean get() = this == Home || this == Search || this == Rank || this == Stats || this == Settings
 }
 
@@ -127,6 +141,9 @@ sealed interface Sheet {
 
     /** Temporizador de apagado. */
     data object SleepTimer : Sheet
+
+    /** Velocidad y tono. */
+    data object Speed : Sheet
 
     /** Ecualizador de 5 bandas. */
     data object Equalizer : Sheet
@@ -317,6 +334,19 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
     /** Segundos del fundido entre canciones. */
     var crossfadeSeconds by Whole("crossfadeSeconds", Crossfade.DEFAULT_SECONDS, 1..12)
 
+    private var speedPercent by Whole("tempo.speed", 100, 50..200)
+    private var pitchSemitones by Whole("tempo.semitones", 0, -6..6)
+    private var pitchWithSpeed by Flag("tempo.pitchWithSpeed", false)
+
+    /** Velocidad y tono de lo que suena (el panel «Velocidad» del reproductor). Se recuerda. */
+    var tempo: Tempo
+        get() = Tempo(speedPercent, pitchSemitones, pitchWithSpeed)
+        set(value) {
+            speedPercent = value.speedPercent
+            pitchSemitones = value.semitones
+            pitchWithSpeed = value.pitchWithSpeed
+        }
+
     /** Segundos que saltan «⟲» y «⟳» (Ajustes › Reproducción: 5, 10, 15 o 30). */
     var seekSeconds by Whole("seekSeconds", SEEK_STEP_DEFAULT, 5..30)
 
@@ -369,6 +399,36 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
             orderState.value = value
             write("playlist.order", value.encode())
         }
+
+    private val skinState = mutableStateOf(GhostSkin.entries.firstOrNull { it.name == read("ghost.skin") } ?: GhostSkin.Clasico)
+
+    /** El fantasma coleccionable que se lleva puesto. */
+    var ghostSkin: GhostSkin
+        get() = skinState.value
+        set(value) {
+            if (value == skinState.value) return
+            skinState.value = value
+            write("ghost.skin", value.name)
+        }
+
+    private val announcedState = mutableStateOf(
+        read("ghost.announced")?.split(',')?.mapNotNull { n -> GhostSkin.entries.firstOrNull { it.name == n } }?.toSet(),
+    )
+
+    /**
+     * Los fantasmas ganados de los que ya se ha avisado (null: nunca se ha mirado, y entonces los
+     * que ya estén ganados se apuntan sin avisar, para no soltar diez avisos al actualizar).
+     */
+    var ghostsAnnounced: Set<GhostSkin>?
+        get() = announcedState.value
+        set(value) {
+            if (value == announcedState.value) return
+            announcedState.value = value
+            write("ghost.announced", value?.joinToString(",") { it.name })
+        }
+
+    /** Si ya se ha abierto el Wrapped alguna vez (gana el fantasma «Fiesta»). */
+    var wrappedSeen by Flag("wrapped.seen", false)
 
     /** Para probar los estados sin red y con la biblioteca vacía (no se guardan). */
     var demoOffline by mutableStateOf(false)
@@ -467,6 +527,28 @@ class AppState(
     var fileImporter: (() -> Unit)? by mutableStateOf(null)
 
     val canImportFiles: Boolean get() = fileImporter != null
+
+    /**
+     * Guarda o comparte una imagen (las tarjetas del Wrapped) con este nombre de archivo: el PC la
+     * guarda en Imágenes y devuelve dónde; el móvil abre «Compartir» y devuelve null. Si falla, lanza.
+     */
+    var imageSharer: ((ImageBitmap, String) -> String?)? by mutableStateOf(null)
+
+    val canShareImages: Boolean get() = imageSharer != null
+
+    fun shareImage(image: ImageBitmap, fileName: String) {
+        val share = imageSharer ?: return
+        try {
+            val where = share(image, fileName)
+            if (where != null) toast("Imagen guardada en $where", Mood.Feliz, Tone.Jade, millis = 4_000)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            toast("No se pudo guardar la imagen.", Mood.Triste, Tone.Bone)
+        }
+    }
+
+    /** El tono se puede cambiar aparte de la velocidad (en el PC va con ella). */
+    val separatePitch: Boolean get() = engine.separatePitch
 
     /**
      * Abre el selector de carpetas del sistema para las descargas. Solo lo pone el PC: en Android
@@ -629,6 +711,8 @@ class AppState(
             eqGains = settings.eqGains,
             normalize = settings.normalizeVolume,
             crossfadeMs = if (settings.crossfade) settings.crossfadeSeconds * 1000L else 0L,
+            speed = settings.tempo.speed,
+            pitch = if (engine.separatePitch) settings.tempo.pitch else settings.tempo.speed,
         )
         if (s == appliedSound) return
         appliedSound = s
@@ -1810,6 +1894,68 @@ class AppState(
     var statsTab by mutableStateOf(StatsTab.Recent)
     var statsMonth by mutableStateOf<YearMonth?>(null)
     var panelFilter by mutableStateOf("")
+
+    // ---------- Wrapped ----------
+
+    /** El periodo del Wrapped (null = el último mes con escuchas). */
+    var wrappedPeriod by mutableStateOf<WrappedPeriod?>(null)
+
+    /** Los periodos con escuchas: cada año seguido de sus meses, de lo más reciente a lo más antiguo. */
+    fun wrappedPeriods(): List<WrappedPeriod> = Wrapped.periods(playLog, ::utcOffsetMillis)
+
+    /** El resumen de [period] (null si no sonó nada). */
+    fun wrappedReport(period: WrappedPeriod): WrappedReport? = Wrapped.report(songs, playLog, period, ::utcOffsetMillis)
+
+    /** Abre el Wrapped (en el último mes con escuchas). La primera vez gana el fantasma «Fiesta». */
+    fun openWrapped() {
+        wrappedPeriod = null
+        settings.wrappedSeen = true
+        go(Screen.Wrapped)
+    }
+
+    // ---------- Fantasmas coleccionables ----------
+
+    /** Lo que llevas para ganar cada fantasma. */
+    fun ghostFacts(): GhostFacts = GhostCollection.facts(songs, playLog, settings.wrappedSeen, ::utcOffsetMillis)
+
+    /** Los fantasmas que tienes: los ganados ahora y los que ya ganaste (no se pierden). */
+    fun ownedGhosts(facts: GhostFacts = ghostFacts()): Set<GhostSkin> =
+        GhostCollection.unlocked(facts) + (settings.ghostsAnnounced ?: emptySet())
+
+    /** Ponerse un fantasma (solo uno que se tenga). */
+    fun chooseGhost(skin: GhostSkin) {
+        if (skin !in ownedGhosts()) return
+        if (settings.ghostSkin == skin) return
+        settings.ghostSkin = skin
+        toast("Ahora eres el fantasma ${skin.label}", Mood.Owo, Tone.Neon)
+    }
+
+    private var ghostKey: Triple<Int, Int, Boolean>? = null
+    private val ghostsToAnnounce = ArrayDeque<GhostSkin>()
+
+    /**
+     * Mira si se ha ganado algún fantasma (solo cuando cambia el historial, la biblioteca o el
+     * Wrapped) y lo anuncia cuando no haya otro aviso en pantalla, con «VER» a la colección.
+     */
+    private fun checkGhosts() {
+        if (isDemo) return
+        val key = Triple(historyVersion, songs.size, settings.wrappedSeen)
+        if (key != ghostKey) {
+            ghostKey = key
+            val won = GhostCollection.unlocked(ghostFacts())
+            val told = settings.ghostsAnnounced
+            if (told == null) {
+                // La primera vez (o al actualizar desde una versión sin fantasmas): sin avisos.
+                settings.ghostsAnnounced = won
+            } else {
+                (won - told).filter { it !in ghostsToAnnounce }.forEach { ghostsToAnnounce.addLast(it) }
+            }
+        }
+        if (ghostsToAnnounce.isEmpty() || toast != null) return
+        val skin = ghostsToAnnounce.removeFirst()
+        settings.ghostsAnnounced = (settings.ghostsAnnounced ?: emptySet()) + skin
+        toast("¡Nuevo fantasma: ${skin.label}!", Mood.Contento, Tone.Neon, actionLabel = "VER", millis = 5_000) { go(Screen.Ghosts) }
+    }
     val spotify = SpotifyImportState()
 
     /**
@@ -2322,6 +2468,7 @@ class AppState(
         engine.tick(elapsedMs)
         sync(elapsedMs)
         tickSleep(elapsedMs)
+        checkGhosts()
     }
 
     /**

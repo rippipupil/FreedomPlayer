@@ -572,3 +572,30 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   `SearchingGhost` mientras se busca o se abre una lista o un álbum. La barra de avance anima solo
   al dibujar (una fase de 2,4 s leída en el `Canvas`), así que no recompone nada; parada en pausa y
   con «reducir movimiento».
+
+## Velocidad, Wrapped y fantasmas (0.11)
+
+- **Velocidad y tono:** `Tempo` (en `core`) guarda la velocidad en % y los semitonos; con
+  «el tono va con la velocidad» se comporta como un vinilo (slowed, nightcore). Se guarda en
+  Ajustes y llega al motor en `SoundSettings.speed` y `.pitch`. En Android son los
+  `PlaybackParameters` de Media3 (velocidad y tono por separado, con Sonic), también para el
+  reproductor de reserva del fundido. En el PC se cambia la velocidad remuestreando (interpolación
+  lineal entre muestras, después del ecualizador), así que el tono va siempre con ella:
+  `AudioEngine.separatePitch` es false y el panel lo explica en vez de enseñar los semitonos. La
+  posición tiene en cuenta la velocidad desde el último cambio.
+- **Fantasmas coleccionables:** `GhostSkin` (colores de cuerpo, cara y mofletes y un accesorio)
+  y `GhostCollection`, que saca de la biblioteca y del historial lo que cuenta (escuchas, notas,
+  dieces, canciones, escuchas de madrugada en hora local, racha de días y si se ha visto el
+  Wrapped). Un fantasma ganado no se pierde aunque luego deje de cumplirse (se apunta en
+  `ghost.announced`). Al estrenar la versión los que ya se tenían se apuntan sin avisar; los nuevos
+  se anuncian de uno en uno cuando no hay otro aviso en pantalla (así no se pisa el «DESHACER» de
+  una nota). El que se lleva puesto llega a todos los fantasmas por `LocalGhostSkin`; las caras
+  blancas (errores, pausa) siguen blancas, que avisan de algo. Con sombrero, el fantasma se
+  encoge un 12 % hacia los pies para que quepa en su caja.
+- **Wrapped:** `Wrapped.report` calcula un mes o un año con la hora local: minutos, escuchas,
+  canciones y artistas distintos, las 5 más escuchadas, a qué hora se escucha (madrugada, mañana,
+  tarde o noche), la mejor puntuada, la racha y las que sonaron por primera vez. Cuentan solo las
+  canciones que siguen en la biblioteca. Las tarjetas (proporción de historia, 0,62) se pasan con
+  un `HorizontalPager` y cada una se graba en una `GraphicsLayer`, de la que sale la imagen al
+  tocar «COMPARTIR» (Android: PNG en la caché, compartido por el FileProvider) o «GUARDAR IMAGEN»
+  (PC: PNG en Imágenes › FreedomPlayer).

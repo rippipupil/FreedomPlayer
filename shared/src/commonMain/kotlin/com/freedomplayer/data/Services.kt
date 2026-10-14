@@ -246,6 +246,10 @@ data class SoundSettings(
     val normalize: Boolean = true,
     /** Fundido entre canciones (0 = sin fundido). */
     val crossfadeMs: Long = 0,
+    /** Velocidad (1 = tal cual). */
+    val speed: Float = 1f,
+    /** Tono (1 = el de siempre); ver [com.freedomplayer.core.Tempo.pitch]. */
+    val pitch: Float = 1f,
 )
 
 /** Mide la sonoridad de una canción (LUFS integrados, ver [com.freedomplayer.core.LoudnessMeter]). */
@@ -327,6 +331,12 @@ interface AudioEngine {
 
     /** El ecualizador funciona (en algunos móviles el del sistema no está o no deja usarse). */
     val equalizerAvailable: Boolean get() = true
+
+    /**
+     * El tono se puede cambiar aparte de la velocidad. Si no (el PC), el tono va siempre con la
+     * velocidad, como un vinilo, y [SoundSettings.pitch] no se usa.
+     */
+    val separatePitch: Boolean get() = true
 
     /** Para el audio simulado: el tiempo que ha pasado. Los de verdad no lo necesitan. */
     fun tick(elapsedMs: Long) {}

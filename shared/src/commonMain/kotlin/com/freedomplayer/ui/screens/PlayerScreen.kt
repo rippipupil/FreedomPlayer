@@ -684,6 +684,7 @@ private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean, preview
 private enum class Tool(val icon: FpIcon, val label: String) {
     Eq(FpIcons.Equalizer, "Ecualizador"),
     Sleep(FpIcons.Moon, "Temporizador de apagado"),
+    Speed(FpIcons.Speed, "Velocidad y tono"),
     Edit(FpIcons.Pencil, "Editar datos de la canción"),
     Queue(FpIcons.Queue, "Cola"),
 }
@@ -699,7 +700,7 @@ private fun Tools(state: AppState) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         for (tool in Tool.entries) {
-            val on = tool == Tool.Sleep && state.sleepTimer != null
+            val on = (tool == Tool.Sleep && state.sleepTimer != null) || (tool == Tool.Speed && !state.settings.tempo.isNormal)
             IconButton(
                 tool.icon,
                 if (on) tool.label + " (puesto)" else tool.label,
@@ -714,6 +715,7 @@ private fun useTool(state: AppState, tool: Tool) {
     when (tool) {
         Tool.Eq -> state.sheet = Sheet.Equalizer
         Tool.Sleep -> state.sheet = Sheet.SleepTimer
+        Tool.Speed -> state.sheet = Sheet.Speed
         Tool.Edit -> state.currentSong?.let { state.prompt = Prompt.EditSong(it.id) }
         Tool.Queue -> state.sheet = Sheet.Queue
     }

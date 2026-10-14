@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.EqPreset
+import com.freedomplayer.core.GhostSkin
 import com.freedomplayer.core.SampleData
 import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.Stats
@@ -229,6 +230,11 @@ class CapturasTest {
             go(Screen.Stats)
             statsTab = StatsTab.Monthly
         }
+        shoot("05f3-movil-wrapped", wide = false) { openWrapped() }
+        shoot("05f4-movil-fantasmas", wide = false) {
+            settings.ghostSkin = GhostSkin.Dj
+            go(Screen.Ghosts)
+        }
         shoot("05g-movil-ajustes", wide = false) {
             togglePlay()
             go(Screen.Settings)
@@ -330,6 +336,11 @@ class CapturasTest {
             go(Screen.Stats)
             statsTab = StatsTab.Monthly
             statsMonth = Stats.months(playLog).getOrNull(1)
+        }
+        shoot("06p-pc-wrapped", wide = true) { openWrapped() }
+        shoot("06q-pc-fantasmas", wide = true) {
+            settings.ghostSkin = GhostSkin.Rey
+            go(Screen.Ghosts)
         }
     }
 
