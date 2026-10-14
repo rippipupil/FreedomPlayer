@@ -242,11 +242,11 @@ class PlaybackFlowTest {
 
     /** El audio simulado, apuntando lo que la app le dice de cómo sonar y qué canciones le pasa. */
     private class RecordingEngine(private val inner: SimulatedEngine = SimulatedEngine()) : AudioEngine by inner {
-        var sound: SoundSettings? = null
+        var lastSound: SoundSettings? = null
         var loaded: List<Track> = emptyList()
 
         override fun setSound(sound: SoundSettings) {
-            this.sound = sound
+            lastSound = sound
         }
 
         override fun load(tracks: List<Track>, index: Int, positionMs: Long, play: Boolean) {
@@ -259,16 +259,16 @@ class PlaybackFlowTest {
     fun soundSettingsReachTheEngine() {
         val engine = RecordingEngine()
         val state = AppState(System.currentTimeMillis(), Services(store(), SampleSource(latencyMs = 0), SimulatedDownloader(), SampleLyrics(), engine))
-        assertEquals(SoundSettings(normalize = true, crossfadeMs = 0), engine.sound, "al abrir: volumen igualado sí, fundido no")
+        assertEquals(SoundSettings(normalize = true, crossfadeMs = 0), engine.lastSound, "al abrir: volumen igualado sí, fundido no")
         state.settings.crossfade = true
         state.settings.crossfadeSeconds = 9
         state.setEqBand(0, 4.5f)
         state.step(100)
-        assertEquals(SoundSettings(eqGains = listOf(4.5f, 0f, 0f, 0f, 0f), normalize = true, crossfadeMs = 9_000), engine.sound)
+        assertEquals(SoundSettings(eqGains = listOf(4.5f, 0f, 0f, 0f, 0f), normalize = true, crossfadeMs = 9_000), engine.lastSound)
         state.settings.normalizeVolume = false
         state.settings.crossfade = false
         state.step(100)
-        assertEquals(SoundSettings(eqGains = listOf(4.5f, 0f, 0f, 0f, 0f), normalize = false, crossfadeMs = 0), engine.sound)
+        assertEquals(SoundSettings(eqGains = listOf(4.5f, 0f, 0f, 0f, 0f), normalize = false, crossfadeMs = 0), engine.lastSound)
     }
 
     @Test
