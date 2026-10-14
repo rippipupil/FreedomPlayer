@@ -93,6 +93,7 @@ object FpIcons {
     val Check = FpIcon("M5 12.5 L10 17 L19 7", strokeWidth = 2.6f)
     val Close = FpIcon("M6 6 L18 18 M18 6 L6 18", strokeWidth = 2f)
     val Download = FpIcon("M12 4 V15 M7 10 L12 15 L17 10 M5 20 H19", strokeWidth = 2f)
+    val Folder = FpIcon("M3 5.5 H9.5 L11.5 8 H21 V19 H3 Z M3 11 H21")
     val Link = FpIcon(
         "M10 14 L14 10 M8.5 11.5 L6.5 13.5 A3.5 3.5 0 0 0 11.5 18.5 L13.5 16.5 " +
             "M15.5 12.5 L17.5 10.5 A3.5 3.5 0 0 0 12.5 5.5 L10.5 7.5",

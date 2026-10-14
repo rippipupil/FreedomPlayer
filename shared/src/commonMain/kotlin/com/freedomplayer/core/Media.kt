@@ -1,5 +1,7 @@
 package com.freedomplayer.core
 
+import kotlin.math.abs
+
 /** Ids de canción: «yt:<id del vídeo>» para lo que viene de YouTube y «local:<…>» para los archivos propios. */
 object SongIds {
     private val videoId = Regex("""(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/)([A-Za-z0-9_-]{11})""")
@@ -36,22 +38,55 @@ data class AudioOption(
     val headers: Map<String, String> = emptyMap(),
 )
 
-object AudioPicker {
-    /**
-     * La mejor pista para guardar o escuchar: solo las que se pueden bajar de una vez, primero la
-     * original (no doblada) y luego la de más calidad. Si empatan, m4a, que es la que más
-     * reproductores entienden.
-     */
-    fun best(options: List<AudioOption>): AudioOption? =
-        options.asSequence()
-            .filter { it.progressive && it.url.isNotBlank() }
-            .sortedWith(
-                compareByDescending<AudioOption> { it.original }
-                    .thenByDescending { it.bitrate }
-                    .thenBy { if (it.extension == "m4a") 0 else 1 },
-            )
-            .firstOrNull()
+/** Calidad del audio que se descarga (Ajustes → Descargas). */
+enum class AudioQuality(val label: String, val detail: String) {
+    /** La pista de más calidad que da YouTube: lo de siempre. */
+    Best("Máxima", "La mejor pista que da YouTube (unos 130–160 kbps)."),
+
+    /** La más cercana a 128 kbps (suele ser AAC, la que entiende cualquier reproductor). */
+    Normal("Normal", "Unos 128 kbps: suena casi igual y ocupa algo menos."),
+
+    /** La más ligera: ocupa más o menos la mitad y gasta menos datos. */
+    Saver("Ahorro", "Unos 50–70 kbps: ocupa la mitad y gasta menos datos.");
+
+    companion object {
+        val DEFAULT = Best
+
+        /** La guardada en los ajustes, o la de siempre si no hay o no se entiende. */
+        fun parse(value: String?): AudioQuality = entries.firstOrNull { it.name == value } ?: DEFAULT
+    }
 }
+
+object AudioPicker {
+    /** Bits por segundo que busca la calidad «Normal». */
+    const val NORMAL_BITRATE = 128_000
+
+    /** La mejor pista para guardar o escuchar (calidad «Máxima»). */
+    fun best(options: List<AudioOption>): AudioOption? = pick(options, AudioQuality.Best)
+
+    /**
+     * La pista para la [quality] elegida. Solo las que se pueden bajar de una vez y, si hay
+     * original (no doblada), solo las originales. Máxima: la de más bitrate; Normal: la más
+     * cercana a 128 kbps; Ahorro: la de menos. Las de bitrate desconocido van al final. Si
+     * empatan, m4a, que es la que más reproductores entienden.
+     */
+    fun pick(options: List<AudioOption>, quality: AudioQuality): AudioOption? {
+        val usable = options.filter { it.progressive && it.url.isNotBlank() }
+        val pool = usable.filter { it.original }.ifEmpty { usable }
+        val known = compareBy<AudioOption> { if (it.bitrate > 0) 0 else 1 }
+        val byQuality = when (quality) {
+            AudioQuality.Best -> known.thenByDescending { it.bitrate }
+            AudioQuality.Normal -> known.thenBy { abs(it.bitrate - NORMAL_BITRATE) }
+            AudioQuality.Saver -> known.thenBy { it.bitrate }
+        }
+        return pool.sortedWith(byQuality.thenBy { if (it.extension == "m4a") 0 else 1 }.thenByDescending { it.bitrate })
+            .firstOrNull()
+    }
+}
+
+/** El nombre de la última carpeta de una ruta («D:\\Música\\FreedomPlayer» → «FreedomPlayer»). */
+fun folderName(path: String): String =
+    path.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\').ifEmpty { path }
 
 /** Una letra encontrada en LRCLIB. */
 data class LyricsCandidate(

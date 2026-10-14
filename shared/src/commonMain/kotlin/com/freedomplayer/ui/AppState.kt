@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CoverPalette
 import com.freedomplayer.core.Crossfade
 import com.freedomplayer.core.CustomRanking
@@ -32,6 +33,7 @@ import com.freedomplayer.core.SpotifyLink
 import com.freedomplayer.core.Stats
 import com.freedomplayer.core.TrackMatch
 import com.freedomplayer.core.YearMonth
+import com.freedomplayer.core.folderName
 import com.freedomplayer.core.minutesText
 import com.freedomplayer.core.starsText
 import com.freedomplayer.data.DownloadRequest
@@ -257,6 +259,29 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
     var closeToTray by Flag("closeToTray", true)
     var miniOnTop by Flag("miniOnTop", true)
 
+    private val qualityState = mutableStateOf(AudioQuality.parse(read("download.quality")))
+
+    /** Calidad del audio que se descarga (por defecto, la mejor que da YouTube). */
+    var downloadQuality: AudioQuality
+        get() = qualityState.value
+        set(value) {
+            if (value == qualityState.value) return
+            qualityState.value = value
+            write("download.quality", value.name)
+        }
+
+    private val folderState = mutableStateOf(read("download.folder")?.takeIf { it.isNotBlank() })
+
+    /** Carpeta para las descargas nuevas (solo en el PC); null: la de la app. */
+    var downloadFolder: String?
+        get() = folderState.value
+        set(value) {
+            val v = value?.takeIf { it.isNotBlank() }
+            if (v == folderState.value) return
+            folderState.value = v
+            write("download.folder", v)
+        }
+
     /** Para probar los estados sin red y con la biblioteca vacía (no se guardan). */
     var demoOffline by mutableStateOf(false)
     var demoEmpty by mutableStateOf(false)
@@ -341,6 +366,17 @@ class AppState(
     var fileImporter: (() -> Unit)? by mutableStateOf(null)
 
     val canImportFiles: Boolean get() = fileImporter != null
+
+    /**
+     * Abre el selector de carpetas del sistema para las descargas. Solo lo pone el PC: en Android
+     * la música se queda en la carpeta de la app (la sincronización necesita una ruta fija).
+     */
+    var folderPicker: (() -> Unit)? by mutableStateOf(null)
+
+    val canChooseFolder: Boolean get() = folderPicker != null
+
+    /** La carpeta de la app donde va la música si no se elige otra (la pone la plataforma). */
+    var appMusicFolder: String? by mutableStateOf(null)
 
     // ---------- Navegación ----------
 
@@ -1144,7 +1180,15 @@ class AppState(
 
     private fun requestFor(r: SearchResult, title: String? = null, artist: String? = null, album: String? = null): DownloadRequest {
         val s = songFor(r, title, artist)
-        return DownloadRequest(r, s.title, s.artist, album ?: r.album)
+        return DownloadRequest(
+            r,
+            s.title,
+            s.artist,
+            album ?: r.album,
+            quality = settings.downloadQuality,
+            // La carpeta solo cuenta donde se puede elegir (el PC), aunque el ajuste llegue de otro sitio.
+            folder = settings.downloadFolder.takeIf { canChooseFolder },
+        )
     }
 
     /** Progreso de descarga de un resultado (0–1), o null si no se está descargando. */
@@ -1311,6 +1355,25 @@ class AppState(
                 )
             }
         }
+    }
+
+    // ---------- Carpeta de descargas ----------
+
+    /** Ajustes → «Carpeta de descargas»: abre el selector de carpetas (solo en el PC). */
+    fun chooseDownloadFolder() {
+        folderPicker?.invoke()
+    }
+
+    /** La carpeta elegida, o null para volver a la de la app. Lo que ya está descargado no se mueve. */
+    fun setDownloadFolder(path: String?) {
+        val before = settings.downloadFolder
+        settings.downloadFolder = path
+        val now = settings.downloadFolder
+        if (now == before) return
+        toast(
+            if (now == null) "Las descargas nuevas vuelven a la carpeta de la app." else "Las descargas nuevas irán a «${folderName(now)}».",
+            Mood.Owo,
+        )
     }
 
     // ---------- Archivos propios ----------
