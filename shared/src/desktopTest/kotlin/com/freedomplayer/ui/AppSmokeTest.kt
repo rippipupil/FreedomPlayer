@@ -147,6 +147,27 @@ class AppSmokeTest {
         state.confirmAdd(AddTarget.Album(album), state.playlists.first().id)
         settle(2_000)
 
+        // Listas de otros: buscarlas, abrir una, «+ AÑADIR TODAS» y un enlace pegado
+        state.searchTab = SearchTab.Playlists
+        state.query = "luz"
+        settle(1_000)
+        val other = SampleData.otherLists.first()
+        state.openOtherList(other.url, other)
+        settle(1_000)
+        state.otherList?.list?.let { list ->
+            state.requestAdd(AddTarget.WholeList(list))
+            settle()
+            state.sheet = null
+            settle()
+        }
+        state.back()
+        settle()
+        state.query = other.url
+        settle()
+        assertNotNull(state.linkedList)
+        state.query = ""
+        settle()
+
         // Nueva playlist y nuevo ranking
         state.prompt = Prompt.NewPlaylist()
         settle()

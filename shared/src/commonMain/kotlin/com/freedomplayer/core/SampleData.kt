@@ -80,6 +80,26 @@ object SampleData {
         SearchResult("v6", "Callejón 04 — cover acústico (Video Oficial) HD", "Sofía Rueda", 229, 0xFF2B3F5E, ResultKind.Video, note = "Sofía Rueda · 12 k"),
     )
 
+    /** Listas de otra gente que «encuentra» el buscador de ejemplo (pestaña Listas). */
+    val otherLists = listOf(
+        PlaylistResult(
+            "Noche de neón · lo mejor",
+            "YouTube Music",
+            6,
+            0xFF552243,
+            "https://music.youtube.com/playlist?list=PLdemoNeon01",
+            songIds = listOf("s5", "c3", "c5", "s4", "c1", "c6"),
+        ),
+        PlaylistResult(
+            "Lo-fi para el callejón",
+            "nocturna fm",
+            4,
+            0xFF1E5C50,
+            "https://www.youtube.com/playlist?list=PLdemoLofi02",
+            songIds = listOf("v5", "v6", "v1", "v4"),
+        ),
+    )
+
     val albums = listOf(
         AlbumResult("Calles vacías", "Ghostline", "2025", 0xFF4A2A6B, listOf("s1", "s6", "c7")),
         AlbumResult("Neón", "Kaori Vale", "2024", 0xFF3B2F8F, listOf("s2", "s7", "s8", "c6")),

@@ -4,6 +4,8 @@ import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.AudioOption
 import com.freedomplayer.core.AudioPicker
 import com.freedomplayer.core.CoverPalette
+import com.freedomplayer.core.OtherList
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.SongIds
@@ -104,6 +106,47 @@ class YouTubeSource(locale: Locale = Locale.getDefault()) : MusicSource, AudioRe
         }
     }
 
+    override suspend fun searchPlaylists(query: String): List<PlaylistResult> =
+        search(query, YoutubeSearchQueryHandlerFactory.MUSIC_PLAYLISTS)
+            .filterIsInstance<PlaylistInfoItem>()
+            .map { item ->
+                PlaylistResult(
+                    title = item.name,
+                    owner = TitleCleaner.cleanChannel(item.uploaderName.orEmpty()),
+                    count = item.streamCount.takeIf { it >= 0 }?.toInt(),
+                    coverColor = CoverPalette.forKey(item.url),
+                    url = item.url,
+                    cover = bestImage(item.thumbnails, Size.Row),
+                )
+            }
+
+    override suspend fun otherList(url: String): OtherList = withContext(Dispatchers.IO) {
+        try {
+            val info = PlaylistInfo.getInfo(youtube, url)
+            val items = info.relatedItems.toMutableList()
+            var page = info.nextPage
+            // Las listas largas llegan por páginas; como mucho [MAX_LIST] canciones.
+            while (page != null && items.size < MAX_LIST) {
+                val more = PlaylistInfo.getMoreItems(youtube, url, page)
+                items += more.items
+                page = if (more.hasNextPage()) more.nextPage else null
+            }
+            val list = PlaylistResult(
+                title = info.name,
+                owner = TitleCleaner.cleanChannel(info.uploaderName.orEmpty()),
+                count = info.streamCount.takeIf { it >= 0 }?.toInt(),
+                coverColor = CoverPalette.forKey(url),
+                url = url,
+                cover = bestImage(info.thumbnails, Size.Cover),
+            )
+            // Las de YouTube Music traen canciones; las de YouTube, vídeos (se limpian al añadirlos).
+            val kind = if (list.isMusic) ResultKind.Cancion else ResultKind.Video
+            OtherList(list, items.take(MAX_LIST).mapNotNull { it.toResult(kind) }.distinctBy { it.id })
+        } catch (e: Throwable) {
+            throw classify(e, "Lista")
+        }
+    }
+
     override suspend fun stream(result: SearchResult): StreamSource {
         val audio = resolve(result)
         return StreamSource(audio.option.url, audio.option.headers, audio.option.mimeType, audio.durationSec)
@@ -176,6 +219,9 @@ class YouTubeSource(locale: Locale = Locale.getDefault()) : MusicSource, AudioRe
     private enum class Size { Row, Cover }
 
     companion object {
+        /** Como mucho, las primeras 500 canciones de una lista de otra persona. */
+        const val MAX_LIST = 500
+
         @Volatile
         private var initialized = false
 

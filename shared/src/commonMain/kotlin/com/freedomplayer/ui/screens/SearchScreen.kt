@@ -16,6 +16,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.formatTime
@@ -99,9 +102,10 @@ import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
 
 /**
- * Buscar (YouTube Music y YouTube): canciones, álbumes y vídeos. La carátula (o la miniatura)
- * es la vista previa; «+» abre el selector de playlist. En el móvil el contenido va a 46 dp de los
- * bordes para que la pestaña derecha no pise los «+».
+ * Buscar (YouTube Music y YouTube): canciones, álbumes, vídeos y listas de otra gente. La carátula
+ * (o la miniatura) es la vista previa; «+» abre el selector de playlist. Pegar el enlace de una
+ * lista de YouTube la abre. En el móvil el contenido va a 46 dp de los bordes para que la pestaña
+ * derecha no pise los «+».
  */
 @Composable
 fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
@@ -125,15 +129,21 @@ fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
                 enabled = state.online,
                 onSubmit = { keyboard?.hide() },
             )
+            // Cuatro pestañas: en el móvil no caben y se desplazan de lado.
             FpTabs(
-                labels = listOf("CANCIONES", "ÁLBUMES", "VÍDEOS"),
+                labels = listOf("CANCIONES", "ÁLBUMES", "VÍDEOS", "LISTAS"),
                 selected = state.searchTab.ordinal,
                 onSelect = { state.searchTab = SearchTab.entries[it] },
+                modifier = if (wide) Modifier else Modifier.horizontalScroll(rememberScrollState()),
+                tabPadding = if (wide) 14.dp else 10.dp,
             )
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
+            val link = state.linkedList
             if (!state.online) {
                 OfflineSearch(state, Modifier.then(if (wide) Modifier.padding(pad.sidesOnly()) else side).padding(top = 16.dp))
+            } else if (link != null) {
+                LinkedList(state, link, Modifier.then(if (wide) Modifier.padding(pad.sidesOnly()) else side).padding(top = 16.dp))
             } else {
                 val reduce = LocalReduceMotion.current
                 AnimatedContent(
@@ -154,6 +164,7 @@ fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
                         SearchTab.Songs -> SongResults(state, listPad)
                         SearchTab.Albums -> AlbumResults(state, listPad)
                         SearchTab.Videos -> VideoResults(state, listPad)
+                        SearchTab.Playlists -> PlaylistResults(state, listPad)
                     }
                 }
             }
@@ -240,6 +251,63 @@ private fun VideoResults(state: AppState, pad: PaddingValues) {
 }
 
 @Composable
+private fun PlaylistResults(state: AppState, pad: PaddingValues) {
+    TabContent(state, SearchTab.Playlists, state.playlistResults, pad, skeleton = { SkeletonRows(76.dp, 76.dp, gap = 24.dp, rows = 4) }) { lists ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item(key = "note") {
+                HintNote("Listas que ha hecho otra gente. Ábrela y añade solo las canciones que quieras.", barColor = Fp.Violet)
+            }
+            items(lists, key = { it.key }) { list ->
+                OtherListRow(state, list, itemMotion())
+            }
+        }
+    }
+}
+
+/** Fila de una lista de otra persona: carátulas apiladas, nombre, «QUIÉN · N CANCIONES» y «VER CANCIONES ›». */
+@Composable
+private fun OtherListRow(state: AppState, list: PlaylistResult, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .fpClickable(onClickLabel = "Ver las canciones de ${list.title}", pressedScale = 0.98f) { state.openOtherList(list.url, list) },
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StackedCover(list.coverColor, front = 76.dp, back = 74.dp, backX = 8.dp, frontY = 9.dp, image = list.cover)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Nunito(list.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 2)
+            Chakra(
+                listOfNotNull(list.owner.uppercase().ifBlank { null }, list.count?.let { songCount(it) } ?: "LISTA").joinToString(" · "),
+                11.sp,
+                color = Fp.Mist,
+                spacing = 1.sp,
+                weight = FontWeight.Medium,
+            )
+            Chakra("VER CANCIONES ›", 11.sp, color = Fp.Pink, spacing = 1.5.sp)
+        }
+    }
+}
+
+/** Lo escrito es el enlace de una lista de YouTube: en vez de buscarlo, se ofrece abrirla. */
+@Composable
+private fun LinkedList(state: AppState, url: String, modifier: Modifier) {
+    EmptyState(
+        title = "Enlace de una lista",
+        body = if ("music.youtube.com" in url) {
+            "Es una lista de YouTube Music. Ábrela para escuchar sus canciones y añadir las que quieras."
+        } else {
+            "Es una lista de YouTube. Ábrela para escuchar sus vídeos y añadir los que quieras como canciones."
+        },
+        modifier = modifier,
+        ghosts = { Ghost(Mood.Owo, 52.dp, Modifier.fpBob()) },
+    ) {
+        PrimaryButton("ABRIR LISTA", { state.openOtherList(url) }, Modifier.width(220.dp), fill = true, icon = FpIcons.Link)
+        SecondaryButton("BORRAR", { state.query = "" }, Modifier.width(220.dp))
+    }
+}
+
+@Composable
 private fun VideoList(state: AppState, videos: List<SearchResult>, pad: PaddingValues) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item(key = "note") {
@@ -263,7 +331,7 @@ internal fun AppState.addStateFor(r: SearchResult): AddState {
 
 /** Fila de canción: vista previa en la carátula, título, «Artista · Álbum · 3:05» y «+» o EN BIBLIO. */
 @Composable
-private fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Modifier) {
+internal fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Modifier) {
     val previewing = state.preview?.id == r.id
     val inLibrary = state.librarySongFor(r) != null && r.id !in state.addedIds
     Row(
@@ -504,9 +572,11 @@ private fun VideoRow(state: AppState, v: SearchResult, modifier: Modifier = Modi
 private fun NoResults(state: AppState, tab: SearchTab, pad: PaddingValues) {
     val q = state.query.trim()
     val (title, body) = when {
-        q.isEmpty() -> "Busca algo" to "Escribe una canción, un artista o un álbum. Los vídeos traen directos, remixes y covers."
+        q.isEmpty() -> "Busca algo" to
+            "Escribe una canción, un artista o un álbum, o pega el enlace de una lista de YouTube. Los vídeos traen directos, remixes y covers."
         tab == SearchTab.Songs -> "Nada por aquí" to "Ninguna canción coincide con «$q». Prueba en la pestaña Vídeos."
         tab == SearchTab.Albums -> "Nada por aquí" to "Ningún álbum coincide con «$q». Prueba con el nombre del artista."
+        tab == SearchTab.Playlists -> "Nada por aquí" to "Ninguna lista coincide con «$q». También puedes pegar aquí el enlace de una lista de YouTube."
         else -> "Nada por aquí" to "Ningún vídeo coincide con «$q»."
     }
     EmptyState(
@@ -566,7 +636,7 @@ private fun SpotifyLink(onClick: () -> Unit, modifier: Modifier = Modifier) {
  * reduce el movimiento.
  */
 @Composable
-private fun SkeletonRows(coverWidth: Dp, coverHeight: Dp, gap: Dp, rows: Int = 7) {
+internal fun SkeletonRows(coverWidth: Dp, coverHeight: Dp, gap: Dp, rows: Int = 7) {
     val reduce = LocalReduceMotion.current
     val pulse = if (reduce) {
         null

@@ -19,11 +19,13 @@ import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
 import com.freedomplayer.core.Loudness
 import com.freedomplayer.core.LyricsData
+import com.freedomplayer.core.OtherList
 import com.freedomplayer.core.MatchKind
 import com.freedomplayer.core.PlayEvent
 import com.freedomplayer.core.PlayQueue
 import com.freedomplayer.core.Playlist
 import com.freedomplayer.core.PlaylistOrder
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.Ranking
 import com.freedomplayer.core.RepeatMode
@@ -38,6 +40,7 @@ import com.freedomplayer.core.Stats
 import com.freedomplayer.core.SyncIds
 import com.freedomplayer.core.TrackMatch
 import com.freedomplayer.core.YearMonth
+import com.freedomplayer.core.YouTubeLinks
 import com.freedomplayer.core.folderName
 import com.freedomplayer.core.minutesText
 import com.freedomplayer.core.starsText
@@ -77,6 +80,9 @@ sealed interface Screen {
     data object Stats : Screen
     data object Settings : Screen
     data class PlaylistDetail(val id: String) : Screen
+
+    /** Una lista de otra persona (YouTube Music o YouTube), para añadir canciones sueltas. */
+    data class OtherListDetail(val url: String) : Screen
     data object SpotifyImport : Screen
     data object Sync : Screen
 
@@ -85,7 +91,7 @@ sealed interface Screen {
 
 enum class Side { Left, Right }
 
-enum class SearchTab { Songs, Albums, Videos }
+enum class SearchTab { Songs, Albums, Videos, Playlists }
 
 enum class RankTab { General, Mine, Unrated }
 
@@ -96,6 +102,9 @@ enum class Tone { Pink, Jade, Neon, Bone }
 sealed interface AddTarget {
     data class Result(val result: SearchResult) : AddTarget
     data class Album(val album: AlbumResult) : AddTarget
+
+    /** «+ AÑADIR TODAS» de una lista de otra persona. */
+    data class WholeList(val list: OtherList) : AddTarget
     /** Una canción que ya está en la biblioteca (desde el reproductor): solo se elige playlist. */
     data class LibrarySong(val songId: String) : AddTarget
 }
@@ -191,6 +200,16 @@ data class TabResults<T>(
 )
 
 enum class ImportPhase { Paste, Matching, Done }
+
+/** Una lista de otra persona abierta: cargando, con su error o con sus canciones. */
+class OtherListState(val url: String, val hint: PlaylistResult?) {
+    var list by mutableStateOf<OtherList?>(null)
+    var loading by mutableStateOf(true)
+    var error by mutableStateOf<FailureKind?>(null)
+
+    /** Lo que se sabe de la lista: lo cargado o, mientras tanto, lo que enseñaba el buscador. */
+    val info: PlaylistResult? get() = list?.info ?: hint
+}
 
 /** Dos toques en «atrás» del mini-reproductor dentro de este tiempo van a la canción anterior. */
 const val REWIND_DOUBLE_TAP_MS = 600L
@@ -1210,6 +1229,11 @@ class AppState(
         private set
     var albumResults by mutableStateOf(TabResults<AlbumResult>())
         private set
+    var playlistResults by mutableStateOf(TabResults<PlaylistResult>())
+        private set
+
+    /** Si lo escrito en el buscador es el enlace de una lista de YouTube, su dirección (no se busca). */
+    val linkedList: String? get() = YouTubeLinks.playlistUrl(query)
 
     /** Sube al pedir «Reintentar» en el buscador. */
     private var searchRetry by mutableIntStateOf(0)
@@ -1224,28 +1248,33 @@ class AppState(
             SearchTab.Songs -> songResults.query
             SearchTab.Videos -> videoResults.query
             SearchTab.Albums -> albumResults.query
+            SearchTab.Playlists -> playlistResults.query
         }
         val failed = when (tab) {
             SearchTab.Songs -> songResults.error
             SearchTab.Videos -> videoResults.error
             SearchTab.Albums -> albumResults.error
+            SearchTab.Playlists -> playlistResults.error
         }
         val busy = when (tab) {
             SearchTab.Songs -> songResults.loading
             SearchTab.Videos -> videoResults.loading
             SearchTab.Albums -> albumResults.loading
+            SearchTab.Playlists -> playlistResults.loading
         }
         if (current == q && failed == null && !busy) return
         when (tab) {
             SearchTab.Songs -> songResults = songResults.copy(query = q, loading = true, error = null)
             SearchTab.Videos -> videoResults = videoResults.copy(query = q, loading = true, error = null)
             SearchTab.Albums -> albumResults = albumResults.copy(query = q, loading = true, error = null)
+            SearchTab.Playlists -> playlistResults = playlistResults.copy(query = q, loading = true, error = null)
         }
         try {
             when (tab) {
                 SearchTab.Songs -> songResults = TabResults(q, services.source.searchSongs(q))
                 SearchTab.Videos -> videoResults = TabResults(q, services.source.searchVideos(q))
                 SearchTab.Albums -> albumResults = TabResults(q, services.source.searchAlbums(q))
+                SearchTab.Playlists -> playlistResults = TabResults(q, services.source.searchPlaylists(q))
             }
         } catch (e: CancellationException) {
             throw e
@@ -1255,6 +1284,7 @@ class AppState(
                 SearchTab.Songs -> songResults = songResults.copy(loading = false, error = kind)
                 SearchTab.Videos -> videoResults = videoResults.copy(loading = false, error = kind)
                 SearchTab.Albums -> albumResults = albumResults.copy(loading = false, error = kind)
+                SearchTab.Playlists -> playlistResults = playlistResults.copy(loading = false, error = kind)
             }
         }
     }
@@ -1283,6 +1313,69 @@ class AppState(
 
     private suspend fun tracksOf(album: AlbumResult): List<SearchResult> =
         albumTracks[album.key] ?: services.source.albumTracks(album).also { albumTracks[album.key] = it }
+
+    // ---------- Listas de otros ----------
+
+    /** La lista de otra persona abierta (o la última que se abrió). */
+    var otherList by mutableStateOf<OtherListState?>(null)
+        private set
+
+    /**
+     * Abre una lista de otra persona (de la pestaña Listas o de un enlace pegado) para elegir
+     * canciones sueltas. [hint] son los datos que ya se conocen, para enseñarlos mientras carga.
+     */
+    fun openOtherList(url: String, hint: PlaylistResult? = null) {
+        val open = otherList
+        if (open == null || open.url != url || (open.error != null && !open.loading)) {
+            val st = OtherListState(url, hint)
+            otherList = st
+            scope?.launch { loadOtherList(st) }
+        }
+        go(Screen.OtherListDetail(url))
+    }
+
+    /** «REINTENTAR» en una lista que no se pudo abrir. */
+    fun retryOtherList() {
+        val st = otherList ?: return
+        if (st.loading) return
+        scope?.launch { loadOtherList(st) }
+    }
+
+    internal suspend fun loadOtherList(st: OtherListState) {
+        st.loading = true
+        st.error = null
+        try {
+            st.list = services.source.otherList(st.url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            st.error = e.failureKind()
+        } finally {
+            st.loading = false
+        }
+    }
+
+    /** La descarga de «+ AÑADIR TODAS» de una lista (para su barra). */
+    fun otherListJob(url: String): DownloadJob? = downloads.firstOrNull { it.isCollection && it.albumKey == "list:$url" }
+
+    private fun addWholeList(list: OtherList, playlistId: String?) {
+        val key = "list:${list.info.url}"
+        if (otherListJob(list.info.url) != null) return
+        val have = list.tracks.mapNotNull { librarySongFor(it) }
+        if (playlistId != null && have.isNotEmpty()) addToPlaylist(playlistId, have.map { it.id })
+        val missing = list.tracks.filter { librarySongFor(it) == null && downloadFraction(it.id) == null }.distinctBy { it.id }
+        if (missing.isEmpty()) {
+            val p = playlist(playlistId)
+            toast(if (p != null) "Añadidas a «${p.name}»: ya las tenías todas." else "Ya tienes todas las de «${list.info.title}».", Mood.Uwu, Tone.Jade)
+            return
+        }
+        missing.forEach { if (it.id !in addedIds) addedIds.add(it.id) }
+        enqueue(
+            DownloadJob(newId(), list.info.title, playlistId, isCollection = true, albumKey = key).apply {
+                items.addAll(missing.map { requestFor(it) })
+            },
+        )
+    }
 
     // ---------- Añadir y descargar ----------
 
@@ -1365,6 +1458,7 @@ class AppState(
                 enqueue(DownloadJob(newId(), request.title, playlistId, isCollection = false).apply { items.add(request) })
             }
             is AddTarget.Album -> addAlbum(target.album, playlistId)
+            is AddTarget.WholeList -> addWholeList(target.list, playlistId)
         }
     }
 
@@ -2178,7 +2272,7 @@ class AppState(
             scope = this
             launch {
                 snapshotFlow { Triple(query.trim(), searchTab, online to searchRetry) }.collectLatest { (q, tab, net) ->
-                    if (q.isEmpty() || !net.first) return@collectLatest
+                    if (q.isEmpty() || !net.first || YouTubeLinks.playlistUrl(q) != null) return@collectLatest
                     delay(if (isDemo) 50 else 350)
                     search(q, tab)
                 }

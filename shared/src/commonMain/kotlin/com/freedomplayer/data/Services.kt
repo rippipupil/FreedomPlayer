@@ -6,7 +6,9 @@ import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
 import com.freedomplayer.core.LyricsData
+import com.freedomplayer.core.OtherList
 import com.freedomplayer.core.PlayEvent
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.Playlist
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.SearchResult
@@ -119,6 +121,15 @@ interface MusicSource {
 
     /** Las canciones de un álbum, en orden. */
     suspend fun albumTracks(album: AlbumResult): List<SearchResult>
+
+    /** Listas que ha hecho otra gente en YouTube Music (para elegir canciones sueltas). */
+    suspend fun searchPlaylists(query: String): List<PlaylistResult> = emptyList()
+
+    /**
+     * Una lista de YouTube o YouTube Music por su dirección: sus datos y sus canciones, en orden.
+     * Lanza [SourceException] ([FailureKind.Unavailable] si es privada o ya no existe).
+     */
+    suspend fun otherList(url: String): OtherList = throw SourceException(FailureKind.Unavailable, "Este buscador no abre listas")
 
     /** El audio de un resultado para escucharlo ya (vista previa). */
     suspend fun stream(result: SearchResult): StreamSource

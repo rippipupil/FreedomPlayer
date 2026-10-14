@@ -514,3 +514,19 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - La vista previa también se abre en el reproductor: misma carátula y barra, sin nota, cola ni
   herramientas, y «+» para añadirla con el selector de siempre. Al cerrarla se cierra el
   reproductor.
+
+## Hito 7: listas de otra gente
+
+- **Buscar listas:** la pestaña «LISTAS» usa el filtro `music_playlists` de NewPipe (listas de
+  YouTube Music hechas por la comunidad y por YouTube Music). Va la última para no mover las
+  pestañas de siempre; en el móvil las pestañas se desplazan de lado porque no caben.
+- **Abrir una lista:** `PlaylistInfo` de NewPipe, página a página, hasta 500 canciones. Las de
+  YouTube Music llegan como canciones; las de YouTube, como vídeos (al añadirlos se limpia el
+  título con `TitleCleaner`, igual que en la pestaña Vídeos). No se importan: se abren y se elige.
+- **Enlaces:** `YouTubeLinks.playlistUrl` reconoce `playlist?list=`, `watch?v=…&list=` y
+  `youtu.be/…?list=` de youtube.com, m.youtube.com y music.youtube.com, y los deja en su forma
+  normal (se queda en YouTube Music si venía de ahí). Las mezclas automáticas (`RD…`) dependen
+  del vídeo y se abren tal cual. Un enlace en el buscador no se busca: se ofrece abrirlo.
+- **Añadir:** cada canción usa el «+» de siempre (biblioteca o playlist). «+ AÑADIR TODAS» es
+  como un álbum: lo que ya tienes va directo a la playlist elegida y lo demás se descarga en un
+  solo trabajo (`albumKey = "list:<dirección>"`, para su barra y para no repetirlo).
