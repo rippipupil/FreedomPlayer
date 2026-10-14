@@ -112,7 +112,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="0.3.${GITHUB_RUN_NUMBER}"
+            version="0.4.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"
@@ -299,7 +299,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="0.3.${GITHUB_RUN_NUMBER}"
+            version="0.4.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"

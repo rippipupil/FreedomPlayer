@@ -4,12 +4,13 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 3.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> **Estado: hito 4.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
 > añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
-> temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. Faltan
-> la sincronización entre el móvil y el PC y algunos ajustes. Ver
+> temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. En el
+> PC responde a las teclas multimedia y añade tus propios archivos de audio. Falta la
+> sincronización entre el móvil y el PC (en curso, con Syncthing) y algunos ajustes. Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -30,7 +31,7 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
-Las compilaciones de prueba se numeran `0.3.<n.º de ejecución>`. Si en Windows instalaste una con
+Las compilaciones de prueba se numeran `0.4.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
 
@@ -60,8 +61,8 @@ ya no se podrán instalar encima de las antiguas.
 ## Publicar una versión
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 El workflow compila esa versión, pasa las pruebas y crea la release con el APK, el `.msi` y el
@@ -119,8 +120,8 @@ de Spotify de verdad; si falla, solo deja un aviso en la ejecución.
 - `androidApp/`: la actividad de Android, la reproducción con Media3 (`playback/`, con el
   ecualizador del sistema y el fundido), la importación de archivos propios y las pruebas en el
   emulador (`src/androidTest`).
-- `desktopApp/`: la ventana de Windows (barra de título propia, bandeja del sistema y
-  mini-reproductor).
+- `desktopApp/`: la ventana de Windows (barra de título propia, bandeja del sistema,
+  mini-reproductor, teclas multimedia y el selector para añadir archivos propios).
 - `docs/`: decisiones de diseño, notas de cada versión y licencias de las tipografías.
 
 ## Licencias

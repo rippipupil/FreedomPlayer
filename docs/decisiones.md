@@ -282,3 +282,41 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - Elegir carpeta y calidad de las descargas.
 - Añadir archivos propios en el PC.
 - Las teclas multimedia del teclado en el PC.
+
+## Hito 4: decisiones técnicas
+
+### CI
+
+- Los trabajos de Linux usan `ubuntu-24.04` fijo: el cambio de `ubuntu-latest` a Ubuntu 26
+  (19 de octubre de 2026) no puede romper la compilación. Windows sigue en `windows-latest`.
+- `actions/download-artifact` pasa a v8, que ya funciona con Node 24.
+
+### PC
+
+- **Teclas multimedia:** se registran como teclas rápidas de Windows (`RegisterHotKey`, con JNA)
+  en un hilo propio que espera sus mensajes, así funcionan aunque la ventana no tenga el foco o
+  esté en la bandeja. Si otra app ya las tiene, Windows no deja registrarlas y la app sigue sin
+  ellas (sin errores). Fuera de Windows no se registra nada.
+- **Archivos propios:** el selector de archivos del sistema (`FileDialog`, el de Windows). Los
+  archivos se copian a la biblioteca (como en Android) y FFmpeg lee sus etiquetas y su carátula.
+  El id sale del nombre y el tamaño del archivo, igual que en Android: el mismo archivo es
+  siempre la misma canción.
+- **Bandeja y mini-reproductor:** ya estaban; el menú suma «Anterior» y hay una captura del
+  mini-reproductor flotante (06p) para comprobar que se pinta.
+
+### Sincronizar (en curso)
+
+- Syncthing oficial (v2.1.6), descargado en CI de sus releases de GitHub y comprobado con su lista
+  de sumas SHA-256; nunca se guarda en el repositorio. En Android va como biblioteca nativa (los
+  binarios `linux-arm64`, `linux-arm` y `linux-amd64`, que son estáticos), y en Windows dentro del
+  paquete.
+- Se configura solo por su API REST local (127.0.0.1), con una clave que se genera en el
+  dispositivo cada vez que se arranca.
+- La biblioteca (playlists, notas, rankings e historial) va en un JSON por dispositivo en una
+  carpeta compartida, nunca el archivo de SQLite. Gana el cambio más reciente, lo borrado no
+  vuelve y las escuchas se suman sin repetir.
+
+### Lo que todavía no
+
+- Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.
+- Elegir carpeta y calidad de las descargas.
