@@ -243,18 +243,31 @@ class AppState(
     /** Las carátulas de las primeras canciones de una playlist (para sus carátulas apiladas). */
     fun coversOf(p: Playlist): List<String> = p.songIds.asSequence().mapNotNull { song(it)?.cover }.take(2).toList()
 
+    /** Las consultas del historial, guardadas hasta que cambie algo (Inicio se repinta a menudo). */
+    private val historyCache = HashMap<String, Pair<Int, Any>>()
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> cachedHistory(key: String, query: () -> T): T {
+        val version = historyVersion
+        historyCache[key]?.let { (v, value) -> if (v == version) return value as T }
+        return query().also { historyCache[key] = version to it }
+    }
+
     /** «Recientes»: lo último que ha sonado (del historial guardado). */
     fun recentSongs(limit: Int): List<Song> {
         historyVersion
         if (settings.demoEmpty) return emptyList()
-        return store.recentlyPlayed(limit).mapNotNull { song(it) }
+        return cachedHistory("recent:$limit") { store.recentlyPlayed(limit) }.mapNotNull { song(it) }
     }
 
     /** «Más escuchadas»: escuchas de los últimos [days] días. */
     fun mostPlayed(days: Int, top: Int): List<Pair<Song, Int>> {
         historyVersion
         if (settings.demoEmpty) return emptyList()
-        return store.mostPlayedSince(nowMillis() - days * Stats.DAY_MS, top).mapNotNull { (id, n) -> song(id)?.let { it to n } }
+        // La ventana de días se mueve sola: con la hora en la clave, se vuelve a pedir cada hora.
+        val hour = nowMillis() / (60 * 60 * 1000L)
+        return cachedHistory("most:$days:$top:$hour") { store.mostPlayedSince(nowMillis() - days * Stats.DAY_MS, top) }
+            .mapNotNull { (id, n) -> song(id)?.let { it to n } }
     }
 
     // ---------- Plataforma ----------
@@ -594,17 +607,25 @@ class AppState(
 
     private var sinceSaved = 0L
 
+    /** Lo último que se ha guardado de la cola: solo se escribe lo que cambia. */
+    private val savedQueue = HashMap<String, String>()
+
     /** La cola y por dónde iba, para seguir al volver a abrir la app. */
     private fun saveQueue() {
         sinceSaved = 0
         if (isDemo) return
-        store.setSetting("queue.items", queue.items.joinToString("\n"))
-        store.setSetting("queue.original", queue.original.joinToString("\n"))
-        store.setSetting("queue.index", queue.index.toString())
-        store.setSetting("queue.shuffle", queue.shuffle.toString())
-        store.setSetting("queue.repeat", queue.repeat.name)
-        store.setSetting("queue.position", positionMs.toString())
-        store.setSetting("queue.source", queueSource)
+        fun put(key: String, value: String) {
+            if (savedQueue[key] == value) return
+            savedQueue[key] = value
+            store.setSetting(key, value)
+        }
+        put("queue.items", queue.items.joinToString("\n"))
+        put("queue.original", queue.original.joinToString("\n"))
+        put("queue.index", queue.index.toString())
+        put("queue.shuffle", queue.shuffle.toString())
+        put("queue.repeat", queue.repeat.name)
+        put("queue.position", positionMs.toString())
+        put("queue.source", queueSource)
     }
 
     private fun restoreQueue() {

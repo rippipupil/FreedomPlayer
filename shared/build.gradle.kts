@@ -13,6 +13,20 @@ val okHttpVersion = "5.4.0"
 val sqlDelightVersion = "2.2.1"
 val coilVersion = "3.3.0"
 
+// El audio del PC: FFmpeg (JavaCV), que va dentro de la app, con las librerías nativas del sistema
+// donde se compila (el instalador de Windows se hace en Windows, las pruebas en Linux).
+val javacvVersion = "1.5.14"
+val ffmpegVersion = "8.1.2-$javacvVersion"
+val nativePlatform: String = run {
+    val os = System.getProperty("os.name").lowercase()
+    val arm = System.getProperty("os.arch").lowercase() in setOf("aarch64", "arm64")
+    when {
+        os.contains("win") -> "windows-x86_64"
+        os.contains("mac") -> if (arm) "macosx-arm64" else "macosx-x86_64"
+        else -> if (arm) "linux-arm64" else "linux-x86_64"
+    }
+}
+
 // -Pfp.android=false deja fuera Android (ver settings.gradle.kts). El plugin de Android está
 // siempre en el classpath (build.gradle.kts de la raíz), pero solo se aplica si se compila Android.
 val withAndroid = (project.findProperty("fp.android") as String?)?.toBoolean() ?: true
@@ -80,6 +94,12 @@ kotlin {
             dependencies {
                 jvmShared.forEach { implementation(it) }
                 implementation("app.cash.sqldelight:sqlite-driver:$sqlDelightVersion")
+                // Solo lo de FFmpeg (JavaCV trae también OpenCV y otras que aquí sobran).
+                implementation("org.bytedeco:javacv:$javacvVersion") { isTransitive = false }
+                implementation("org.bytedeco:javacpp:$javacvVersion")
+                implementation("org.bytedeco:javacpp:$javacvVersion:$nativePlatform")
+                implementation("org.bytedeco:ffmpeg:$ffmpegVersion")
+                implementation("org.bytedeco:ffmpeg:$ffmpegVersion:$nativePlatform")
             }
         }
         // Prueba de humo de la interfaz (AppSmokeTest): pinta la app sin ventana.
