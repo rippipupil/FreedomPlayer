@@ -66,6 +66,7 @@ import com.freedomplayer.ui.components.SubText
 import com.freedomplayer.ui.components.SyncBadge
 import com.freedomplayer.ui.components.TextAction
 import com.freedomplayer.ui.components.cut
+import com.freedomplayer.ui.components.emptyLibraryText
 import com.freedomplayer.ui.components.fpBob
 import com.freedomplayer.ui.components.fpClickable
 import com.freedomplayer.ui.components.fpFloat
@@ -137,12 +138,16 @@ private fun HomeHeader(state: AppState, modifier: Modifier = Modifier) {
     }
 }
 
-/** Biblioteca vacía: llena la pantalla y lleva a Buscar o a vincular el PC. */
+/**
+ * Biblioteca vacía: llena la pantalla y lleva a Buscar o a vincular el otro dispositivo (en el
+ * móvil, el PC; en el PC, el móvil, como «SYNC · MÓVIL» y «Vincular con el móvil»).
+ */
 @Composable
 internal fun EmptyLibrary(state: AppState, modifier: Modifier = Modifier) {
+    val wide = LocalWide.current
     EmptyState(
         title = "Biblioteca vacía",
-        body = "Busca tu primera canción o vincula el PC con un QR.",
+        body = emptyLibraryText(wide),
         modifier = modifier,
         ghosts = {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -152,7 +157,7 @@ internal fun EmptyLibrary(state: AppState, modifier: Modifier = Modifier) {
         },
     ) {
         PrimaryButton("BUSCAR", { state.go(Screen.Search) }, Modifier.width(200.dp), fill = true)
-        SecondaryButton("VINCULAR PC", { state.openSync() }, Modifier.width(200.dp))
+        SecondaryButton(if (wide) "VINCULAR MÓVIL" else "VINCULAR PC", { state.openSync() }, Modifier.width(200.dp))
     }
 }
 

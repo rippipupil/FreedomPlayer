@@ -153,7 +153,7 @@ fun ColumnScope.SongsPanelContent(state: AppState) {
     if (state.library.isEmpty()) {
         EmptyState(
             title = "Biblioteca vacía",
-            body = "Busca tu primera canción o vincula el PC con un QR.",
+            body = emptyLibraryText(wide),
             modifier = Modifier.weight(1f),
             ghosts = {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
