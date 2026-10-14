@@ -304,43 +304,10 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - **Bandeja y mini-reproductor:** ya estaban; el menú suma «Anterior» y hay una captura del
   mini-reproductor flotante (06p) para comprobar que se pinta.
 
-### Sincronizar (en curso)
-
-- Syncthing oficial (v2.1.6), descargado en CI de sus releases de GitHub y comprobado con su lista
-  de sumas SHA-256; nunca se guarda en el repositorio. En Android va como biblioteca nativa (los
-  binarios `linux-arm64`, `linux-arm` y `linux-amd64`, que son estáticos), y en Windows dentro del
-  paquete.
-- Se configura solo por su API REST local (127.0.0.1), con una clave que se genera en el
-  dispositivo cada vez que se arranca.
-- La biblioteca (playlists, notas, rankings e historial) va en un JSON por dispositivo en una
-  carpeta compartida, nunca el archivo de SQLite. Gana el cambio más reciente, lo borrado no
-  vuelve y las escuchas se suman sin repetir.
-- Vincular: el PC enseña su id de Syncthing en un QR (ZXing) y el móvil lo escanea (ZXing
-  embebido, sin servicios de Google). El móvil añade el PC y comparte con él dos carpetas con id
-  fijo, `freedomplayer-musica` y `freedomplayer-biblioteca`. El PC, solo mientras enseña el QR,
-  acepta al dispositivo que pide conectar (`/rest/cluster/pending/devices`) y comparte con él las
-  mismas dos carpetas.
-- «Sincronizando con el PC 12 de 20»: de las canciones de la carpeta de música, las que ya están
-  en los dos (lo que le falta a cada uno, según `/rest/db/completion`).
-- Con la app abierta, la biblioteca se intercambia cada 20 s. Una canción del otro dispositivo
-  aparece cuando su audio ya ha llegado. En Android, Syncthing va en un servicio en primer plano
-  (`dataSync`) mientras se sincroniza.
-- Pruebas: la mezcla del JSON, el intercambio, la API (con un servidor falso), la pantalla (con un
-  Syncthing de mentira) y, en la CI, dos Syncthing de verdad que se vinculan y se pasan una
-  canción, su nota y una playlist, y el Syncthing del APK arrancando en el emulador.
-
 ### Lo que todavía no
 
-- Vincular con QR y sincronizar está en la rama `syncthing-wip`, sin pasar a `main`. Falta:
-  - Probarlo entre un móvil y un PC de verdad. En la CI, los dos Syncthing están en el mismo
-    equipo, con las direcciones puestas a mano.
-  - Fuera de la misma wifi puede no funcionar. El binario de Linux, en Android, probablemente no
-    sabe resolver nombres (no hay `/etc/resolv.conf`), y sin eso no hay descubrimiento global ni
-    relés. En la misma wifi se encuentran por descubrimiento local.
-  - Las carátulas no se sincronizan todavía: las canciones que llegan salen con su color.
-  - Preguntar «¿Vincular con este móvil?» en el PC. Ahora acepta al primero que pide conectar
-    mientras enseña el QR.
-- Elegir carpeta y calidad de las descargas.
+- Vincular con QR y sincronizar, y elegir carpeta y calidad de las descargas: llegan en el hito 5
+  (ver abajo).
 
 ## Hito 5: decisiones técnicas
 
@@ -369,6 +336,63 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - **Versión 0.5:** las compilaciones de prueba pasan a numerarse `0.5.<n.º de ejecución>`. El
   `versionCode` de Android sigue siendo el número de ejecución, que siempre sube.
 
+### Sincronizar (Syncthing)
+
+- Syncthing oficial (v2.1.6), descargado en CI de sus releases de GitHub y comprobado con su lista
+  de sumas SHA-256; nunca se guarda en el repositorio. En Windows va dentro del paquete
+  (`syncthing.exe`). En Android va como biblioteca nativa (`libsyncthing.so`), que Android deja
+  ejecutar desde su carpeta:
+  - arm64-v8a y armeabi-v7a: los binarios oficiales `linux-arm64` y `linux-arm`, que son
+    estáticos.
+  - x86_64 (el emulador y los Chromebook): el código fuente oficial de la misma versión, con su
+    suma SHA-256, compilado para Android con el NDK. El binario oficial `linux-amd64` lleva SQLite
+    con una libc estática que llama a `lstat()`, y el filtro seccomp de las apps de Android x86_64
+    no deja esa llamada: Syncthing se cerraba al arrancar (SIGSYS). En ARM esas llamadas antiguas
+    no existen.
+- Se configura solo por su API REST local (127.0.0.1), con una clave que se genera en el
+  dispositivo cada vez que se arranca.
+- La biblioteca (playlists, notas, rankings e historial) va en un JSON por dispositivo en una
+  carpeta compartida, nunca el archivo de SQLite. Gana el cambio más reciente, lo borrado no
+  vuelve y las escuchas se suman sin repetir.
+- Vincular: el PC enseña su id de Syncthing en un QR (ZXing) y el móvil lo escanea (ZXing
+  embebido, sin servicios de Google). El móvil añade el PC y comparte con él dos carpetas con id
+  fijo, `freedomplayer-musica` y `freedomplayer-biblioteca`. El PC, solo mientras enseña el QR,
+  acepta al dispositivo que pide conectar (`/rest/cluster/pending/devices`) y comparte con él las
+  mismas dos carpetas.
+- Dónde se vincula: la insignia «SYNC · PC» de Inicio («SYNC · MÓVIL» en el PC), Ajustes ›
+  «Vincular con el PC» («con el móvil» en el PC) y «VINCULAR PC» con la biblioteca vacía. El
+  diseño solo nombra el QR en la biblioteca vacía; la insignia y Ajustes llevan a la misma
+  pantalla.
+- «Sincronizando con el PC 12 de 20»: de las canciones de la carpeta de música, las que ya están
+  en los dos (lo que le falta a cada uno, según `/rest/db/completion`).
+- Avisos, sin cerrar la app:
+  - Ya vinculados, mientras el otro no aparece se ve «Buscando el PC…» (no «0 de 0»). Si pasa
+    minuto y medio sin aparecer (Syncthing reintenta conectar cada minuto), se dice qué comprobar:
+    la app abierta en el otro y la misma wifi. Se sigue esperando, y el aviso se quita al conectar.
+  - Sin el binario de Syncthing, se dice que esa instalación no lo trae.
+  - Si Syncthing no arranca o no se puede vincular, el aviso lleva «Reintentar».
+  - Un código que no es de un dispositivo, o el del propio dispositivo, se explica sin vincular
+    nada.
+- Con la app abierta, la biblioteca se intercambia cada 20 s. Una canción del otro dispositivo
+  aparece cuando su audio ya ha llegado. En Android, Syncthing va en un servicio en primer plano
+  (`dataSync`) mientras se sincroniza.
+- Pruebas: la mezcla del JSON, el intercambio, la API (con un servidor falso), la pantalla (con un
+  Syncthing de mentira: vincular, códigos que no valen, el otro que no aparece y sin el binario) y,
+  en la CI, dos Syncthing de verdad que se vinculan y se pasan una canción, su nota y una
+  playlist, y el Syncthing del APK arrancando y vinculando en el emulador (Android 14, x86_64).
+
 ### Lo que todavía no
 
-- Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.
+- Probarlo entre un móvil y un PC de verdad. En la CI, los dos Syncthing están en el mismo
+  equipo, con las direcciones puestas a mano, y en el emulador solo corre el de x86_64: los
+  binarios de ARM no se ejecutan en la CI.
+- Fuera de la misma wifi puede no funcionar en los móviles ARM: el binario de Linux, en Android,
+  probablemente no sabe resolver nombres (no hay `/etc/resolv.conf`), y sin eso no hay
+  descubrimiento global ni relés. En la misma wifi se encuentran por descubrimiento local. El de
+  x86_64, compilado para Android sin `netgo`, debería resolver con la libc de Android.
+- Las carátulas no se sincronizan todavía: las canciones que llegan salen con su color.
+- Preguntar «¿Vincular con este móvil?» en el PC. Ahora acepta al primero que pide conectar
+  mientras enseña el QR.
+- Ver y quitar los dispositivos vinculados.
+- Sincronizar la música que se descarga en otra carpeta elegida en el PC: solo se comparte la
+  carpeta de la app (la de `freedomplayer-musica`), así que esas canciones se quedan en el PC.

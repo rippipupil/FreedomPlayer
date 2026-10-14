@@ -10,8 +10,9 @@ tus propios rankings.
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
 > temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. En el
 > PC responde a las teclas multimedia y añade tus propios archivos de audio. En Ajustes se elige
-> la calidad de las descargas y, en el PC, su carpeta. Falta la sincronización entre el móvil y el
-> PC (en curso, con Syncthing). Ver
+> la calidad de las descargas y, en el PC, su carpeta. El móvil y el PC se vinculan con un código
+> QR y se sincronizan con Syncthing, que va dentro de la app (canciones, notas, playlists,
+> rankings e historial). Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -85,6 +86,11 @@ Hace falta JDK 17 o posterior. Para Android, también el SDK de Android (compile
 
 NewPipe Extractor se descarga de JitPack; el resto, de Maven Central y Google Maven.
 
+Syncthing no está en el repositorio: `.github/scripts/syncthing.sh android|windows|linux` lo
+descarga de sus releases y comprueba su suma SHA-256 (para Android x86_64 lo compila del código
+fuente oficial, y eso necesita Go y el NDK de Android). Sin él, la app funciona igual y
+«Vincular» avisa de que esa instalación no trae Syncthing.
+
 En el PC, la variable `FP_REDUCE_MOTION=1` quita las animaciones aunque el sistema no lo pida.
 
 Las pruebas incluyen una prueba de humo de la interfaz (`AppSmokeTest`) que pinta la app sin
@@ -111,7 +117,8 @@ de Spotify de verdad; si falla, solo deja un aviso en la ejecución.
     y audio), la biblioteca en SQLite (`SqlLibraryStore`, con el esquema en
     `commonMain/sqldelight`) y las versiones de ejemplo para las pruebas.
   - `jvmShared/`: lo que comparten Android y el PC: YouTube con NewPipe Extractor, descargas con
-    OkHttp, letras de LRCLIB y las playlists públicas de Spotify.
+    OkHttp, letras de LRCLIB, las playlists públicas de Spotify y la sincronización (Syncthing por
+    su API local y la biblioteca en JSON).
   - `desktopMain/platform/`: el audio del PC (FFmpeg, con ecualizador y fundido), medir la
     sonoridad y dónde guarda la biblioteca.
   - `androidMain/platform/`: dónde guarda la biblioteca en Android y medir la sonoridad con
@@ -119,8 +126,9 @@ de Spotify de verdad; si falla, solo deja un aviso en la ejecución.
   - `ui/`: el estado de la app (`AppState`), el tema, los componentes (fantasmas, paneles,
     pestañas, avisos, reproductores…) y las pantallas.
 - `androidApp/`: la actividad de Android, la reproducción con Media3 (`playback/`, con el
-  ecualizador del sistema y el fundido), la importación de archivos propios y las pruebas en el
-  emulador (`src/androidTest`).
+  ecualizador del sistema y el fundido), la importación de archivos propios, el escáner del QR, el
+  servicio que mantiene Syncthing mientras sincroniza y las pruebas en el emulador
+  (`src/androidTest`).
 - `desktopApp/`: la ventana de Windows (barra de título propia, bandeja del sistema,
   mini-reproductor, teclas multimedia y el selector para añadir archivos propios).
 - `docs/`: decisiones de diseño, notas de cada versión y licencias de las tipografías.
@@ -130,6 +138,8 @@ de Spotify de verdad; si falla, solo deja un aviso en la ejecución.
 La app incluye las tipografías [Chakra Petch](docs/OFL-ChakraPetch.txt) y
 [Nunito](docs/OFL-Nunito.txt), con licencia SIL Open Font License 1.1.
 
-También lleva [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor) (GPL-3.0) y,
-en el PC, FFmpeg (LGPL) a través de [JavaCV](https://github.com/bytedeco/javacv). Las letras
-vienen de [LRCLIB](https://lrclib.net).
+También lleva [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor) (GPL-3.0),
+[Syncthing](https://github.com/syncthing/syncthing) (MPL-2.0) para sincronizar,
+[ZXing](https://github.com/zxing/zxing) (Apache-2.0) para el QR y, en el PC, FFmpeg (LGPL) a
+través de [JavaCV](https://github.com/bytedeco/javacv). Las letras vienen de
+[LRCLIB](https://lrclib.net).
