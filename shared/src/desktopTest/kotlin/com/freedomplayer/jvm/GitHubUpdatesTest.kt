@@ -103,7 +103,7 @@ class GitHubUpdatesTest {
     }
 
     @Test
-    fun aShortDownloadIsRejected() = runBlocking {
+    fun aShortDownloadIsRejected() = runBlocking<Unit> {
         serve(releasesJson(apkSize = apk.size + 100))
         val u = updates(FakeInstaller("-android.apk", tmp))
         // El servidor da menos de lo que GitHub dice que mide: no se da por bueno.

@@ -15,6 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -137,6 +138,8 @@ class RewindAndUpdateTest {
         val updates = FakeUpdates(release("0.5.0"))
         val state = app(updates).apply { appVersion = "0.4.0" }
         val loop = launch { state.run() }
+        // Deja que el bucle de la app arranque (ahí se lanzan las descargas).
+        yield()
         state.findUpdate(manual = false)
         state.installUpdate()
         withTimeout(5_000) { while (updates.installed.isEmpty()) delay(20) }
@@ -151,6 +154,8 @@ class RewindAndUpdateTest {
         val updates = FakeUpdates(release("0.5.0"), problem = "Permite instalar apps de FreedomPlayer y vuelve a tocar ACTUALIZAR.")
         val state = app(updates).apply { appVersion = "0.4.0" }
         val loop = launch { state.run() }
+        // Deja que el bucle de la app arranque (ahí se lanzan las descargas).
+        yield()
         state.findUpdate(manual = false)
         state.installUpdate()
         withTimeout(5_000) { while (state.error == null) delay(20) }
