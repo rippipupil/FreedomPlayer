@@ -231,8 +231,8 @@ private fun HomeWide(state: AppState, modifier: Modifier) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val twoColumns = maxWidth >= 640.dp
             val most: @Composable (Modifier) -> Unit = { m ->
-                Column(m, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SectionHeader("02", "MÁS ESCUCHADAS", Modifier.padding(bottom = 4.dp))
+                Column(m, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionHeader("02", "MÁS ESCUCHADAS", Modifier.padding(bottom = 3.dp))
                     if (data.most.isEmpty()) HintNote("Aquí salen las que más escuchas en los últimos 30 días.")
                     data.most.forEachIndexed { i, (song, count) ->
                         androidx.compose.runtime.key(song.id) {

@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -76,6 +77,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -148,6 +150,7 @@ fun Nunito(
     maxLines: Int = Int.MAX_VALUE,
     lineHeight: TextUnit = TextUnit.Unspecified,
     align: TextAlign? = null,
+    lineHeightStyle: LineHeightStyle? = null,
 ) {
     Text(
         text = text,
@@ -160,8 +163,15 @@ fun Nunito(
         overflow = TextOverflow.Ellipsis,
         lineHeight = lineHeight,
         textAlign = align,
+        style = if (lineHeightStyle == null) LocalTextStyle.current else LocalTextStyle.current.copy(lineHeightStyle = lineHeightStyle),
     )
 }
+
+/**
+ * Interlineado como en el diseño (CSS): el espacio de más va mitad arriba y mitad abajo de cada
+ * línea, también en la primera y la última.
+ */
+val CssLeading = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)
 
 @Composable
 fun Nunito(
@@ -255,6 +265,7 @@ fun HintNote(text: String, modifier: Modifier = Modifier, barColor: Color = Fp.V
             .padding(start = 12.dp),
         color = Fp.Mist,
         lineHeight = 18.sp,
+        lineHeightStyle = CssLeading,
     )
 }
 
@@ -542,7 +553,8 @@ fun FpTabs(
                 drawRect(Fp.Pink.copy(alpha = 0.2f), topLeft = Offset(0f, this.size.height - px), size = Size(this.size.width, px))
             },
     ) {
-        Row {
+        // Pestañas de 44 dp y la línea de abajo, aparte (1 dp), como en el diseño.
+        Row(Modifier.padding(bottom = 1.dp)) {
             labels.forEachIndexed { index, label ->
                 val on = index == selected
                 val color by animateColorAsState(if (on) Fp.Neon else Fp.Idle, fpTween(), label = "tabColor")
@@ -650,7 +662,7 @@ fun FpTextField(
     )
 }
 
-/** Buscador de 48 px con borde Neón y esquinas cortadas. */
+/** Buscador de 50 px (con el borde) en Neón y con esquinas cortadas. */
 @Composable
 fun SearchBox(
     value: String,
@@ -674,7 +686,7 @@ fun SearchBox(
         label = label,
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(50.dp)
             .background(Fp.Panel, shape)
             .border(1.dp, border, shape)
             .padding(start = 14.dp, end = 4.dp),

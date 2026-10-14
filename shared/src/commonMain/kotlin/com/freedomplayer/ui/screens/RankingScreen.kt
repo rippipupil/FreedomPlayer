@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
@@ -55,6 +54,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.AlignmentLine
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -62,6 +64,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -340,21 +343,10 @@ private fun MineList(state: AppState, pad: PaddingValues) {
         if (open != null) {
             item(key = "head-" + open.id) {
                 CardPiece(top = true, modifier = itemMotion()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Nunito(open.name, 16.sp, Modifier.weight(1f), weight = FontWeight.ExtraBold, maxLines = 2, lineHeight = 22.sp)
+                    ApartByBaseline(Modifier.fillMaxWidth().padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 6.dp)) {
+                        Nunito(open.name, 16.sp, weight = FontWeight.ExtraBold, maxLines = 2, lineHeight = 22.sp)
                         if (open.songIds.size > 1) {
-                            Chakra(
-                                "ARRASTRA PARA ORDENAR",
-                                11.sp,
-                                Modifier.padding(start = 10.dp).widthIn(max = 116.dp),
-                                color = Fp.Mist,
-                                spacing = 1.5.sp,
-                                maxLines = 2,
-                            )
+                            Chakra("ARRASTRA PARA ORDENAR", 11.sp, color = Fp.Mist, spacing = 1.5.sp, maxLines = 2)
                         }
                     }
                 }
@@ -366,7 +358,7 @@ private fun MineList(state: AppState, pad: PaddingValues) {
                         Nunito(
                             "Este ranking está vacío. Añade canciones desde «⋯» del reproductor: «Añadir a un ranking tuyo».",
                             13.sp,
-                            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
                             color = Fp.Mist,
                             lineHeight = 18.sp,
                         )
@@ -441,6 +433,31 @@ private fun MineList(state: AppState, pad: PaddingValues) {
                 Modifier.fillMaxWidth().padding(top = 12.dp).then(itemMotion()),
                 fill = true,
             )
+        }
+    }
+}
+
+/**
+ * Dos textos, uno a cada lado, como en el diseño (`justify-content: space-between` y
+ * `align-items: baseline`): si caben, cada uno a un lado; si no, los dos se estrechan en proporción
+ * a su ancho y saltan de línea, con la primera línea de los dos a la misma altura.
+ */
+@Composable
+private fun ApartByBaseline(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val natural = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val total = natural.sum()
+        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else total
+        val widths = if (total <= room) natural else natural.map { (it.toLong() * room / total).toInt() }
+        val placeables = measurables.mapIndexed { i, m -> m.measure(Constraints(maxWidth = widths[i].coerceAtLeast(0))) }
+        val baselines = placeables.map { p -> p[FirstBaseline].let { if (it == AlignmentLine.Unspecified) p.height else it } }
+        val top = baselines.maxOrNull() ?: 0
+        val height = placeables.indices.maxOfOrNull { top - baselines[it] + placeables[it].height } ?: 0
+        layout(constraints.constrainWidth(room), constraints.constrainHeight(height)) {
+            placeables.forEachIndexed { i, p ->
+                val x = if (i == 0) 0 else room - placeables.drop(i).sumOf { it.width }
+                p.place(x, top - baselines[i])
+            }
         }
     }
 }
@@ -522,9 +539,9 @@ private fun MineRow(
             .fillMaxWidth()
             .drawBehind {
                 if (shade > 0f) drawRect(Fp.Panel.copy(alpha = shade))
-                drawRect(Fp.Pink.copy(alpha = 0.1f), topLeft = Offset(14.dp.toPx(), 0f), size = Size(this.size.width - 28.dp.toPx(), 1.dp.toPx()))
+                drawRect(Fp.Pink.copy(alpha = 0.1f), topLeft = Offset(15.dp.toPx(), 0f), size = Size(this.size.width - 30.dp.toPx(), 1.dp.toPx()))
             }
-            .padding(start = 14.dp, end = 6.dp, top = 5.dp, bottom = 6.dp)
+            .padding(start = 15.dp, end = 12.dp, top = 5.dp, bottom = 6.dp)
             .semantics(mergeDescendants = true) {
                 customActions = listOfNotNull(
                     if (index > 0) CustomAccessibilityAction("Subir ${song.title}") {
@@ -575,7 +592,7 @@ private fun OtherRanking(state: AppState, ranking: CustomRanking, modifier: Modi
             .drawBehind {
                 drawRect(Fp.Pink.copy(alpha = 0.12f), topLeft = Offset(0f, this.size.height - 1.dp.toPx()), size = Size(this.size.width, 1.dp.toPx()))
             }
-            .padding(horizontal = 4.dp, vertical = 10.dp),
+            .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
