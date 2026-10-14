@@ -84,12 +84,13 @@ jobs:
 
       - name: Resumen
         if: always()
+        # En el título no puede haber comas: separan los campos del aviso.
         run: |
           msg="$(grep -E '^(OK|FALLO)' red.log | sed -e 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }')"
           if grep -q '^FALLO' red.log || ! grep -q '^Todo bien' red.log; then
-            echo "::warning title=YouTube, LRCLIB o Spotify (desde GitHub)::$msg"
+            echo "::warning title=YouTube · LRCLIB · Spotify (desde GitHub)::$msg"
           else
-            echo "::notice title=YouTube, LRCLIB y Spotify responden::$msg"
+            echo "::notice title=YouTube · LRCLIB · Spotify responden::$msg"
           fi
 
   android:
@@ -111,7 +112,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="0.2.${GITHUB_RUN_NUMBER}"
+            version="0.3.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"
@@ -294,7 +295,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
           else
-            version="0.2.${GITHUB_RUN_NUMBER}"
+            version="0.3.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"

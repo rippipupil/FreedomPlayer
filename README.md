@@ -4,10 +4,12 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 2.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> **Estado: hito 3.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
 > añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
-> con FFmpeg dentro de la app. Falta importar de Spotify de verdad (hito 3). Ver
+> con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
+> temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. Faltan
+> la sincronización entre el móvil y el PC y algunos ajustes. Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -28,7 +30,7 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
-Las compilaciones de prueba se numeran `0.2.<n.º de ejecución>`. Si en Windows instalaste una con
+Las compilaciones de prueba se numeran `0.3.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
 
@@ -58,8 +60,8 @@ ya no se podrán instalar encima de las antiguas.
 ## Publicar una versión
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 El workflow compila esa versión, pasa las pruebas y crea la release con el APK, el `.msi` y el
@@ -76,7 +78,7 @@ Hace falta JDK 17 o posterior. Para Android, también el SDK de Android (compile
 ./gradlew :shared:desktopTest                   # pruebas de la lógica y de la interfaz
 ./gradlew -Pfp.android=false :desktopApp:run    # sin el SDK de Android
 ./gradlew :desktopApp:packageMsi                # instalador de Windows (en Windows)
-./gradlew -Pfp.android=false :shared:networkSmoke   # YouTube y LRCLIB de verdad (necesita internet)
+./gradlew -Pfp.android=false :shared:networkSmoke   # YouTube, LRCLIB y Spotify de verdad (necesita internet)
 ```
 
 NewPipe Extractor se descarga de JitPack; el resto, de Maven Central y Google Maven.
@@ -85,13 +87,17 @@ En el PC, la variable `FP_REDUCE_MOTION=1` quita las animaciones aunque el siste
 
 Las pruebas incluyen una prueba de humo de la interfaz (`AppSmokeTest`) que pinta la app sin
 ventana, con tamaño de móvil y de PC, y recorre todas las pantallas. También prueban la base de
-datos y sus consultas del historial, las descargas y LRCLIB contra un servidor local, y el audio
-del PC con FFmpeg de verdad. En cada compilación, además, el APK se instala en un emulador de
-Android 14, se abre y se gira la pantalla para comprobar que la app no se cierra.
+datos y sus consultas del historial, las descargas, LRCLIB y las páginas de Spotify contra un
+servidor local, y el audio del PC (ecualizador, volumen igualado y fundido) con FFmpeg de verdad.
+En cada compilación, además, el APK se instala en un emulador de Android 14: se abre, se gira la
+pantalla y se pasan las pruebas del audio de verdad (`androidApp/src/androidTest`).
+
+`CapturasTest` pinta las pantallas principales al tamaño de las capturas del diseño; en `main`,
+el job «Capturas de pantalla» las sube a la rama `capturas-ci` para compararlas.
 
 Las pruebas no usan internet: YouTube a veces bloquea los servidores de GitHub. Aparte, el job
-«YouTube y LRCLIB (solo aviso)» busca, saca el audio y pide una letra de verdad; si falla, solo
-deja un aviso en la ejecución.
+«YouTube, LRCLIB y Spotify (solo aviso)» busca, saca el audio, pide una letra y lee una playlist
+de Spotify de verdad; si falla, solo deja un aviso en la ejecución.
 
 ### Estructura
 
@@ -103,12 +109,16 @@ deja un aviso en la ejecución.
     y audio), la biblioteca en SQLite (`SqlLibraryStore`, con el esquema en
     `commonMain/sqldelight`) y las versiones de ejemplo para las pruebas.
   - `jvmShared/`: lo que comparten Android y el PC: YouTube con NewPipe Extractor, descargas con
-    OkHttp y letras de LRCLIB.
-  - `desktopMain/platform/`: el audio del PC (FFmpeg) y dónde guarda la biblioteca.
+    OkHttp, letras de LRCLIB y las playlists públicas de Spotify.
+  - `desktopMain/platform/`: el audio del PC (FFmpeg, con ecualizador y fundido), medir la
+    sonoridad y dónde guarda la biblioteca.
+  - `androidMain/platform/`: dónde guarda la biblioteca en Android y medir la sonoridad con
+    MediaCodec.
   - `ui/`: el estado de la app (`AppState`), el tema, los componentes (fantasmas, paneles,
     pestañas, avisos, reproductores…) y las pantallas.
-- `androidApp/`: la actividad de Android, la reproducción con Media3 (`playback/`) y la
-  importación de archivos propios.
+- `androidApp/`: la actividad de Android, la reproducción con Media3 (`playback/`, con el
+  ecualizador del sistema y el fundido), la importación de archivos propios y las pruebas en el
+  emulador (`src/androidTest`).
 - `desktopApp/`: la ventana de Windows (barra de título propia, bandeja del sistema y
   mini-reproductor).
 - `docs/`: decisiones de diseño, notas de cada versión y licencias de las tipografías.

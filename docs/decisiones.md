@@ -178,16 +178,107 @@ audio de verdad. No cambian ninguna de las 16 decisiones de arriba: las concreta
 - El mismo archivo (mismo nombre y tamaño) no se duplica.
 - En el PC llega más adelante.
 
-### Lo que todavía no
+### Lo que quedó para después del hito 2
 
-- **Importar de Spotify de verdad:** la pantalla está, pero sin los datos de ejemplo avisa de que
-  llega más adelante (hito 3).
-- **Sonido:** «Volumen igualado», «Fundido entre canciones» y el ecualizador guardan el ajuste,
-  pero aún no cambian el sonido.
-- **Otras pantallas:** ver la cola, vincular con QR, temporizador y elegir carpeta y calidad.
+- **Importar de Spotify de verdad** (hecho en el hito 3).
+- **Sonido:** «Volumen igualado», «Fundido entre canciones» y el ecualizador guardaban el ajuste,
+  pero aún no cambiaban el sonido (hecho en el hito 3).
+- **Otras pantallas:** ver la cola y el temporizador (hechos en el hito 3); vincular con QR y
+  elegir carpeta y calidad (siguen pendientes).
 
 ### Licencias
 
 NewPipe Extractor es GPL-3.0, y FFmpeg es LGPL. Al llevarlos dentro, la app se tiene que
 distribuir con una licencia compatible (GPL-3.0). El repositorio todavía no tiene archivo de
 licencia: esa elección queda pendiente.
+
+## Hito 3: decisiones técnicas
+
+Lo que se ha decidido al hacer el sonido, la cola, el temporizador, las estadísticas y Spotify. Como
+las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
+
+### Pruebas
+
+- **Audio de Android en un emulador:** pruebas de instrumentación con WAV hechos en la propia
+  prueba y ExoPlayer de verdad, contra el mismo APK que se publica. Cubren el final de la cola,
+  repetir, un archivo que falta, aleatorio, la vista previa, los mandos de fuera
+  (MediaController, como la notificación), el temporizador, el fundido, el volumen igualado y el
+  ecualizador.
+- **Capturas para compararlas con el diseño:** `CapturasTest` pinta las pantallas principales con
+  los datos de ejemplo a 390×844 (móvil) y 1280×800 (PC). En `main`, el job «Capturas de
+  pantalla» (el único con permiso de escritura) las sube a la rama huérfana `capturas-ci`, siempre
+  con un solo commit.
+  - Diferencias que quedan a propósito: las capturas del móvil no tienen barra de estado (todo
+    sale unos 24 px más arriba) y los datos de ejemplo no son idénticos a los del diseño.
+- **Red (solo aviso):** además de YouTube y LRCLIB, se lee una playlist pública de Spotify y se
+  emparejan unas canciones con YouTube Music.
+
+### Cola y temporizador
+
+- **La cola** enseña lo que ya ha sonado, la que suena y lo que viene. Se reordena arrastrando ≡
+  (y con las acciones de accesibilidad «Subir» y «Bajar») y se quita con × (con «Deshacer»). La
+  que suena no se corta nunca. Con aleatorio se reordena el orden aleatorio, y al quitarlo vuelve
+  el de la lista.
+- **Temporizador:** 15, 30, 45 o 60 minutos, o «al acabar esta canción». Con esto último, el motor
+  se queda en pausa al final de la que suena (en Android, `pauseAtEndOfMediaItems` de ExoPlayer),
+  y con play sigue la siguiente.
+
+### Sonido
+
+- **Ecualizador de 5 bandas** (60 Hz, 230 Hz, 910 Hz, 3,6 kHz y 14 kHz; ±12 dB), con
+  ecualizaciones hechas y bandas a mano. Se guarda en los ajustes.
+  - **Android:** el del sistema (`android.media.audiofx.Equalizer`) sobre la sesión de audio del
+    reproductor. Cada banda del móvil toma la ganancia de nuestras 5 bandas a su frecuencia
+    (interpolando en escala logarítmica). Si el móvil no lo tiene, la hoja lo dice.
+  - **PC:** filtros biquad propios (picos de la RBJ Audio EQ Cookbook) en nuestro propio camino del
+    audio, y no los filtros de FFmpeg: así se cambian las bandas al momento, sin rehacer un grafo
+    de filtros ni cortar el sonido, y los cálculos son los mismos que se prueban en `commonTest`.
+    Para no saturar, se baja la entrada la mitad de la subida más alta.
+- **Volumen igualado:** cada canción se mide una vez, en segundo plano, con la sonoridad integrada
+  de EBU R128 (LUFS): con FFmpeg en el PC y con MediaCodec en Android. Las que pasan de −16 LUFS
+  se bajan hasta ahí; las flojas no se suben, para no saturar. La medida se guarda en los ajustes
+  (`loudness.<id>`), así que no hace falta cambiar la base de datos.
+- **Fundido entre canciones:** 3, 6, 9 o 12 s (6 de serie), con curvas de igual potencia. En el
+  PC se solapan dos lectores. En Android, un segundo reproductor (con la misma sesión de audio,
+  para que le llegue el ecualizador, y sin pedir el foco) sigue con la que se va mientras el
+  principal, el de la notificación, empieza la siguiente subiendo.
+
+### Estadísticas
+
+- Salen del historial de escuchas (cada escucha con su hora): **30 días**, **por mes** (con la
+  hora local, y las barras de los últimos 12 meses) y **desde siempre**. Si una biblioteca antigua
+  no tiene historial, «Siempre» usa los contadores de cada canción.
+- **Lo más destacado:** tu n.º 1 del ranking, la que más suena con nota, la que más suena sin nota,
+  tu artista mejor puntuado (con al menos dos canciones con nota) y, por meses, el descubrimiento
+  (la que más suena de las que sonaron por primera vez ese mes).
+- Los números suben contando y las barras crecen al aparecer; nada de eso si se pide reducir el
+  movimiento.
+
+### Spotify
+
+- **Sin cuenta, clave ni secreto.** Se lee la página pública para insertar la playlist en otra web
+  (`open.spotify.com/embed/playlist/<id>`), que trae el nombre, el dueño y las canciones (título,
+  artistas y duración) en un JSON. Si no las trae, se prueba con la página normal de la playlist.
+  La prueba de red lo comprueba en cada compilación.
+- **Solo playlists de usuario** (como dice `freedomplayer.md`): las de id «37i9dQZ…» o cuyo dueño
+  es «Spotify» no se importan. La playlist tiene que ser pública; si no, Spotify no la enseña y el
+  aviso lo explica.
+- **Cada canción se busca en YouTube Music** (tres a la vez) con el título, sin «- Remastered…», y
+  el primer artista. Con lo encontrado:
+  - **Segura:** el mismo título (o con solo «feat.», «with», «Remastered» o «From…» de
+    diferencia), algún artista en común y no más de 10 s de diferencia. Entra en la playlist y se
+    descarga.
+  - **Dudosa:** otra versión («en directo», «acústica»…), otra duración, un título parecido, o el
+    mismo título y duración con otro artista. Se confirma en la lista (decisión 9).
+  - **Sin coincidencia:** con «Buscar» para encontrarla a mano.
+- **La playlist nueva** lleva el nombre de la de Spotify (con « (2)» si ya hay una igual).
+- **Si algo falla,** se dice por qué: la playlist es privada o no existe, Spotify no deja leerla
+  ahora mismo, su página ha cambiado, o no se ha podido buscar en YouTube Music. Si la página
+  enseña menos canciones de las que tiene la playlist, el resultado lo avisa.
+
+### Lo que todavía no
+
+- Vincular con QR y sincronizar (Syncthing).
+- Elegir carpeta y calidad de las descargas.
+- Añadir archivos propios en el PC.
+- Las teclas multimedia del teclado en el PC.
