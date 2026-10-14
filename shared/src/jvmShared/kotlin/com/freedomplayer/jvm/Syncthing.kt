@@ -1,6 +1,12 @@
 package com.freedomplayer.jvm
 
+import com.freedomplayer.core.SyncIds
+import com.freedomplayer.data.SyncBackend
+import com.freedomplayer.data.SyncCount
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -23,15 +29,8 @@ import java.util.concurrent.TimeUnit
 
 /** Ids de dispositivo de Syncthing («XXXXXXX-XXXXXXX-…», 8 grupos de 7) y claves de la API. */
 object SyncthingIds {
-    private val deviceId = Regex("""[A-Z2-7]{7}(?:-[A-Z2-7]{7}){7}""")
-
     /** El id leído de un QR (o escrito a mano): en mayúsculas y con guiones; null si no lo es. */
-    fun device(text: String): String? {
-        val compact = text.trim().uppercase().filter { it.isLetterOrDigit() }
-        if (compact.length != 56) return null
-        val id = compact.chunked(7).joinToString("-")
-        return id.takeIf { deviceId.matches(it) }
-    }
+    fun device(text: String): String? = SyncIds.device(text)
 
     /** Clave para la API REST, generada en el dispositivo cada vez que se arranca Syncthing. */
     fun newApiKey(random: SecureRandom = SecureRandom()): String {
@@ -156,4 +155,70 @@ object SyncthingCommand {
 
     /** Sin la carpeta «Default Folder» que Syncthing crea la primera vez. */
     val environment: Map<String, String> = mapOf("STNODEFAULTFOLDER" to "1", "STNOUPGRADE" to "1")
+}
+
+/**
+ * Syncthing de verdad para la app: lo arranca (solo en 127.0.0.1, con una clave nueva cada vez),
+ * espera a que responda y vincula. Lo usan el PC (con su QR) y el móvil (que lo escanea).
+ */
+class SyncthingBackend(
+    private val executable: () -> File?,
+    private val home: File,
+    private val music: File,
+    private val library: File,
+    override val showsQr: Boolean,
+    private val qrCode: (String) -> List<BooleanArray> = { emptyList() },
+    private val extraEnvironment: Map<String, String> = emptyMap(),
+) : SyncBackend {
+    private val lock = Mutex()
+    private var process: Process? = null
+    private var api: SyncthingApi? = null
+
+    override suspend fun start(): String = lock.withLock {
+        api?.let { running -> if (running.ping()) return@withLock running.myId() }
+        val exe = executable() ?: throw IOException("Syncthing no está en esta instalación")
+        home.mkdirs()
+        val port = SyncthingIds.freePort()
+        val key = SyncthingIds.newApiKey()
+        val builder = ProcessBuilder(SyncthingCommand.args(exe, home, port, key))
+            .redirectErrorStream(true)
+            .redirectOutput(File(home, "syncthing.log"))
+        builder.environment().putAll(SyncthingCommand.environment + extraEnvironment)
+        val started = withContext(Dispatchers.IO) { builder.start() }
+        process = started
+        Runtime.getRuntime().addShutdownHook(Thread { started.destroy() })
+        val candidate = SyncthingApi("http://127.0.0.1:$port", key)
+        repeat(60) {
+            if (candidate.ping()) {
+                api = candidate
+                return@withLock candidate.myId()
+            }
+            if (!started.isAlive) throw IOException("Syncthing se ha cerrado al arrancar")
+            delay(500)
+        }
+        started.destroy()
+        throw IOException("Syncthing no responde")
+    }
+
+    override fun qr(text: String): List<BooleanArray> = qrCode(text)
+
+    override suspend fun pair(otherId: String, otherName: String) {
+        val running = api ?: throw IOException("Syncthing no está arrancado")
+        library.mkdirs()
+        SyncthingPairing(running, music, library).pair(otherId, otherName)
+    }
+
+    override suspend fun progress(otherId: String): SyncCount? {
+        val running = api ?: return null
+        if (otherId !in running.connected()) return null
+        val p = running.completion(SyncthingApi.MUSIC_FOLDER, otherId)
+        return SyncCount(p.done, p.total)
+    }
+
+    /** Para Syncthing (al salir de la app). */
+    fun stop() {
+        process?.destroy()
+        process = null
+        api = null
+    }
 }

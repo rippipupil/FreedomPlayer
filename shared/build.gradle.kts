@@ -102,6 +102,8 @@ kotlin {
                 implementation("org.bytedeco:ffmpeg:$ffmpegVersion:$nativePlatform")
                 // Teclas multimedia en Windows (RegisterHotKey).
                 implementation("net.java.dev.jna:jna:5.18.1")
+                // Código QR para vincular el móvil.
+                implementation("com.google.zxing:core:3.5.3")
             }
         }
         // Prueba de humo de la interfaz (AppSmokeTest): pinta la app sin ventana.

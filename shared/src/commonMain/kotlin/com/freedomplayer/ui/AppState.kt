@@ -31,6 +31,7 @@ import com.freedomplayer.core.Song
 import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.SpotifyLink
 import com.freedomplayer.core.Stats
+import com.freedomplayer.core.SyncIds
 import com.freedomplayer.core.TrackMatch
 import com.freedomplayer.core.YearMonth
 import com.freedomplayer.core.folderName
@@ -42,6 +43,7 @@ import com.freedomplayer.data.FailureKind
 import com.freedomplayer.data.Services
 import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.SpotifyReader
+import com.freedomplayer.data.SyncBackend
 import com.freedomplayer.data.Track
 import com.freedomplayer.data.demo
 import com.freedomplayer.data.explain
@@ -70,6 +72,7 @@ sealed interface Screen {
     data object Settings : Screen
     data class PlaylistDetail(val id: String) : Screen
     data object SpotifyImport : Screen
+    data object Sync : Screen
 
     val inMenu: Boolean get() = this == Home || this == Search || this == Rank || this == Stats || this == Settings
 }
@@ -183,7 +186,23 @@ data class TabResults<T>(
 
 enum class ImportPhase { Paste, Matching, Done }
 
+private const val SYNC_PEER = "sync.peer"
+
 private const val SPOTIFY_EDITORIAL = "Esa playlist la hace Spotify y no se puede importar. Prueba con una tuya."
+
+/** En qué va la sincronización con el otro dispositivo. */
+enum class SyncPhase { Off, Starting, Waiting, Pairing, Syncing, Synced, Failed }
+
+/** «Vincular»: Syncthing, el QR (en el PC), el otro dispositivo y cuánto lleva. */
+class SyncState {
+    var phase by mutableStateOf(SyncPhase.Off)
+    var myId by mutableStateOf<String?>(null)
+    var qr by mutableStateOf<List<BooleanArray>?>(null)
+    var peer by mutableStateOf<String?>(null)
+    var done by mutableStateOf(0L)
+    var total by mutableStateOf(0L)
+    var error by mutableStateOf<String?>(null)
+}
 
 /** «Importar de Spotify» (y «Pegar playlist de Spotify», que es lo mismo). */
 class SpotifyImportState {
@@ -377,6 +396,16 @@ class AppState(
 
     /** La carpeta de la app donde va la música si no se elige otra (la pone la plataforma). */
     var appMusicFolder: String? by mutableStateOf(null)
+
+    /** Sincronizar con el otro dispositivo. */
+    val sync = SyncState()
+
+    /** El escáner de QR del móvil (lo pone la actividad de Android); null si aquí no hay. */
+    var qrScanner: (((String?) -> Unit) -> Unit)? by mutableStateOf(null)
+
+    val canSync: Boolean get() = services.sync != null
+
+    private var syncWatch: Job? = null
 
     // ---------- Navegación ----------
 
@@ -1691,6 +1720,92 @@ class AppState(
 
     /** Lo que todavía no existe (ecualizador, temporizador, QR…): avisa de que llega más adelante. */
     fun soon(what: String) = toast("$what llega en una próxima versión.", Mood.Dormido, Tone.Bone)
+
+    // ---------- Sincronizar ----------
+
+    /** «Vincular con el PC / con el móvil»: abre la pantalla y arranca Syncthing. */
+    fun openSync() {
+        if (services.sync == null) {
+            soon("Vincular con un QR")
+            return
+        }
+        go(Screen.Sync)
+        if (sync.phase == SyncPhase.Off || sync.phase == SyncPhase.Failed) startSync()
+    }
+
+    fun startSync() {
+        val backend = services.sync ?: return
+        val s = scope ?: return
+        if (sync.phase == SyncPhase.Starting || sync.phase == SyncPhase.Pairing) return
+        sync.phase = SyncPhase.Starting
+        sync.error = null
+        s.launch {
+            try {
+                val id = backend.start()
+                sync.myId = id
+                if (backend.showsQr) sync.qr = backend.qr(id)
+                val peer = store.setting(SYNC_PEER)
+                sync.peer = peer
+                if (peer == null) sync.phase = SyncPhase.Waiting else watchSync(backend, peer)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                sync.phase = SyncPhase.Failed
+                sync.error = "No se ha podido arrancar la sincronización. Vuelve a probar dentro de un rato."
+            }
+        }
+    }
+
+    /** Abre el escáner del móvil para leer el QR del PC. */
+    fun scanSyncCode() {
+        val scan = qrScanner ?: return
+        scan { text -> if (text != null) pairWith(text) }
+    }
+
+    /** Vincula el dispositivo del código leído (o escrito a mano). */
+    fun pairWith(text: String) {
+        val backend = services.sync ?: return
+        val s = scope ?: return
+        val id = SyncIds.device(text)
+        when {
+            id == null -> sync.error = "Ese código no es el de FreedomPlayer en el PC. Escanea el QR de «Vincular con el móvil»."
+            id == sync.myId -> sync.error = "Ese es el código de este mismo dispositivo."
+            else -> {
+                sync.error = null
+                sync.phase = SyncPhase.Pairing
+                s.launch {
+                    try {
+                        backend.pair(id, if (backend.showsQr) "Móvil" else "PC")
+                        store.setSetting(SYNC_PEER, id)
+                        sync.peer = id
+                        watchSync(backend, id)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        sync.phase = SyncPhase.Failed
+                        sync.error = "No se ha podido vincular. Comprueba que el PC tiene abierto «Vincular con el móvil» y que los dos estáis en la misma red."
+                    }
+                }
+            }
+        }
+    }
+
+    /** Cada 2 s, cuánto lleva («12 de 20»), mientras la app esté abierta. */
+    private fun watchSync(backend: SyncBackend, peer: String) {
+        syncWatch?.cancel()
+        sync.phase = SyncPhase.Syncing
+        syncWatch = scope?.launch {
+            while (isActive) {
+                val count = runCatching { backend.progress(peer) }.getOrNull()
+                if (count != null) {
+                    sync.done = count.done
+                    sync.total = count.total
+                    sync.phase = if (count.done >= count.total) SyncPhase.Synced else SyncPhase.Syncing
+                }
+                delay(2_000)
+            }
+        }
+    }
 
     fun runToastAction() {
         val t = toast ?: return

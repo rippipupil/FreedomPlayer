@@ -22,6 +22,8 @@ import com.freedomplayer.ui.App
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.components.Mood
 import com.google.common.util.concurrent.ListenableFuture
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -46,6 +48,23 @@ class MainActivity : ComponentActivity() {
 
     private val openPicker: () -> Unit = { pickAudio.launch(arrayOf("audio/*")) }
 
+    /** «Escanear el QR del PC»: el escáner de ZXing; [onScanned] recibe el texto (o null si se cancela). */
+    private var onScanned: ((String?) -> Unit)? = null
+    private val scanQr = registerForActivityResult(ScanContract()) { result ->
+        onScanned?.invoke(result.contents)
+        onScanned = null
+    }
+    private val openScanner: ((String?) -> Unit) -> Unit = { done ->
+        onScanned = done
+        scanQr.launch(
+            ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                .setPrompt("Escanea el QR de FreedomPlayer en el PC")
+                .setBeepEnabled(false)
+                .setOrientationLocked(false),
+        )
+    }
+
     /** «Quitar animaciones» de Android pone la escala de animaciones a 0: entonces se reduce el movimiento. */
     private val animationObserver = object : ContentObserver(main) {
         override fun onChange(selfChange: Boolean) = readReduceMotion()
@@ -65,10 +84,12 @@ class MainActivity : ComponentActivity() {
             App(state = state, wide = false, version = version, runLoop = false)
         }
         state.fileImporter = openPicker
+        state.qrScanner = openScanner
     }
 
     override fun onDestroy() {
         if (state.fileImporter === openPicker) state.fileImporter = null
+        if (state.qrScanner === openScanner) state.qrScanner = null
         super.onDestroy()
     }
 

@@ -152,7 +152,7 @@ internal fun EmptyLibrary(state: AppState, modifier: Modifier = Modifier) {
         },
     ) {
         PrimaryButton("BUSCAR", { state.go(Screen.Search) }, Modifier.width(200.dp), fill = true)
-        SecondaryButton("VINCULAR PC", { state.soon("Vincular con un QR") }, Modifier.width(200.dp))
+        SecondaryButton("VINCULAR PC", { state.openSync() }, Modifier.width(200.dp))
     }
 }
 

@@ -58,6 +58,7 @@ import com.freedomplayer.ui.screens.SearchScreen
 import com.freedomplayer.ui.screens.SettingsScreen
 import com.freedomplayer.ui.screens.SpotifyScreen
 import com.freedomplayer.ui.screens.StatsScreen
+import com.freedomplayer.ui.screens.SyncScreen
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.FreedomTheme
 
@@ -130,6 +131,7 @@ private fun ScreenHost(state: AppState, modifier: Modifier = Modifier) {
             Screen.Settings -> SettingsScreen(state)
             is Screen.PlaylistDetail -> PlaylistScreen(state, screen.id)
             Screen.SpotifyImport -> SpotifyScreen(state)
+            Screen.Sync -> SyncScreen(state)
         }
     }
 }

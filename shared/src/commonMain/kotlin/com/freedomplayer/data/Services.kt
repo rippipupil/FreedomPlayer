@@ -28,8 +28,34 @@ class Services(
     val loudness: LoudnessAnalyzer? = null,
     /** Lee las playlists públicas de Spotify (para importarlas); sin él, no se puede importar. */
     val spotify: SpotifyReader? = null,
+    /** Sincronizar con el otro dispositivo (Syncthing); sin él, no se puede vincular. */
+    val sync: SyncBackend? = null,
 ) {
     companion object
+}
+
+/** Cuánto lleva sincronizado: «12 de 20». */
+data class SyncCount(val done: Long, val total: Long)
+
+/**
+ * Sincronizar con Syncthing: arrancarlo (con una clave generada en el dispositivo), vincular el
+ * otro dispositivo con su id (el del QR) y saber cuánto lleva.
+ */
+interface SyncBackend {
+    /** El PC enseña su QR; el móvil lo escanea. */
+    val showsQr: Boolean
+
+    /** Arranca Syncthing si no lo está y devuelve el id de este dispositivo. */
+    suspend fun start(): String
+
+    /** El QR de [text] en cuadros (true = negro), sin margen. */
+    fun qr(text: String): List<BooleanArray>
+
+    /** Vincula el otro dispositivo y comparte con él la música y la biblioteca. */
+    suspend fun pair(otherId: String, otherName: String)
+
+    /** Lo que lleva sincronizado con [otherId], o null si ahora no están conectados. */
+    suspend fun progress(otherId: String): SyncCount?
 }
 
 /** Por qué ha fallado algo de YouTube, para decirlo claro en el aviso. */

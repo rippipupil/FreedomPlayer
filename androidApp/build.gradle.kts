@@ -75,6 +75,9 @@ android {
     }
 
     packaging {
+        // Syncthing va como biblioteca nativa (libsyncthing.so) y se ejecuta desde la carpeta de
+        // bibliotecas: tiene que salir del APK al instalar.
+        jniLibs.useLegacyPackaging = true
         resources.excludes += listOf(
             "/META-INF/{AL2.0,LGPL2.1}",
             "/META-INF/DEPENDENCIES",
@@ -91,6 +94,8 @@ dependencies {
     // Reproducción: ExoPlayer y la sesión multimedia (notificación, bloqueo, auriculares).
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-session:1.8.0")
+    // Leer el QR del PC para vincular (ZXing, sin servicios de Google Play).
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     // Pruebas en el emulador: el audio de verdad (ExoPlayer), la sesión y la notificación.

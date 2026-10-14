@@ -106,8 +106,8 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
             }
 
             SectionHeader(next(), "SINCRONIZACIÓN", Modifier.padding(top = 18.dp))
-            ActionRow(FpIcons.Link, if (wide) "Vincular con el móvil" else "Vincular con el PC", "Con un código QR. Llega en una próxima versión.") {
-                state.soon("Vincular con un QR")
+            ActionRow(FpIcons.Link, if (wide) "Vincular con el móvil" else "Vincular con el PC", if (state.canSync) "Con un código QR, con Syncthing." else "Con un código QR. Llega en una próxima versión.") {
+                state.openSync()
             }
 
             SectionHeader(next(), "PROBAR ESTADOS", Modifier.padding(top = 18.dp))
