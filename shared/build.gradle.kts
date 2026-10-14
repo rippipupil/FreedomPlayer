@@ -46,6 +46,13 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+        // Prueba de humo de la interfaz (AppSmokeTest): pinta la app sin ventana.
+        val desktopTest by getting {
+            dependencies {
+                implementation(compose.desktop.uiTestJUnit4)
+                implementation(compose.desktop.currentOs)
+            }
+        }
     }
 }
 

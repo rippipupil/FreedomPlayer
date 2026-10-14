@@ -50,7 +50,7 @@ jobs:
 
       - name: Guardar el informe de pruebas
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: informe-pruebas
           path: shared/build/reports/tests/
@@ -126,7 +126,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/release.keystore"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: FreedomPlayer-android
           path: dist/*.apk
@@ -172,7 +172,7 @@ jobs:
           Compress-Archive -Path desktopApp/build/compose/binaries/main/app/FreedomPlayer -DestinationPath "dist/FreedomPlayer-$env:FP_VERSION-windows-portable.zip"
           Get-ChildItem dist
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: FreedomPlayer-windows
           path: dist/*
