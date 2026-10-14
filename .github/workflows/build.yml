@@ -144,13 +144,15 @@ jobs:
             echo "No hay KEYSTORE_BASE64: se firma con la clave de depuración estándar."
           fi
 
-      # Go para compilar Syncthing para Android x86_64 con el NDK (el de la imagen del runner).
+      # Go para compilar Syncthing para Android con el NDK (el de la imagen del runner).
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26.2'
           cache: false
 
-      - name: Syncthing (oficial, con su suma SHA-256; x86_64 compilado para Android)
+      # arm64-v8a, armeabi-v7a y x86_64, del código oficial (con su suma SHA-256); después se
+      # comprueba que cada uno es un ELF de su arquitectura y para Android (elf-android.py).
+      - name: Syncthing (código oficial con su suma SHA-256, compilado para Android)
         run: bash .github/scripts/syncthing.sh android
 
       - name: Compilar el APK

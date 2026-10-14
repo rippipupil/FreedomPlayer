@@ -23,8 +23,8 @@ object AndroidLibrary {
 
     /**
      * Syncthing del móvil: va dentro del APK como biblioteca nativa (libsyncthing.so), que Android
-     * deja ejecutar desde su carpeta. En ARM es el binario oficial para Linux; en x86_64, el código
-     * oficial compilado para Android (ver .github/scripts/syncthing.sh).
+     * deja ejecutar desde su carpeta. En las tres ABI (arm64-v8a, armeabi-v7a y x86_64) es el código
+     * oficial compilado para Android con el NDK (ver .github/scripts/syncthing.sh).
      */
     private fun sync(app: Context): SyncthingBackend {
         val dirs = dirs(app)
