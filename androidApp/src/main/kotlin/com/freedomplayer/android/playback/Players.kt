@@ -32,6 +32,15 @@ object Players {
         .also { main = it }
 
     /**
+     * La que se va apagando durante un fundido entre canciones: sin foco de audio propio (lo
+     * lleva el principal) y en la misma sesión de audio, para que le llegue el ecualizador.
+     */
+    fun tail(context: Context, audioSessionId: Int): ExoPlayer = ExoPlayer.Builder(context.applicationContext)
+        .setAudioAttributes(musicAttributes, false)
+        .build()
+        .also { if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) it.setAudioSessionId(audioSessionId) }
+
+    /**
      * Un reproductor aparte para la vista previa (escuchar un resultado sin descargarlo), con las
      * cabeceras que pide YouTube para esa dirección. La cola principal se queda donde estaba.
      */

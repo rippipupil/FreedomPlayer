@@ -1,5 +1,10 @@
 package com.freedomplayer.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,9 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.Crossfade
+import com.freedomplayer.core.EqPreset
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.LocalAppVersion
+import com.freedomplayer.ui.Settings
+import com.freedomplayer.ui.Sheet
 import com.freedomplayer.ui.components.Chakra
+import com.freedomplayer.ui.components.ChoiceChip
 import com.freedomplayer.ui.components.FpIcon
 import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
@@ -30,6 +40,7 @@ import com.freedomplayer.ui.components.SectionHeader
 import com.freedomplayer.ui.components.SwitchRow
 import com.freedomplayer.ui.components.fpClickable
 import com.freedomplayer.ui.components.fpFloat
+import com.freedomplayer.ui.components.fpTween
 import com.freedomplayer.ui.components.screenPadding
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
@@ -55,11 +66,22 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
             fun next(): String = (++n).toString().padStart(2, '0')
 
             SectionHeader(next(), "REPRODUCCIÓN")
-            // TODO: igualar el volumen y el fundido llegan más adelante; el ajuste ya se guarda.
-            SwitchRow("Volumen igualado", "Todas las canciones igual de fuertes. Llega en una próxima versión.", settings.normalizeVolume, { settings.normalizeVolume = it })
-            SwitchRow("Fundido entre canciones", "Una entra mientras la otra se apaga. Llega en una próxima versión.", settings.crossfade, { settings.crossfade = it })
+            SwitchRow(
+                "Volumen igualado",
+                "Todas las canciones igual de fuertes: se mide cada una (una vez) y se bajan las que suenan más.",
+                settings.normalizeVolume,
+                { settings.normalizeVolume = it },
+            )
+            SwitchRow("Fundido entre canciones", "La siguiente entra mientras la que suena se va apagando.", settings.crossfade, { settings.crossfade = it })
+            AnimatedVisibility(
+                visible = settings.crossfade,
+                enter = fadeIn(fpTween()) + expandVertically(fpTween()),
+                exit = fadeOut(fpTween()) + shrinkVertically(fpTween()),
+            ) {
+                CrossfadeLength(settings)
+            }
             SwitchRow("Letra sincronizada", "Resalta la línea que suena. Si lo apagas, la letra se ve entera.", settings.syncedLyrics, { settings.syncedLyrics = it })
-            ActionRow(FpIcons.Equalizer, "Ecualizador", "Llega en una próxima versión.") { state.soon("El ecualizador") }
+            ActionRow(FpIcons.Equalizer, "Ecualizador", EqPreset.matching(settings.eqGains).label + " · 5 bandas") { state.sheet = Sheet.Equalizer }
 
             SectionHeader(next(), "DESCARGAS", Modifier.padding(top = 18.dp))
             SwitchRow("Guardar para escuchar sin conexión", "Audio, carátula y letra se quedan en el dispositivo.", settings.keepOffline, { settings.keepOffline = it })
@@ -140,5 +162,20 @@ private fun ActionRow(icon: FpIcon, title: String, description: String, onClick:
             Nunito(description, 12.sp, color = Fp.Mist, lineHeight = 17.sp)
         }
         FpIconView(icon, 18.dp, Fp.Idle)
+    }
+}
+
+/** Cuánto dura el fundido entre canciones. */
+@Composable
+private fun CrossfadeLength(settings: Settings) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Chakra("DURACIÓN", 11.sp, Modifier.padding(end = 4.dp), color = Fp.Mist, spacing = 1.5.sp)
+        for (seconds in Crossfade.choices) {
+            ChoiceChip("$seconds s", settings.crossfadeSeconds == seconds) { settings.crossfadeSeconds = seconds }
+        }
     }
 }

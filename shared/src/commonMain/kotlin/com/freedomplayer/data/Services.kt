@@ -2,6 +2,7 @@ package com.freedomplayer.data
 
 import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.CustomRanking
+import com.freedomplayer.core.EqBands
 import com.freedomplayer.core.LyricsData
 import com.freedomplayer.core.PlayEvent
 import com.freedomplayer.core.Playlist
@@ -21,6 +22,8 @@ class Services(
     val engine: AudioEngine,
     /** Datos de ejemplo: biblioteca, buscador y Spotify inventados, audio simulado. */
     val demo: Boolean = false,
+    /** Mide lo fuerte que suena cada canción (volumen igualado); sin él, no se iguala. */
+    val loudness: LoudnessAnalyzer? = null,
 ) {
     companion object
 }
@@ -151,7 +154,25 @@ data class Track(
     val album: String?,
     val artworkUri: String?,
     val durationMs: Long,
+    /** Volumen igualado: dB a aplicar a esta canción (0 si no se ha medido o está apagado). */
+    val gainDb: Float = 0f,
 )
+
+/** Cómo suena todo: ecualizador, volumen igualado y fundido entre canciones. */
+data class SoundSettings(
+    /** dB de cada una de las 5 bandas ([EqBands]); todo a 0 es no tocar el sonido. */
+    val eqGains: List<Float> = EqBands.flat,
+    /** Aplicar el [Track.gainDb] de cada canción. */
+    val normalize: Boolean = true,
+    /** Fundido entre canciones (0 = sin fundido). */
+    val crossfadeMs: Long = 0,
+)
+
+/** Mide la sonoridad de una canción (LUFS integrados, ver [com.freedomplayer.core.LoudnessMeter]). */
+fun interface LoudnessAnalyzer {
+    /** null si no se puede medir. Descodifica la canción entera: se llama fuera del hilo principal. */
+    suspend fun measure(path: String): Float?
+}
 
 data class PreviewSnapshot(
     val playing: Boolean,
@@ -215,6 +236,12 @@ interface AudioEngine {
      * final de la que suena (con play sigue con la siguiente).
      */
     fun setPauseAtEndOfSong(on: Boolean) {}
+
+    /** Ecualizador, volumen igualado y fundido. Lo que el motor no sepa hacer, lo ignora. */
+    fun setSound(sound: SoundSettings) {}
+
+    /** El ecualizador funciona (en algunos móviles el del sistema no está o no deja usarse). */
+    val equalizerAvailable: Boolean get() = true
 
     /** Para el audio simulado: el tiempo que ha pasado. Los de verdad no lo necesitan. */
     fun tick(elapsedMs: Long) {}

@@ -1,11 +1,20 @@
 package com.freedomplayer.platform
 
+import com.freedomplayer.core.Crossfade
+import com.freedomplayer.core.EqBands
+import com.freedomplayer.core.Equalizer
+import com.freedomplayer.core.Loudness
+import com.freedomplayer.core.LoudnessMeter
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.data.AudioEngine
 import com.freedomplayer.data.EngineSnapshot
+import com.freedomplayer.data.LoudnessAnalyzer
 import com.freedomplayer.data.PreviewSnapshot
+import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.StreamSource
 import com.freedomplayer.data.Track
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.bytedeco.ffmpeg.global.avutil
 import org.bytedeco.javacv.FFmpegFrameGrabber
 import org.bytedeco.javacv.FrameGrabber
@@ -85,6 +94,10 @@ class JavaSoundOut(private val bufferMillis: Int = 500) : AudioOut {
  * Una canción (o una vista previa) sonando: FFmpeg la abre y la descodifica en su propio hilo
  * (archivos y direcciones con cabeceras; webm/opus, m4a/aac, mp3, flac…) y [AudioOut] la toca.
  * Se maneja desde fuera (play, pausa, ir a, volumen) sin esperar al hilo.
+ *
+ * Por el camino pasa por el ecualizador ([eqGains]), el volumen igualado ([gain]) y los fundidos:
+ * de entrada los primeros [fadeInMs] y de salida los últimos [fadeOutMs] de la canción. Los
+ * fundidos se calculan con el tiempo de la canción, así que no importa lo que haya en el búfer.
  */
 class StreamPlayer(
     val source: String,
@@ -93,9 +106,23 @@ class StreamPlayer(
     play: Boolean,
     volume: Float,
     private val out: AudioOut,
+    private val fadeInMs: Long = 0,
+    gain: Float = 1f,
+    eq: List<Float> = EqBands.flat,
 ) {
     @Volatile
     var volume: Float = volume
+
+    /** Volumen igualado de esta canción (lineal; 1 = tal cual). */
+    @Volatile
+    var gain: Float = gain
+
+    @Volatile
+    var eqGains: List<Float> = eq
+
+    /** Fundido de salida en los últimos ms de la canción (el motor lo pone antes de que lleguen). */
+    @Volatile
+    var fadeOutMs: Long = 0
 
     @Volatile
     private var playing = play
@@ -199,6 +226,12 @@ class StreamPlayer(
             }
             loading = false
             var bytes = ByteArray(16 * 1024)
+            var floats = FloatArray(4 * 1024)
+            val eq = Equalizer(sampleRate, channels)
+            var eqApplied: List<Float>? = null
+            var preamp = 1f
+            // Por dónde va lo descodificado (en tramas), para los fundidos.
+            var clock = 0L
             while (!stopped) {
                 val target = seekRequest.get()
                 if (target >= 0) {
@@ -210,6 +243,8 @@ class StreamPlayer(
                     }
                     seekRequest.compareAndSet(target, -1)
                     finished = false
+                    clock = target * sampleRate / 1000
+                    eq.reset()
                 }
                 val frame = g.grabSamples()
                 if (frame == null) {
@@ -221,17 +256,41 @@ class StreamPlayer(
                 }
                 val samples = frame.samples?.firstOrNull() as? ShortBuffer ?: continue
                 val n = samples.remaining()
+                val frames = n / channels
                 if (bytes.size < n * 2) bytes = ByteArray(n * 2)
-                val v = volume.coerceIn(0f, 1f)
-                val gain = v * v
+                if (floats.size < n) floats = FloatArray(n)
                 val start = samples.position()
-                for (i in 0 until n) {
-                    val s = (samples.get(start + i) * gain).toInt()
-                    bytes[2 * i] = (s and 0xFF).toByte()
-                    bytes[2 * i + 1] = ((s shr 8) and 0xFF).toByte()
+                for (i in 0 until n) floats[i] = samples.get(start + i) / 32768f
+                val wanted = eqGains
+                if (wanted !== eqApplied) {
+                    eq.setGains(wanted)
+                    eqApplied = wanted
+                    preamp = Loudness.linear(EqBands.preampDb(wanted))
                 }
+                eq.process(floats, frames)
+                val v = volume.coerceIn(0f, 1f)
+                val base = v * v * gain * preamp * 32767f
+                val fadeIn = fadeInMs
+                val fadeOut = fadeOutMs
+                val total = durationMs
+                var i = 0
+                for (f in 0 until frames) {
+                    var k = base
+                    if (fadeIn > 0 || fadeOut > 0) {
+                        val t = (clock + f) * 1000 / sampleRate
+                        if (fadeIn > 0 && t < fadeIn) k *= Crossfade.fadeIn(t.toFloat() / fadeIn)
+                        if (fadeOut > 0 && total > 0 && t >= total - fadeOut) k *= Crossfade.fadeOut((t - (total - fadeOut)).toFloat() / fadeOut)
+                    }
+                    for (ch in 0 until channels) {
+                        val s = (floats[i] * k).toInt().coerceIn(-32768, 32767)
+                        bytes[2 * i] = (s and 0xFF).toByte()
+                        bytes[2 * i + 1] = ((s shr 8) and 0xFF).toByte()
+                        i++
+                    }
+                }
+                clock += frames
                 if (seekRequest.get() >= 0 || stopped) continue
-                out.write(bytes, n * 2)
+                out.write(bytes, frames * channels * 2)
             }
         } catch (e: Throwable) {
             if (!stopped) error = e
@@ -288,7 +347,8 @@ class StreamPlayer(
 /**
  * El audio de verdad en el PC: FFmpeg (JavaCV, viene dentro de la app) y Java Sound. La app
  * decide la cola y su orden aleatorio; aquí se toca en ese orden y se pasa a la siguiente al
- * acabar cada una (con repetir una, todas o ninguna).
+ * acabar cada una (con repetir una, todas o ninguna). Con fundido, la siguiente empieza unos
+ * segundos antes de que acabe la que suena, que se va apagando mientras la otra sube.
  */
 class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : AudioEngine {
     private var tracks: List<Track> = emptyList()
@@ -307,21 +367,38 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
     private var pauseAtEnd = false
     private var pausedAtEnd = false
 
+    private var sound = SoundSettings()
+
+    /** La que se va apagando durante un fundido (la que suena de verdad es [current]). */
+    private var fading: StreamPlayer? = null
+
+    /** Hay un fundido en marcha (para las pruebas). */
+    val crossfading: Boolean get() = fading != null
+
     /** Por dónde va mientras no hay nada abierto (al abrir la app, en pausa). */
     private var idlePosition = 0L
 
     private var preview: StreamPlayer? = null
     private var previewDurationMs = 0L
 
-    private fun open(positionMs: Long, play: Boolean) {
+    private fun open(positionMs: Long, play: Boolean, fadeInMs: Long = 0) {
         current?.close()
         current = null
         val t = tracks.getOrNull(index) ?: return
         idlePosition = positionMs
-        current = StreamPlayer(t.uri, emptyMap(), positionMs, play, volume, output())
+        current = StreamPlayer(t.uri, emptyMap(), positionMs, play, volume, output(), fadeInMs, gainOf(t), sound.eqGains)
+    }
+
+    private fun gainOf(t: Track): Float = if (sound.normalize) Loudness.linear(t.gainDb) else 1f
+
+    /** Corta el fundido en marcha (al saltar, pausar o cambiar la cola). */
+    private fun stopFading() {
+        fading?.close()
+        fading = null
     }
 
     override fun load(tracks: List<Track>, index: Int, positionMs: Long, play: Boolean) {
+        stopFading()
         current?.close()
         current = null
         this.tracks = tracks
@@ -343,6 +420,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
 
     override fun play() {
         if (index < 0) return
+        fading?.play()
         if (pausedAtEnd) {
             pausedAtEnd = false
             wantPlay = true
@@ -364,6 +442,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
 
     override fun pause() {
         wantPlay = false
+        fading?.pause()
         current?.let {
             idlePosition = it.positionMs
             it.pause()
@@ -371,6 +450,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
     }
 
     override fun seekTo(positionMs: Long) {
+        stopFading()
         ended = false
         pausedAtEnd = false
         val p = positionMs.coerceAtLeast(0)
@@ -381,6 +461,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
 
     override fun skipTo(index: Int) {
         if (index !in tracks.indices) return
+        stopFading()
         this.index = index
         ended = false
         pausedAtEnd = false
@@ -402,13 +483,22 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
     override fun setVolume(volume: Float) {
         this.volume = volume.coerceIn(0f, 1f)
         current?.volume = this.volume
+        fading?.volume = this.volume
         preview?.volume = this.volume
+    }
+
+    override fun setSound(sound: SoundSettings) {
+        val before = this.sound
+        this.sound = sound
+        for (p in listOfNotNull(current, fading, preview)) p.eqGains = sound.eqGains
+        if (before.normalize != sound.normalize) tracks.getOrNull(index)?.let { t -> current?.gain = gainOf(t) }
+        if (sound.crossfadeMs <= 0) current?.fadeOutMs = 0
     }
 
     override fun startPreview(source: StreamSource) {
         stopPreview()
         previewDurationMs = source.durationSec * 1000L
-        preview = StreamPlayer(source.url, source.headers, 0, true, volume, output())
+        preview = StreamPlayer(source.url, source.headers, 0, true, volume, output(), eq = sound.eqGains)
     }
 
     override fun previewPlay() {
@@ -430,8 +520,40 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
         preview = null
     }
 
+    /** La que viene después de la que suena según «repetir» (sin repetir una), o -1. */
+    private fun nextIndex(): Int = when {
+        repeat == RepeatMode.One -> -1
+        index < tracks.lastIndex -> index + 1
+        repeat == RepeatMode.All && tracks.size > 1 -> 0
+        else -> -1
+    }
+
+    /**
+     * Fundido: un poco antes ya se avisa a la que suena de que se apague al final (lo que va
+     * descodificando lleva medio segundo de ventaja) y, al llegar, empieza la siguiente subiendo.
+     */
+    private fun crossfade(c: StreamPlayer) {
+        val len = sound.crossfadeMs
+        if (len <= 0 || !wantPlay || pauseAtEnd || fading != null) return
+        val total = c.durationMs
+        if (c.loading || c.error != null || c.finished || total < len * 2) return
+        val next = nextIndex()
+        if (next < 0) return
+        val at = c.positionMs
+        if (c.fadeOutMs == 0L && at >= total - len - 1_500) c.fadeOutMs = len
+        if (c.fadeOutMs > 0 && at >= total - len) {
+            fading = c
+            current = null
+            index = next
+            transitions++
+            failedInARow = 0
+            open(0, true, fadeInMs = len)
+        }
+    }
+
     /** Si la que suena ha acabado (o ha fallado), pasa a la siguiente según «repetir». */
     private fun advance() {
+        fading?.let { f -> if (f.finished || f.error != null) stopFading() }
         val c = current ?: return
         val failure = c.error
         if (failure != null) {
@@ -458,6 +580,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
         }
         if (!c.finished) {
             if (!c.loading && c.positionMs > 0) failedInARow = 0
+            crossfade(c)
             return
         }
         if (pausedAtEnd) return
@@ -525,8 +648,45 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
     }
 
     override fun release() {
+        stopFading()
         current?.close()
         current = null
         stopPreview()
+    }
+}
+
+/** Mide lo fuerte que suena un archivo (LUFS) descodificándolo entero con FFmpeg, sin tocarlo. */
+object FfmpegLoudness : LoudnessAnalyzer {
+    override suspend fun measure(path: String): Float? = withContext(Dispatchers.IO) { measureNow(path) }
+
+    fun measureNow(path: String): Float? {
+        val g = FFmpegFrameGrabber(path)
+        return try {
+            g.sampleMode = FrameGrabber.SampleMode.SHORT
+            g.sampleFormat = avutil.AV_SAMPLE_FMT_S16
+            g.audioChannels = 2
+            g.start()
+            val rate = g.sampleRate.takeIf { it > 0 } ?: return null
+            val channels = g.audioChannels.coerceIn(1, 2)
+            val meter = LoudnessMeter(rate, channels)
+            var floats = FloatArray(8 * 1024)
+            while (true) {
+                val frame = g.grabSamples() ?: break
+                val samples = frame.samples?.firstOrNull() as? ShortBuffer ?: continue
+                val n = samples.remaining()
+                if (floats.size < n) floats = FloatArray(n)
+                val start = samples.position()
+                for (i in 0 until n) floats[i] = samples.get(start + i) / 32768f
+                meter.add(floats, n / channels)
+            }
+            meter.integrated()
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching {
+                g.stop()
+                g.release()
+            }
+        }
     }
 }

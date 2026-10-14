@@ -17,7 +17,7 @@ object AndroidLibrary {
     fun services(context: Context, engine: AudioEngine): Services {
         val app = context.applicationContext
         val driver = AndroidSqliteDriver(FpDatabase.Schema, app, DATABASE)
-        return realServices(driver, dirs(app), engine)
+        return realServices(driver, dirs(app), engine, AndroidLoudness)
     }
 
     const val DATABASE = "freedomplayer.db"

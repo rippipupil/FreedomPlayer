@@ -11,7 +11,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.CoverPalette
+import com.freedomplayer.core.Crossfade
 import com.freedomplayer.core.CustomRanking
+import com.freedomplayer.core.EqBands
+import com.freedomplayer.core.Loudness
 import com.freedomplayer.core.LyricsData
 import com.freedomplayer.core.MatchKind
 import com.freedomplayer.core.PlayEvent
@@ -34,6 +37,7 @@ import com.freedomplayer.data.DownloadRequest
 import com.freedomplayer.data.DownloadedSong
 import com.freedomplayer.data.FailureKind
 import com.freedomplayer.data.Services
+import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.Track
 import com.freedomplayer.data.demo
 import com.freedomplayer.data.explain
@@ -209,8 +213,34 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
         }
     }
 
+    private inner class Whole(private val key: String, default: Int, private val allowed: IntRange) : ReadWriteProperty<Any?, Int> {
+        private val state = mutableStateOf(read(key)?.toIntOrNull()?.takeIf { it in allowed } ?: default)
+        override fun getValue(thisRef: Any?, property: KProperty<*>): Int = state.value
+        override fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
+            val v = value.coerceIn(allowed)
+            if (state.value == v) return
+            state.value = v
+            write(key, v.toString())
+        }
+    }
+
     var normalizeVolume by Flag("normalizeVolume", true)
     var crossfade by Flag("crossfade", false)
+
+    /** Segundos del fundido entre canciones. */
+    var crossfadeSeconds by Whole("crossfadeSeconds", Crossfade.DEFAULT_SECONDS, 1..12)
+
+    private val eqState = mutableStateOf(EqBands.parse(read("eq.gains")))
+
+    /** Ecualizador: dB de cada banda (todo a 0, «Plano», es no tocar el sonido). */
+    var eqGains: List<Float>
+        get() = eqState.value
+        set(value) {
+            val v = EqBands.clamp(value)
+            if (v == eqState.value) return
+            eqState.value = v
+            write("eq.gains", EqBands.format(v))
+        }
     var syncedLyrics by Flag("syncedLyrics", true)
     var keepOffline by Flag("keepOffline", true)
     var closeToTray by Flag("closeToTray", true)
@@ -418,7 +448,81 @@ class AppState(
     fun canPlay(song: Song): Boolean = isDemo || song.audioPath != null
 
     private fun Song.toTrack(): Track =
-        Track(id, audioPath ?: "demo:$id", title, artist, album, cover, durationSec * 1000L)
+        Track(id, audioPath ?: "demo:$id", title, artist, album, cover, durationSec * 1000L, gainDb = Loudness.gainDb(loudnessOf(id)))
+
+    // ---------- Cómo suena: ecualizador, volumen igualado y fundido ----------
+
+    /** Lo último que se le ha dicho al motor (para decírselo solo cuando cambia). */
+    private var appliedSound: SoundSettings? = null
+
+    private fun applySound() {
+        val s = SoundSettings(
+            eqGains = settings.eqGains,
+            normalize = settings.normalizeVolume,
+            crossfadeMs = if (settings.crossfade) settings.crossfadeSeconds * 1000L else 0L,
+        )
+        if (s == appliedSound) return
+        appliedSound = s
+        engine.setSound(s)
+    }
+
+    /** Mueve una banda del ecualizador (las demás se quedan como están). */
+    fun setEqBand(band: Int, db: Float) {
+        val g = settings.eqGains.toMutableList()
+        if (band !in g.indices) return
+        g[band] = db
+        settings.eqGains = g
+    }
+
+    val equalizerAvailable: Boolean get() = engine.equalizerAvailable
+
+    /** Sonoridad medida de cada canción (LUFS); se guarda en los ajustes como «loudness.<id>». */
+    private val loudness = HashMap<String, Float?>()
+
+    /** Las que no se han podido medir (no se reintentan hasta volver a abrir la app). */
+    private val unmeasurable = HashSet<String>()
+
+    private fun loudnessOf(id: String): Float? {
+        if (id in loudness) return loudness[id]
+        val v = store.setting("loudness.$id")?.toFloatOrNull()
+        loudness[id] = v
+        return v
+    }
+
+    /** La siguiente canción por medir: primero lo que va a sonar, luego el resto de la biblioteca. */
+    private fun nextToMeasure(): String? {
+        val order = queue.upcoming.take(5) + listOfNotNull(queue.current) + songs.map { it.id }
+        return order.firstOrNull { id -> id !in unmeasurable && song(id)?.audioPath != null && loudnessOf(id) == null }
+    }
+
+    /** Mide, de una en una y sin prisa, lo fuerte que suena cada canción (para el volumen igualado). */
+    private suspend fun measureLoudness() {
+        val analyzer = services.loudness ?: return
+        while (true) {
+            val id = if (settings.normalizeVolume) nextToMeasure() else null
+            if (id == null) {
+                delay(5_000)
+                continue
+            }
+            val path = song(id)?.audioPath
+            val lufs = try {
+                if (path == null) null else analyzer.measure(path)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                null
+            }
+            if (lufs == null) {
+                unmeasurable += id
+            } else {
+                loudness[id] = lufs
+                store.setSetting("loudness.$id", lufs.toString())
+                // Las que vienen ya suenan igualadas (la que suena, desde la próxima vez).
+                if (id in queue.upcoming) engine.reorder(tracks(queue.items), queue.index)
+            }
+            delay(200)
+        }
+    }
 
     private fun tracks(ids: List<String>): List<Track> = ids.mapNotNull { song(it)?.toTrack() }
 
@@ -1481,11 +1585,13 @@ class AppState(
     }
 
     init {
+        applySound()
         restoreQueue()
     }
 
     /** Un paso del reloj: el audio simulado avanza y lo que pasa en el reproductor llega a la pantalla. */
     internal fun step(elapsedMs: Long) {
+        applySound()
         engine.tick(elapsedMs)
         sync(elapsedMs)
         tickSleep(elapsedMs)
@@ -1506,6 +1612,7 @@ class AppState(
                 }
             }
             if (downloads.isNotEmpty() && worker?.isActive != true) worker = launch { work() }
+            launch { measureLoudness() }
             try {
                 var mark = TimeSource.Monotonic.markNow()
                 while (isActive) {

@@ -6,6 +6,7 @@ import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.Song
+import com.freedomplayer.data.AudioEngine
 import com.freedomplayer.data.LibrarySnapshot
 import com.freedomplayer.data.MemoryStore
 import com.freedomplayer.data.SampleLyrics
@@ -13,6 +14,8 @@ import com.freedomplayer.data.SampleSource
 import com.freedomplayer.data.Services
 import com.freedomplayer.data.SimulatedDownloader
 import com.freedomplayer.data.SimulatedEngine
+import com.freedomplayer.data.SoundSettings
+import com.freedomplayer.data.Track
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -235,5 +238,50 @@ class PlaybackFlowTest {
         state.play(61)
         assertEquals("s3", state.currentSong?.id, "la siguiente ya no se para")
         assertTrue(state.isPlaying)
+    }
+
+    /** El audio simulado, apuntando lo que la app le dice de cómo sonar y qué canciones le pasa. */
+    private class RecordingEngine(private val inner: SimulatedEngine = SimulatedEngine()) : AudioEngine by inner {
+        var sound: SoundSettings? = null
+        var loaded: List<Track> = emptyList()
+
+        override fun setSound(sound: SoundSettings) {
+            this.sound = sound
+        }
+
+        override fun load(tracks: List<Track>, index: Int, positionMs: Long, play: Boolean) {
+            loaded = tracks
+            inner.load(tracks, index, positionMs, play)
+        }
+    }
+
+    @Test
+    fun soundSettingsReachTheEngine() {
+        val engine = RecordingEngine()
+        val state = AppState(System.currentTimeMillis(), Services(store(), SampleSource(latencyMs = 0), SimulatedDownloader(), SampleLyrics(), engine))
+        assertEquals(SoundSettings(normalize = true, crossfadeMs = 0), engine.sound, "al abrir: volumen igualado sí, fundido no")
+        state.settings.crossfade = true
+        state.settings.crossfadeSeconds = 9
+        state.setEqBand(0, 4.5f)
+        state.step(100)
+        assertEquals(SoundSettings(eqGains = listOf(4.5f, 0f, 0f, 0f, 0f), normalize = true, crossfadeMs = 9_000), engine.sound)
+        state.settings.normalizeVolume = false
+        state.settings.crossfade = false
+        state.step(100)
+        assertEquals(SoundSettings(eqGains = listOf(4.5f, 0f, 0f, 0f, 0f), normalize = false, crossfadeMs = 0), engine.sound)
+    }
+
+    @Test
+    fun measuredSongsGetTheirLoudnessGain() {
+        val store = store()
+        store.setSetting("loudness.s1", "-10.0")
+        store.setSetting("loudness.s2", "-20.0")
+        val engine = RecordingEngine()
+        val state = AppState(System.currentTimeMillis(), Services(store, SampleSource(latencyMs = 0), SimulatedDownloader(), SampleLyrics(), engine))
+        state.playFrom(ids, "s1", "NOCHES")
+        val gains = engine.loaded.associate { it.id to it.gainDb }
+        assertEquals(-6f, gains["s1"], "−10 LUFS: se baja hasta −16")
+        assertEquals(0f, gains["s2"], "las flojas no se suben")
+        assertEquals(0f, gains["s3"], "sin medir, tal cual")
     }
 }

@@ -2,6 +2,7 @@ package com.freedomplayer.platform
 
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.data.EngineSnapshot
+import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.Track
 import org.bytedeco.ffmpeg.global.avcodec
 import org.bytedeco.javacv.FFmpegFrameRecorder
@@ -93,6 +94,9 @@ class DesktopAudioTest {
         private var channels = 2
         private val frames = AtomicLong()
 
+        /** El pico de cada trozo que «suena» (para ver fundidos, ecualizador y volumen igualado). */
+        val peaks: MutableList<Int> = java.util.Collections.synchronizedList(mutableListOf<Int>())
+
         override fun open(sampleRate: Int, channels: Int) {
             rate = sampleRate
             this.channels = channels
@@ -100,6 +104,12 @@ class DesktopAudioTest {
 
         override fun write(bytes: ByteArray, length: Int) {
             flushed = false
+            var peak = 0
+            for (i in 0 until length / 2) {
+                val s = (bytes[2 * i].toInt() and 0xFF) or (bytes[2 * i + 1].toInt() shl 8)
+                peak = maxOf(peak, abs(s))
+            }
+            peaks += peak
             var left = length / (2 * channels)
             // Suena a trocitos: la pausa para enseguida, como una tarjeta de sonido.
             while (left > 0) {
@@ -284,5 +294,80 @@ class DesktopAudioTest {
         engine.stopPreview()
         assertNull(engine.snapshot().preview)
         engine.release()
+    }
+
+    @Test
+    fun crossfadeOverlapsTheEndAndTheStart() {
+        val outs = java.util.Collections.synchronizedList(mutableListOf<FakeOut>())
+        val tracks = listOf(track("1", wav("1.wav", 2.0)), track("2", wav("2.wav", 2.0)))
+        val engine = DesktopEngine { FakeOut(speed = 4.0).also { outs += it } }
+        engine.setSound(SoundSettings(crossfadeMs = 600))
+        engine.load(tracks, 0, 0, play = true)
+        val start = engine.snapshot().transitions
+        waitFor("que empiece el fundido") { engine.snapshot().index == 1 }
+        val s = engine.snapshot()
+        assertTrue(engine.crossfading, "las dos suenan a la vez: " + s.describe())
+        assertEquals(start + 1, s.transitions, "cuenta como cambio de canción")
+        assertTrue(s.playing && s.positionMs < 1_000, s.describe())
+        waitFor("el final del fundido") {
+            engine.snapshot()
+            !engine.crossfading
+        }
+        waitFor("que suene la segunda un poco") { engine.snapshot().positionMs > 900 }
+        val first = outs[0].peaks.toList()
+        val second = outs[1].peaks.toList()
+        assertTrue(first.take(5).all { it > 7_000 }, "la primera empieza fuerte: ${first.take(5)}")
+        assertTrue(first.last() < 1_500, "y acaba apagándose: ${first.takeLast(5)}")
+        assertTrue(second.first() < 2_500, "la segunda empieza desde abajo: ${second.take(5)}")
+        assertTrue(second.last() > 7_000, "y sube del todo: ${second.takeLast(5)}")
+        engine.release()
+    }
+
+    @Test
+    fun withoutCrossfadeTheNextStartsAfterTheEnd() {
+        val tracks = listOf(track("1", wav("1.wav", 1.0)), track("2", wav("2.wav", 1.0)))
+        val engine = DesktopEngine { FakeOut(speed = 4.0) }
+        engine.load(tracks, 0, 0, play = true)
+        var sawOverlap = false
+        waitFor("la segunda") {
+            engine.snapshot()
+            if (engine.crossfading) sawOverlap = true
+            engine.snapshot().index == 1
+        }
+        assertTrue(!sawOverlap)
+        engine.release()
+    }
+
+    @Test
+    fun equalizerAndLoudnessChangeTheLevel() {
+        fun peakOf(sound: SoundSettings, gainDb: Float): Int {
+            val outs = java.util.Collections.synchronizedList(mutableListOf<FakeOut>())
+            val engine = DesktopEngine { FakeOut(speed = 4.0).also { outs += it } }
+            engine.setSound(sound)
+            engine.load(listOf(track("1", wav("t.wav", 1.0)).copy(gainDb = gainDb)), 0, 0, play = true)
+            waitFor("el final") { engine.snapshot().ended }
+            engine.release()
+            // Sin el principio (lo que tarda el filtro en asentarse).
+            val peaks = outs[0].peaks.toList()
+            return peaks.drop(peaks.size / 4).maxOrNull() ?: 0
+        }
+        val plain = peakOf(SoundSettings(), 0f)
+        assertTrue(plain in 7_500..8_500, "tal cual: $plain")
+        val quieter = peakOf(SoundSettings(normalize = true), -6f)
+        assertTrue(abs(quieter - plain / 2) < plain / 10, "−6 dB es la mitad: $quieter")
+        assertEquals(plain, peakOf(SoundSettings(normalize = false), -6f), "sin volumen igualado no cambia")
+        val cut = peakOf(SoundSettings(eqGains = listOf(-12f, -12f, -12f, -12f, -12f)), 0f)
+        assertTrue(cut < plain / 2, "el ecualizador bajando todo: $cut")
+    }
+
+    @Test
+    fun loudnessOfAFile() {
+        val lufs = FfmpegLoudness.measureNow(wav("l.wav", 3.0).absolutePath)
+        assertNotNull(lufs)
+        assertTrue(lufs in -14f..-11.5f, "un pitido de 440 Hz a −12 dBFS: $lufs LUFS")
+        val compressed = FfmpegLoudness.measureNow(encoded("l.webm", "webm", avcodec.AV_CODEC_ID_OPUS, 3.0, 48_000).absolutePath)
+        assertNotNull(compressed)
+        assertTrue(abs(compressed - lufs) < 1f, "en opus mide casi lo mismo: $compressed")
+        assertNull(FfmpegLoudness.measureNow(File(dir, "no-existe.webm").absolutePath))
     }
 }

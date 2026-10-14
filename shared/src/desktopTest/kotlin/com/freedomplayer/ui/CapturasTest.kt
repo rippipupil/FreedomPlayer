@@ -22,6 +22,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.EqPreset
 import com.freedomplayer.core.SampleData
 import com.freedomplayer.data.SampleSource
 import com.freedomplayer.ui.components.Chakra
@@ -186,6 +187,12 @@ class CapturasTest {
             dismissToast()
             sheet = Sheet.SleepTimer
         }
+        shoot("04e-movil-ecualizador", wide = false) {
+            togglePlay()
+            playerOpen = true
+            settings.eqGains = EqPreset.Rock.gains
+            sheet = Sheet.Equalizer
+        }
         shoot("05-movil-estados-sin-conexion", wide = false) {
             togglePlay()
             settings.demoOffline = true
@@ -268,6 +275,11 @@ class CapturasTest {
             togglePlay()
             playerOpen = true
             sheet = Sheet.Queue
+        }
+        shoot("06k3-pc-ecualizador", wide = true) {
+            togglePlay()
+            settings.eqGains = EqPreset.Vocal.gains
+            sheet = Sheet.Equalizer
         }
         shoot("06l-pc-estados-sin-conexion", wide = true) {
             togglePlay()

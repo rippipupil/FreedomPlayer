@@ -112,6 +112,7 @@ fun SheetHost(state: AppState, modifier: Modifier = Modifier) {
                 is Sheet.AddToRanking -> SheetSurface { RankingPicker(state, current.songId) }
                 is Sheet.Queue -> SheetSurface { QueueSheet(state) }
                 is Sheet.SleepTimer -> SheetSurface { SleepTimerSheet(state) }
+                is Sheet.Equalizer -> SheetSurface { EqualizerSheet(state) }
                 is Prompt.EditSong -> SheetSurface { EditSongPrompt(state, current.songId) }
                 is Prompt -> SheetSurface { NamePrompt(state, current) }
                 else -> Box(Modifier.size(0.dp))

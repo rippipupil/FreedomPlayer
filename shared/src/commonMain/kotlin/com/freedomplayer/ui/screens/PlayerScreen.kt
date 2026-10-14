@@ -499,7 +499,7 @@ private fun Tools(state: AppState) {
 
 private fun useTool(state: AppState, tool: Tool) {
     when (tool) {
-        Tool.Eq -> state.soon("El ecualizador")
+        Tool.Eq -> state.sheet = Sheet.Equalizer
         Tool.Sleep -> state.sheet = Sheet.SleepTimer
         Tool.Edit -> state.currentSong?.let { state.prompt = Prompt.EditSong(it.id) }
         Tool.Queue -> state.sheet = Sheet.Queue

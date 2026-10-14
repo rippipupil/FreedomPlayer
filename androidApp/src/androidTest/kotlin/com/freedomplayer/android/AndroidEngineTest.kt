@@ -1,6 +1,7 @@
 package com.freedomplayer.android
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.freedomplayer.android.AudioFiles.onMain
@@ -10,7 +11,9 @@ import com.freedomplayer.android.playback.AndroidEngine
 import com.freedomplayer.android.playback.Players
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.data.EngineSnapshot
+import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.StreamSource
+import com.freedomplayer.platform.AndroidLoudness
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,7 +29,8 @@ import kotlin.math.abs
 /**
  * El audio de verdad en Android (ExoPlayer, el mismo reproductor que usa la notificación), con
  * archivos WAV hechos en la prueba: la cola que sigue y se para al final, repetir, un archivo que
- * falta, el orden aleatorio sin cortes y la vista previa.
+ * falta, el orden aleatorio sin cortes, la vista previa, el temporizador, el fundido, el volumen
+ * igualado y el ecualizador del sistema.
  */
 @RunWith(AndroidJUnit4::class)
 class AndroidEngineTest {
@@ -48,8 +52,10 @@ class AndroidEngineTest {
         onMain {
             engine.setRepeat(RepeatMode.Off)
             engine.setPauseAtEndOfSong(false)
+            engine.setSound(SoundSettings())
             engine.load(emptyList(), 0, 0, play = false)
             engine.release()
+            Players.main(context).volume = 1f
         }
         dir.deleteRecursively()
     }
@@ -216,5 +222,71 @@ class AndroidEngineTest {
         }
         assertNull(snapshot().preview)
         waitFor("la cola vuelve a sonar") { it.playing && it.positionMs > queuePosition + 200 }
+    }
+
+    @Test
+    fun crossfadeOverlapsTheEndAndTheStart() {
+        val tracks = (1..2).map { track("$it", wav(dir, "$it.wav", 6.0)) }
+        onMain {
+            engine.setSound(SoundSettings(crossfadeMs = 2_000))
+            engine.load(tracks, 0, 0, play = true)
+        }
+        val t0 = SystemClock.uptimeMillis()
+        val start = snapshot().transitions
+        val switched = waitFor("que entre la segunda antes de que acabe la primera") { it.index == 1 }
+        val elapsed = SystemClock.uptimeMillis() - t0
+        val fading = onMain { engine.crossfading }
+        val volume = onMain { Players.main(context).volume }
+        assertTrue("las dos suenan a la vez", fading)
+        assertTrue("la que entra empieza bajita ($volume)", volume < 0.6f)
+        assertEquals("cuenta como un cambio de canción", start + 1, switched.transitions)
+        assertTrue("entra unos 2 s antes del final de la primera, que dura 6 ($elapsed ms)", elapsed in 3_000L..5_500L)
+        AudioFiles.waitFor("el final del fundido", 10_000, { engine.crossfading }) { !it }
+        assertEquals(1f, onMain { Players.main(context).volume }, 0.01f)
+        assertTrue(snapshot().playing)
+        assertEquals(1, snapshot().index)
+    }
+
+    @Test
+    fun loudSongsAreTurnedDown() {
+        val loud = track("1", wav(dir, "1.wav", 3.0)).copy(gainDb = -6f)
+        val normal = track("2", wav(dir, "2.wav", 3.0))
+        onMain { engine.load(listOf(loud, normal), 0, 0, play = true) }
+        waitFor("que suene") { it.playing }
+        assertEquals("−6 dB: a la mitad", 0.5f, onMain { Players.main(context).volume }, 0.02f)
+        onMain { engine.setSound(SoundSettings(normalize = false)) }
+        assertEquals("sin volumen igualado, tal cual", 1f, onMain { Players.main(context).volume }, 0.01f)
+        onMain {
+            engine.setSound(SoundSettings(normalize = true))
+            engine.skipTo(1)
+        }
+        waitFor("la segunda") { it.index == 1 }
+        assertEquals(1f, onMain { Players.main(context).volume }, 0.01f)
+    }
+
+    @Test
+    fun theSystemEqualizerGetsTheBands() {
+        onMain { engine.load(listOf(track("1", wav(dir, "1.wav", 3.0))), 0, 0, play = true) }
+        waitFor("que suene") { it.playing }
+        onMain { engine.setSound(SoundSettings(eqGains = listOf(6f, 3f, 0f, -3f, -6f))) }
+        val levels = onMain { engine.systemEqLevels() }
+        if (onMain { engine.equalizerAvailable }) {
+            assertNotNull("ecualizador puesto", levels)
+            assertTrue("graves arriba y agudos abajo: $levels", levels!!.first() > 2f && levels.last() < -2f)
+            onMain { engine.setSound(SoundSettings()) }
+            assertNull("plano: apagado", onMain { engine.systemEqLevels() })
+        } else {
+            // Sin ecualizador del sistema la app lo dice (y no se queda a medias).
+            assertNull(levels)
+            android.util.Log.w("FreedomPlayer", "Este emulador no tiene ecualizador del sistema")
+        }
+    }
+
+    @Test
+    fun loudnessIsMeasuredWithTheSystemDecoders() {
+        val lufs = AndroidLoudness.measureNow(wav(dir, "l.wav", 3.0).absolutePath)
+        assertNotNull(lufs)
+        assertTrue("un pitido de 440 Hz a −15 dBFS: $lufs LUFS", lufs!! in -16.5f..-14f)
+        assertNull(runCatching { AndroidLoudness.measureNow(File(dir, "no-existe.webm").absolutePath) }.getOrNull())
     }
 }

@@ -50,8 +50,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.EqPreset
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.ui.AppState
+import com.freedomplayer.ui.Sheet
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalFpFonts
 import com.freedomplayer.core.RepeatMode as Repeat
@@ -363,7 +365,14 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
                     enabled = state.currentSong != null,
                 )
                 Box(Modifier.width(6.dp))
-                IconButton(FpIcons.Equalizer, "Ecualizador", { state.soon("El ecualizador") }, size = 40.dp, iconSize = 18.dp)
+                IconButton(
+                    FpIcons.Equalizer,
+                    "Ecualizador",
+                    { state.sheet = Sheet.Equalizer },
+                    size = 40.dp,
+                    iconSize = 18.dp,
+                    color = if (EqPreset.matching(state.settings.eqGains) != EqPreset.Flat) Fp.Neon else Fp.Idle,
+                )
                 Box(Modifier.width(8.dp))
                 IconButton(
                     if (state.muted || state.volume == 0f) FpIcons.Mute else FpIcons.Volume,

@@ -32,6 +32,6 @@ object DesktopLibrary {
         val dirs = dirs()
         dirs.root.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dirs.database.absolutePath}", Properties(), FpDatabase.Schema)
-        return realServices(driver, dirs, engine)
+        return realServices(driver, dirs, engine, FfmpegLoudness)
     }
 }
