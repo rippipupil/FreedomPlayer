@@ -38,6 +38,8 @@ class SyncFlowTest {
         var asking: String? = null
         var incoming: LibraryData? = null
         val sent = mutableListOf<LibraryData>()
+        var progressCalls = 0
+        var stops = 0
 
         override suspend fun start(): String {
             if (failStart) error("no arranca")
@@ -52,11 +54,18 @@ class SyncFlowTest {
 
         override suspend fun pendingDevice(): String? = asking
 
-        override suspend fun progress(otherId: String): SyncCount? = count
+        override suspend fun progress(otherId: String): SyncCount? {
+            progressCalls++
+            return count
+        }
 
         override suspend fun exchange(local: LibraryData): LibraryData? {
             sent += local
             return incoming
+        }
+
+        override fun stop() {
+            stops++
         }
     }
 
@@ -189,6 +198,42 @@ class SyncFlowTest {
             waitFor("conectado, 3 de 5") { sync.connected && sync.done == 3L && sync.error == null }
         }
         assertEquals(listOf(pcId to "PC"), phone.paired)
+    }
+
+    @Test
+    fun theAndroidServiceIsOnlyInTheForegroundWhileItIsNeeded() {
+        // Arrancar, vincular y pasar canciones; esperando el QR, ya sincronizado, parado o con error, no.
+        assertEquals(listOf(SyncPhase.Starting, SyncPhase.Pairing, SyncPhase.Syncing), SyncPhase.entries.filter { it.needsForeground })
+    }
+
+    @Test
+    fun whenAndroidStopsTheSyncItPausesWithANoticeAndDoesNotRestartByItself() {
+        val phone = FakeSync(showsQr = false, id = phoneId)
+        val phoneApp = app(phone)
+        phoneApp.live {
+            pairWith(pcId)
+            waitFor("12 de 20") { sync.phase == SyncPhase.Syncing && sync.done == 12L }
+            assertTrue(sync.phase.needsForeground, "pasando canciones, el servicio va en primer plano")
+            // Android 15: se acaban las 6 horas del servicio (onTimeout) o no deja volver a ponerlo
+            // en primer plano (ForegroundServiceStartNotAllowedException).
+            syncStoppedBySystem()
+            assertEquals(SyncPhase.Failed, sync.phase)
+            assertEquals(SYNC_STOPPED_BY_ANDROID, sync.error)
+            assertFalse(sync.connected)
+            assertFalse(sync.phase.needsForeground, "el servicio se para y no se vuelve a pedir")
+            assertEquals(1, phone.stops, "Syncthing se para")
+            assertNotNull(toast, "y se avisa")
+            // No vuelve a arrancar sola (fallaría otra vez) ni sigue preguntando cuánto lleva.
+            val asked = phone.progressCalls
+            delay(2_500)
+            assertEquals(SyncPhase.Failed, sync.phase)
+            assertEquals(SYNC_STOPPED_BY_ANDROID, sync.error)
+            assertEquals(asked, phone.progressCalls)
+            // «REINTENTAR», con la app abierta: sigue donde estaba.
+            startSync()
+            waitFor("sincronizando otra vez") { sync.phase == SyncPhase.Syncing && sync.connected && sync.error == null }
+        }
+        assertEquals(1, phone.stops)
     }
 
     @Test
