@@ -47,6 +47,7 @@ class AndroidEngineTest {
     fun tearDown() {
         onMain {
             engine.setRepeat(RepeatMode.Off)
+            engine.setPauseAtEndOfSong(false)
             engine.load(emptyList(), 0, 0, play = false)
             engine.release()
         }
@@ -158,6 +159,27 @@ class AndroidEngineTest {
         onMain { engine.skipTo(2) }
         waitFor("la siguiente del orden aleatorio") { it.index == 2 }
         assertEquals("1", onMain { Players.main(context).currentMediaItem?.mediaId })
+    }
+
+    @Test
+    fun theSleepTimerCanStopAtTheEndOfTheSong() {
+        val tracks = (1..2).map { track("$it", wav(dir, "$it.wav", 1.0)) }
+        onMain {
+            engine.setPauseAtEndOfSong(true)
+            engine.load(tracks, 0, 0, play = true)
+        }
+        waitFor("que suene") { it.playing }
+        val stopped = waitFor("que se pare al final de la primera") { !it.playing }
+        assertEquals("no pasa a la siguiente", 0, stopped.index)
+        assertTrue("se queda al final (${stopped.positionMs})", stopped.positionMs >= 800)
+
+        // Con play sigue la siguiente (y ya sin temporizador).
+        onMain {
+            engine.setPauseAtEndOfSong(false)
+            engine.play()
+        }
+        waitFor("la segunda") { it.index == 1 && it.playing }
+        waitFor("el final de la cola") { it.ended }
     }
 
     @Test

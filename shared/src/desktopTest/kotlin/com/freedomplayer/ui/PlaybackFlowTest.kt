@@ -160,4 +160,80 @@ class PlaybackFlowTest {
         state.playFrom(ids, "s1", "TU BIBLIOTECA")
         assertEquals(listOf("s1", "s3", "s4", "s5"), state.queue.items, "la que aún no se ha descargado no entra")
     }
+
+    @Test
+    fun theQueueCanBeReorderedTrimmedAndJumped() {
+        val state = app()
+        state.playFrom(ids, "s2", "NOCHES")
+        state.play(5)
+        state.moveInQueue(4, 2)
+        assertEquals(listOf("s1", "s2", "s5", "s3", "s4"), state.queue.items)
+        assertEquals("s2", state.currentSong?.id, "la que suena sigue sonando")
+        assertTrue(state.positionMs >= 5_000, "sin cortes")
+
+        state.removeFromQueue(3)
+        assertEquals(listOf("s1", "s2", "s5", "s4"), state.queue.items)
+        state.runToastAction()
+        assertEquals(listOf("s1", "s2", "s5", "s3", "s4"), state.queue.items, "deshacer la vuelve a poner")
+        state.removeFromQueue(3)
+        state.removeFromQueue(1)
+        assertEquals(listOf("s1", "s2", "s5", "s4"), state.queue.items, "la que suena no se quita")
+
+        state.play(56)
+        assertEquals("s5", state.currentSong?.id, "después suena la que se ha subido")
+        state.playQueueItem(3)
+        assertEquals("s4", state.currentSong?.id, "tocar una de la cola la pone a sonar")
+        assertEquals(0, state.positionMs)
+        assertTrue(state.isPlaying)
+        assertEquals(listOf("s1", "s2", "s5", "s4"), state.queue.items, "y la cola no cambia")
+    }
+
+    @Test
+    fun theSleepTimerPausesAfterTheChosenMinutes() {
+        val state = app()
+        state.playFrom(ids, "s1", "NOCHES")
+        state.cycleRepeat()
+        state.startSleepTimer(15)
+        assertEquals(15 * 60_000L, state.sleepTimer?.remainingMs)
+        state.play(14 * 60)
+        assertTrue(state.isPlaying, "a los 14 minutos sigue sonando")
+        assertEquals(60_000L, state.sleepTimer?.remainingMs)
+        state.play(60)
+        assertTrue(!state.isPlaying, "a los 15, se para")
+        assertNull(state.sleepTimer)
+        assertTrue(state.toast?.text.orEmpty().startsWith("Buenas noches"))
+
+        // Apagarlo antes de tiempo: la música sigue.
+        state.togglePlay()
+        state.startSleepTimer(30)
+        state.play(10)
+        state.cancelSleepTimer()
+        assertNull(state.sleepTimer)
+        state.play(31 * 60)
+        assertTrue(state.isPlaying)
+    }
+
+    @Test
+    fun theSleepTimerCanWaitForTheEndOfTheSong() {
+        val state = app()
+        state.playFrom(ids, "s1", "NOCHES")
+        state.play(20)
+        state.sleepAtEndOfSong()
+        assertTrue(state.sleepTimer?.endOfSong == true)
+        state.play(39)
+        assertTrue(state.isPlaying)
+        state.play(2)
+        assertTrue(!state.isPlaying, "se para al acabar la canción")
+        assertEquals("s1", state.currentSong?.id, "sin pasar a la siguiente")
+        assertNull(state.sleepTimer)
+
+        // Con play sigue la siguiente, y ya sin temporizador.
+        state.togglePlay()
+        state.play(1)
+        assertEquals("s2", state.currentSong?.id)
+        assertTrue(state.isPlaying)
+        state.play(61)
+        assertEquals("s3", state.currentSong?.id, "la siguiente ya no se para")
+        assertTrue(state.isPlaying)
+    }
 }

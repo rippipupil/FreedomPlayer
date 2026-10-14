@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.core.songCount
+import com.freedomplayer.core.timerLeftText
 import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.Prompt
@@ -109,6 +110,8 @@ fun SheetHost(state: AppState, modifier: Modifier = Modifier) {
                 is Sheet.Add -> SheetSurface { AddSheet(state, current.target) }
                 is Sheet.More -> SheetSurface { MoreSheet(state) }
                 is Sheet.AddToRanking -> SheetSurface { RankingPicker(state, current.songId) }
+                is Sheet.Queue -> SheetSurface { QueueSheet(state) }
+                is Sheet.SleepTimer -> SheetSurface { SleepTimerSheet(state) }
                 is Prompt.EditSong -> SheetSurface { EditSongPrompt(state, current.songId) }
                 is Prompt -> SheetSurface { NamePrompt(state, current) }
                 else -> Box(Modifier.size(0.dp))
@@ -156,7 +159,7 @@ private fun SheetSurface(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SheetHeader(label: String, title: String) {
+internal fun SheetHeader(label: String, title: String) {
     Column {
         Chakra(label, 11.sp, color = Fp.Mist, spacing = 3.sp)
         Nunito(title, 18.sp, weight = FontWeight.ExtraBold, maxLines = 2)
@@ -165,7 +168,7 @@ private fun SheetHeader(label: String, title: String) {
 
 /** Una opción de la hoja: icono, texto y explicación. */
 @Composable
-private fun OptionRow(icon: FpIcon, title: String, detail: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun OptionRow(icon: FpIcon, title: String, detail: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -272,7 +275,17 @@ private fun ColumnScope.MoreSheet(state: AppState) {
             state.prompt = Prompt.EditSong(song.id)
         }
     }
-    OptionRow(FpIcons.Queue, "Ver la cola", "Llega en una próxima versión.") { state.soon("La cola") }
+    OptionRow(FpIcons.Queue, "Ver la cola", "Reordenar, quitar o saltar a otra.") { state.sheet = Sheet.Queue }
+    val timer = state.sleepTimer
+    OptionRow(
+        FpIcons.Moon,
+        "Temporizador de apagado",
+        when {
+            timer == null -> "Parar la música dentro de un rato."
+            timer.endOfSong -> "Se para al acabar esta canción."
+            else -> "Se para dentro de ${timerLeftText(timer.remainingMs)}."
+        },
+    ) { state.sheet = Sheet.SleepTimer }
     SecondaryButton("CERRAR", { state.sheet = null }, Modifier.fillMaxWidth(), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
 }
 

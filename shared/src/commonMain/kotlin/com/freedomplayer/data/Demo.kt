@@ -176,6 +176,8 @@ class SimulatedEngine : AudioEngine {
     private var repeat = RepeatMode.Off
     private var transitions = 0
     private var ended = false
+    private var pauseAtEnd = false
+    private var pausedAtEnd = false
 
     private class Preview(val durationMs: Long) {
         var position = 0L
@@ -193,6 +195,7 @@ class SimulatedEngine : AudioEngine {
         position = positionMs.coerceAtLeast(0)
         playing = play && this.index >= 0
         ended = false
+        pausedAtEnd = false
         transitions++
     }
 
@@ -208,6 +211,10 @@ class SimulatedEngine : AudioEngine {
             ended = false
         }
         playing = true
+        if (pausedAtEnd) {
+            pausedAtEnd = false
+            moveOn()
+        }
     }
 
     override fun pause() {
@@ -217,6 +224,7 @@ class SimulatedEngine : AudioEngine {
     override fun seekTo(positionMs: Long) {
         position = positionMs.coerceIn(0, maxOf(0L, duration))
         ended = false
+        pausedAtEnd = false
     }
 
     override fun skipTo(index: Int) {
@@ -224,7 +232,12 @@ class SimulatedEngine : AudioEngine {
         this.index = index
         position = 0
         ended = false
+        pausedAtEnd = false
         transitions++
+    }
+
+    override fun setPauseAtEndOfSong(on: Boolean) {
+        pauseAtEnd = on
     }
 
     override fun setRepeat(mode: RepeatMode) {
@@ -279,6 +292,18 @@ class SimulatedEngine : AudioEngine {
         if (!playing || index < 0) return
         position += elapsedMs
         if (position < duration) return
+        if (pauseAtEnd) {
+            // Temporizador: se queda al final de esta, en pausa.
+            position = duration
+            playing = false
+            pausedAtEnd = true
+            return
+        }
+        moveOn()
+    }
+
+    /** Ha acabado la que sonaba: la siguiente según «repetir», o fin de la cola. */
+    private fun moveOn() {
         position = 0
         when {
             repeat == RepeatMode.One -> transitions++

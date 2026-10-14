@@ -24,6 +24,12 @@ fun songCount(n: Int): String = if (n == 1) "1 CANCIÓN" else "$n CANCIONES"
 fun downloadMessage(done: Int, total: Int): String =
     if (total <= 1) "¡Añadida! Descargando y buscando letra…" else "Descargando ${minOf(done + 1, total)} de $total"
 
+/** «1 minuto», «15 minutos». */
+fun minutesText(n: Int): String = if (n == 1) "1 minuto" else "$n minutos"
+
+/** Lo que le queda al temporizador de apagado: «14:59», redondeando hacia arriba. */
+fun timerLeftText(ms: Long): String = formatTime(((ms.coerceAtLeast(0) + 999) / 1000).toInt())
+
 /** «3,5 ✦» para una nota de 7. */
 fun starsText(score: Int): String = "${Ranking.label(score)} ✦"
 

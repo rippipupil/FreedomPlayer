@@ -467,17 +467,15 @@ private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean) {
     }
 }
 
-/** Una herramienta del reproductor. Con [soon], todavía no existe y solo avisa de que llega. */
-private class Tool(val icon: FpIcon, val label: String, val soon: String? = null)
+/** Las herramientas del reproductor. */
+private enum class Tool(val icon: FpIcon, val label: String) {
+    Eq(FpIcons.Equalizer, "Ecualizador"),
+    Sleep(FpIcons.Moon, "Temporizador de apagado"),
+    Edit(FpIcons.Pencil, "Editar datos de la canción"),
+    Queue(FpIcons.Queue, "Cola"),
+}
 
-private val ToolList = listOf(
-    Tool(FpIcons.Equalizer, "Ecualizador", "El ecualizador"),
-    Tool(FpIcons.Moon, "Temporizador de apagado", "El temporizador de apagado"),
-    Tool(FpIcons.Pencil, "Editar datos de la canción"),
-    Tool(FpIcons.Queue, "Cola", "La cola"),
-)
-
-/** Ecualizador, temporizador, editar datos y cola (el ecualizador, el temporizador y la cola llegan más adelante). */
+/** Ecualizador, temporizador (en Neón mientras está puesto), editar datos y cola. */
 @Composable
 private fun Tools(state: AppState) {
     Row(
@@ -487,16 +485,23 @@ private fun Tools(state: AppState) {
             .padding(top = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        for (tool in ToolList) {
-            IconButton(tool.icon, tool.label, { useTool(state, tool) })
+        for (tool in Tool.entries) {
+            val on = tool == Tool.Sleep && state.sleepTimer != null
+            IconButton(
+                tool.icon,
+                if (on) tool.label + " (puesto)" else tool.label,
+                { useTool(state, tool) },
+                color = if (on) Fp.Neon else Fp.Idle,
+            )
         }
     }
 }
 
 private fun useTool(state: AppState, tool: Tool) {
-    val song = state.currentSong
-    when {
-        tool.soon != null -> state.soon(tool.soon)
-        song != null -> state.prompt = Prompt.EditSong(song.id)
+    when (tool) {
+        Tool.Eq -> state.soon("El ecualizador")
+        Tool.Sleep -> state.sheet = Sheet.SleepTimer
+        Tool.Edit -> state.currentSong?.let { state.prompt = Prompt.EditSong(it.id) }
+        Tool.Queue -> state.sheet = Sheet.Queue
     }
 }

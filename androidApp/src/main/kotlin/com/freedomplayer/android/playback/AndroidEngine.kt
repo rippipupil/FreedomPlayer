@@ -71,6 +71,8 @@ class AndroidEngine(context: Context) : AudioEngine {
 
     init {
         player.addListener(listener)
+        // El reproductor es del proceso: lo que dejase puesto una app anterior no vale.
+        player.pauseAtEndOfMediaItems = false
     }
 
     override fun load(tracks: List<Track>, index: Int, positionMs: Long, play: Boolean) {
@@ -143,6 +145,11 @@ class AndroidEngine(context: Context) : AudioEngine {
 
     /** En el móvil manda el volumen del sistema. */
     override fun setVolume(volume: Float) = Unit
+
+    /** ExoPlayer ya sabe pararse al final de la canción (y con play sigue con la siguiente). */
+    override fun setPauseAtEndOfSong(on: Boolean) {
+        player.pauseAtEndOfMediaItems = on
+    }
 
     // ---------- Vista previa ----------
 

@@ -112,6 +112,22 @@ data class PlayQueue(
         return copy(items = newItems, original = newOriginal, index = if (position < index) index - 1 else index)
     }
 
+    /**
+     * Cambia de sitio una canción de la cola (también la que suena, que sigue sonando). Sin
+     * aleatorio, el orden nuevo es el de la cola; con aleatorio, el orden original no cambia.
+     */
+    fun move(from: Int, to: Int): PlayQueue {
+        if (from !in items.indices || to !in items.indices || from == to) return this
+        val newItems = items.toMutableList().apply { add(to, removeAt(from)) }
+        val newIndex = when {
+            index == from -> to
+            from < index && to >= index -> index - 1
+            from > index && to <= index -> index + 1
+            else -> index
+        }
+        return copy(items = newItems, index = newIndex, original = if (shuffle) original else newItems)
+    }
+
     companion object {
         /** Empieza a sonar [startId] dentro de [ids] (una playlist, la biblioteca…). */
         fun of(

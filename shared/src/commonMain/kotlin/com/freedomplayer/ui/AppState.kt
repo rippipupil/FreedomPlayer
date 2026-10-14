@@ -28,6 +28,7 @@ import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.SpotifyLink
 import com.freedomplayer.core.Stats
 import com.freedomplayer.core.TrackMatch
+import com.freedomplayer.core.minutesText
 import com.freedomplayer.core.starsText
 import com.freedomplayer.data.DownloadRequest
 import com.freedomplayer.data.DownloadedSong
@@ -91,7 +92,19 @@ sealed interface Sheet {
 
     /** Elegir a qué ranking personal va una canción. */
     data class AddToRanking(val songId: String) : Sheet
+
+    /** La cola: lo que suena y lo que viene, para reordenar o quitar. */
+    data object Queue : Sheet
+
+    /** Temporizador de apagado. */
+    data object SleepTimer : Sheet
+
+    /** Ecualizador de 5 bandas. */
+    data object Equalizer : Sheet
 }
+
+/** Temporizador de apagado: para al acabar la canción que suena ([endOfSong]) o a los [remainingMs]. */
+data class SleepTimer(val minutes: Int, val remainingMs: Long, val endOfSong: Boolean = false)
 
 sealed interface Prompt {
     /** Crear una playlist y, si hace falta, añadir después lo que se estaba añadiendo. */
@@ -526,6 +539,105 @@ class AppState(
         saveQueue()
     }
 
+    // ---------- La cola ----------
+
+    /** Toca una canción de la cola: suena desde el principio. */
+    fun playQueueItem(position: Int) {
+        if (position !in queue.items.indices) return
+        dropPreview()
+        queue = queue.jumpTo(position)
+        engine.skipTo(position)
+        if (!isPlaying) {
+            engine.play()
+            isPlaying = true
+        }
+        positionMs = 0
+        durationMs = 0
+        resetCount()
+        reaction++
+        saveQueue()
+    }
+
+    /** Cambia de sitio una canción de la cola; la que suena sigue sonando. */
+    fun moveInQueue(from: Int, to: Int) {
+        val moved = queue.move(from, to)
+        if (moved == queue) return
+        queue = moved
+        engine.reorder(tracks(queue.items), queue.index)
+        saveQueue()
+    }
+
+    /** Quita una canción de la cola (no de la biblioteca). La que suena no se quita. */
+    fun removeFromQueue(position: Int) {
+        val before = queue
+        val removed = queue.remove(position)
+        if (removed == before) return
+        val title = song(before.items[position])?.title
+        queue = removed
+        engine.reorder(tracks(queue.items), queue.index)
+        saveQueue()
+        toast("Quitada de la cola${title?.let { ": «$it»" } ?: ""}.", Mood.Owo, actionLabel = "DESHACER") {
+            if (queue.items.size == removed.items.size && queue.current == removed.current) {
+                queue = before.copy(index = before.items.indexOf(queue.current).takeIf { it >= 0 } ?: queue.index)
+                engine.reorder(tracks(queue.items), queue.index)
+                saveQueue()
+            }
+        }
+    }
+
+    // ---------- Temporizador de apagado ----------
+
+    var sleepTimer by mutableStateOf<SleepTimer?>(null)
+        private set
+
+    fun startSleepTimer(minutes: Int) {
+        engine.setPauseAtEndOfSong(false)
+        sleepTimer = SleepTimer(minutes, minutes * 60_000L)
+        sheet = null
+        toast("La música se parará dentro de ${minutesText(minutes)}.", Mood.Dormido, Tone.Bone)
+    }
+
+    /** Se para al acabar la canción que suena (si se cambia de canción, al acabar esa). */
+    fun sleepAtEndOfSong() {
+        engine.setPauseAtEndOfSong(true)
+        sleepTimer = SleepTimer(0, 0, endOfSong = true)
+        sheet = null
+        toast("La música se parará al acabar esta canción.", Mood.Dormido, Tone.Bone)
+    }
+
+    fun cancelSleepTimer() {
+        if (sleepTimer == null) return
+        engine.setPauseAtEndOfSong(false)
+        sleepTimer = null
+        sheet = null
+        toast("Temporizador apagado.", Mood.Owo, Tone.Bone)
+    }
+
+    private fun tickSleep(elapsedMs: Long) {
+        val t = sleepTimer ?: return
+        if (t.endOfSong) return
+        val left = t.remainingMs - elapsedMs
+        if (left > 0) {
+            sleepTimer = t.copy(remainingMs = left)
+            return
+        }
+        sleepTimer = null
+        goToSleep()
+    }
+
+    /** Se acabó el tiempo: pausa (también una vista previa) y da las buenas noches. */
+    private fun goToSleep() {
+        val wasPlaying = isPlaying || preview != null
+        dropPreview()
+        if (isPlaying) {
+            engine.pause()
+            isPlaying = false
+            reaction++
+            saveQueue()
+        }
+        if (wasPlaying) toast("Buenas noches: el temporizador ha parado la música.", Mood.Dormido, Tone.Bone)
+    }
+
     /** Escuchado de la canción actual (cuenta como escucha a los 30 s, o a la mitad si es corta). */
     private var listenedMs = 0L
     private var counted = false
@@ -587,6 +699,13 @@ class AppState(
             isPlaying = snap.playing
             reaction++
             saveQueue()
+            val atTheEnd = snap.durationMs > 0 && snap.positionMs >= snap.durationMs - 1_500
+            if (!snap.playing && sleepTimer?.endOfSong == true && (atTheEnd || snap.ended)) {
+                // El motor se ha parado al final de la canción, como pedía el temporizador.
+                sleepTimer = null
+                engine.setPauseAtEndOfSong(false)
+                toast("Buenas noches: el temporizador ha parado la música.", Mood.Dormido, Tone.Bone)
+            }
         }
         val advanced = snap.positionMs - lastPosition
         if (snap.playing && advanced in 1..(elapsedMs + 1_500)) listenedMs += advanced
@@ -1369,6 +1488,7 @@ class AppState(
     internal fun step(elapsedMs: Long) {
         engine.tick(elapsedMs)
         sync(elapsedMs)
+        tickSleep(elapsedMs)
     }
 
     /**

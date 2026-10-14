@@ -95,4 +95,46 @@ class PlayQueueTest {
         assertEquals(q, q.previous())
         assertEquals("z", q.add("z").current)
     }
+
+    @Test
+    fun movingSongsKeepsTheOneThatPlays() {
+        val q = PlayQueue.of(ids, "b")
+        // Una de después, antes de la que suena: la que suena baja un puesto.
+        val up = q.move(3, 0)
+        assertEquals(listOf("d", "a", "b", "c"), up.items)
+        assertEquals("b", up.current)
+        // Una de antes, después de la que suena: sube un puesto.
+        val down = q.move(0, 3)
+        assertEquals(listOf("b", "c", "d", "a"), down.items)
+        assertEquals("b", down.current)
+        // La que suena también se puede mover, y sigue sonando.
+        val moved = q.move(1, 3)
+        assertEquals(listOf("a", "c", "d", "b"), moved.items)
+        assertEquals(3, moved.index)
+        assertEquals(listOf("a", "c", "d", "b"), moved.original, "sin aleatorio, el orden nuevo es el de la lista")
+        // Movimientos que no tienen sentido no cambian nada.
+        assertEquals(q, q.move(1, 1))
+        assertEquals(q, q.move(-1, 2))
+        assertEquals(q, q.move(0, 9))
+    }
+
+    @Test
+    fun movingWithShuffleKeepsTheOriginalOrder() {
+        val q = PlayQueue.of(ids, "a", shuffle = true, random = Random(3))
+        val moved = q.move(1, 3)
+        assertEquals(q.items.toSet(), moved.items.toSet())
+        assertEquals("a", moved.current)
+        assertEquals(ids, moved.original)
+        assertEquals(ids, moved.withShuffle(false).items, "al quitar el aleatorio vuelve el orden de la lista")
+    }
+
+    @Test
+    fun removingFromTheQueue() {
+        val q = PlayQueue.of(ids, "c")
+        val r = q.remove(0)
+        assertEquals(listOf("b", "c", "d"), r.items)
+        assertEquals("c", r.current)
+        assertEquals(q, q.remove(2), "la que suena no se quita así")
+        assertEquals(listOf("a", "b", "c"), q.remove(3).items)
+    }
 }

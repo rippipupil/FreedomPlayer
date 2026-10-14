@@ -303,6 +303,10 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
     private var failedInARow = 0
     private var current: StreamPlayer? = null
 
+    /** Temporizador «al acabar esta canción» y si ya se ha parado ahí (play sigue con la siguiente). */
+    private var pauseAtEnd = false
+    private var pausedAtEnd = false
+
     /** Por dónde va mientras no hay nada abierto (al abrir la app, en pausa). */
     private var idlePosition = 0L
 
@@ -323,6 +327,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
         this.tracks = tracks
         this.index = if (tracks.isEmpty()) -1 else index.coerceIn(0, tracks.lastIndex)
         ended = false
+        pausedAtEnd = false
         failedInARow = 0
         transitions++
         idlePosition = positionMs.coerceAtLeast(0)
@@ -338,6 +343,14 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
 
     override fun play() {
         if (index < 0) return
+        if (pausedAtEnd) {
+            pausedAtEnd = false
+            wantPlay = true
+            current?.close()
+            current = null
+            moveOn()
+            return
+        }
         if (ended) {
             ended = false
             idlePosition = 0
@@ -359,6 +372,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
 
     override fun seekTo(positionMs: Long) {
         ended = false
+        pausedAtEnd = false
         val p = positionMs.coerceAtLeast(0)
         idlePosition = p
         val c = current
@@ -369,6 +383,7 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
         if (index !in tracks.indices) return
         this.index = index
         ended = false
+        pausedAtEnd = false
         transitions++
         current?.close()
         current = null
@@ -378,6 +393,10 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
 
     override fun setRepeat(mode: RepeatMode) {
         repeat = mode
+    }
+
+    override fun setPauseAtEndOfSong(on: Boolean) {
+        pauseAtEnd = on
     }
 
     override fun setVolume(volume: Float) {
@@ -441,8 +460,21 @@ class DesktopEngine(private val output: () -> AudioOut = { JavaSoundOut() }) : A
             if (!c.loading && c.positionMs > 0) failedInARow = 0
             return
         }
+        if (pausedAtEnd) return
+        if (pauseAtEnd) {
+            // Temporizador: se queda al final de esta, en pausa.
+            pausedAtEnd = true
+            wantPlay = false
+            idlePosition = c.positionMs
+            return
+        }
         c.close()
         current = null
+        moveOn()
+    }
+
+    /** Ha acabado la que sonaba: la siguiente según «repetir», o fin de la cola. */
+    private fun moveOn() {
         when {
             repeat == RepeatMode.One -> {
                 transitions++

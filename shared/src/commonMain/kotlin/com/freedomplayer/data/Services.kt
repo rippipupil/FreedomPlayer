@@ -187,7 +187,10 @@ interface AudioEngine {
     /** Cola nueva: [tracks] en orden; empieza en [index] desde [positionMs]. */
     fun load(tracks: List<Track>, index: Int, positionMs: Long, play: Boolean)
 
-    /** Las mismas canciones en otro orden (aleatorio); la que suena, en [index], sigue sin cortes. */
+    /**
+     * La cola cambia (aleatorio, reordenar o quitar canciones) pero la que suena, ahora en
+     * [index], es la misma y sigue sin cortes.
+     */
     fun reorder(tracks: List<Track>, index: Int)
 
     fun play()
@@ -206,6 +209,12 @@ interface AudioEngine {
     fun stopPreview()
 
     fun snapshot(): EngineSnapshot
+
+    /**
+     * Temporizador «al acabar esta canción»: en vez de pasar a la siguiente, se queda en pausa al
+     * final de la que suena (con play sigue con la siguiente).
+     */
+    fun setPauseAtEndOfSong(on: Boolean) {}
 
     /** Para el audio simulado: el tiempo que ha pasado. Los de verdad no lo necesitan. */
     fun tick(elapsedMs: Long) {}

@@ -174,6 +174,18 @@ class CapturasTest {
             playerOpen = true
         }
         shoot("04b-movil-reproductor-en-pausa", wide = false) { playerOpen = true }
+        shoot("04c-movil-cola", wide = false) {
+            togglePlay()
+            playerOpen = true
+            sheet = Sheet.Queue
+        }
+        shoot("04d-movil-temporizador", wide = false) {
+            togglePlay()
+            playerOpen = true
+            startSleepTimer(30)
+            dismissToast()
+            sheet = Sheet.SleepTimer
+        }
         shoot("05-movil-estados-sin-conexion", wide = false) {
             togglePlay()
             settings.demoOffline = true
@@ -251,6 +263,11 @@ class CapturasTest {
         shoot("06k-pc-reproductor", wide = true) {
             togglePlay()
             playerOpen = true
+        }
+        shoot("06k2-pc-cola", wide = true) {
+            togglePlay()
+            playerOpen = true
+            sheet = Sheet.Queue
         }
         shoot("06l-pc-estados-sin-conexion", wide = true) {
             togglePlay()
