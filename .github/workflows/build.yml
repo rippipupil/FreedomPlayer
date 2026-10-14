@@ -20,6 +20,12 @@ concurrency:
   # Una etiqueta nunca se cancela a medias; un push nuevo a main sí cancela el anterior.
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
+# bash en todos los sistemas (en Windows, el de Git), con «pipefail» para que «| tee» no oculte
+# un fallo de Gradle.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
     name: Pruebas
@@ -36,7 +42,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Pruebas de la lógica (biblioteca, ranking, estadísticas, búsqueda…)
-        run: ./gradlew -Pfp.android=false :shared:desktopTest
+        run: ./gradlew -Pfp.android=false :shared:desktopTest 2>&1 | tee build.log
+
+      - name: Errores
+        if: failure()
+        run: bash .github/scripts/errores.sh build.log
 
       - name: Guardar el informe de pruebas
         if: failure()
@@ -74,7 +84,7 @@ jobs:
       # Android la primera vez en cada máquina, así que se guarda en la caché de Actions para que
       # todas las compilaciones lleven la misma y se puedan instalar unas encima de otras.
       - name: Clave de depuración compartida entre compilaciones
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.android/debug.keystore
           key: android-debug-keystore-v1
@@ -98,7 +108,11 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :androidApp:assembleRelease
+        run: ./gradlew :androidApp:assembleRelease 2>&1 | tee build.log
+
+      - name: Errores
+        if: failure()
+        run: bash .github/scripts/errores.sh build.log
 
       - name: Comprobar la firma
         run: |
@@ -133,7 +147,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Versión
-        shell: bash
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
@@ -144,9 +157,14 @@ jobs:
           echo "Versión: $version"
 
       - name: Compilar el instalador (.msi) y la versión portable
-        run: ./gradlew.bat "-Pfp.android=false" :desktopApp:packageMsi :desktopApp:createDistributable
+        run: ./gradlew -Pfp.android=false :desktopApp:packageMsi :desktopApp:createDistributable 2>&1 | tee build.log
+
+      - name: Errores
+        if: failure()
+        run: bash .github/scripts/errores.sh build.log
 
       - name: Preparar los archivos
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $msi = Get-ChildItem desktopApp/build/compose/binaries/main/msi/*.msi | Select-Object -First 1
