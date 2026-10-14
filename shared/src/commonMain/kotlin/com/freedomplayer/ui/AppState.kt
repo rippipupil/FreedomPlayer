@@ -31,6 +31,7 @@ import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.SpotifyLink
 import com.freedomplayer.core.Stats
 import com.freedomplayer.core.TrackMatch
+import com.freedomplayer.core.YearMonth
 import com.freedomplayer.core.minutesText
 import com.freedomplayer.core.starsText
 import com.freedomplayer.data.DownloadRequest
@@ -106,6 +107,9 @@ sealed interface Sheet {
     /** Ecualizador de 5 bandas. */
     data object Equalizer : Sheet
 }
+
+/** Pestañas de Estadísticas. */
+enum class StatsTab { Recent, Monthly, AllTime }
 
 /** Temporizador de apagado: para al acabar la canción que suena ([endOfSong]) o a los [remainingMs]. */
 data class SleepTimer(val minutes: Int, val remainingMs: Long, val endOfSong: Boolean = false)
@@ -1446,7 +1450,9 @@ class AppState(
 
     // ---------- Otras pantallas ----------
 
-    var statsAllTime by mutableStateOf(false)
+    /** Estadísticas: últimos 30 días, por meses o desde siempre; y el mes elegido (null = el último). */
+    var statsTab by mutableStateOf(StatsTab.Recent)
+    var statsMonth by mutableStateOf<YearMonth?>(null)
     var panelFilter by mutableStateOf("")
     val spotify = SpotifyImportState()
 

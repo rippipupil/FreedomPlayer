@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.EqPreset
 import com.freedomplayer.core.SampleData
+import com.freedomplayer.core.Stats
 import com.freedomplayer.data.SampleSource
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.FpIconView
@@ -215,6 +216,11 @@ class CapturasTest {
             togglePlay()
             go(Screen.Stats)
         }
+        shoot("05f2-movil-estadisticas-por-mes", wide = false) {
+            togglePlay()
+            go(Screen.Stats)
+            statsTab = StatsTab.Monthly
+        }
         shoot("05g-movil-ajustes", wide = false) {
             togglePlay()
             go(Screen.Settings)
@@ -290,6 +296,12 @@ class CapturasTest {
         shoot("06n-pc-estadisticas", wide = true) {
             togglePlay()
             go(Screen.Stats)
+        }
+        shoot("06o-pc-estadisticas-por-mes", wide = true) {
+            togglePlay()
+            go(Screen.Stats)
+            statsTab = StatsTab.Monthly
+            statsMonth = Stats.months(playLog).getOrNull(1)
         }
     }
 

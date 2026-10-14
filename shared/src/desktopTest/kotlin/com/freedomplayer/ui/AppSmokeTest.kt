@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import com.freedomplayer.core.MatchKind
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SampleData
+import com.freedomplayer.core.YearMonth
 import com.freedomplayer.ui.components.Mood
 import org.junit.Rule
 import org.junit.Test
@@ -171,9 +172,13 @@ class AppSmokeTest {
 
         // Estadísticas
         state.go(Screen.Stats)
-        state.statsAllTime = true
+        state.statsTab = StatsTab.AllTime
         settle()
-        state.statsAllTime = false
+        state.statsTab = StatsTab.Monthly
+        settle()
+        state.statsMonth = YearMonth.of(nowMillis()).plus(-2)
+        settle()
+        state.statsTab = StatsTab.Recent
         settle()
 
         // Detalle de playlist
