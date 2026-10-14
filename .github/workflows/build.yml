@@ -147,13 +147,19 @@ jobs:
       - name: Clave de publicación (si está en los secretos)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 --decode > "$RUNNER_TEMP/release.keystore"
             echo "FP_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
             echo "Se firma con la clave de publicación (secretos del repositorio)."
+          elif [[ "$GITHUB_REF" == refs/tags/v* || -n "$INPUT_VERSION" ]]; then
+            # Una versión publicada nunca va con la clave de depuración: Play Protect la trata
+            # como sospechosa y la app no podría actualizarse encima con otra clave.
+            echo "::error title=Firma::Para publicar una versión hacen falta los secretos KEYSTORE_BASE64, KEYSTORE_PASSWORD y KEY_ALIAS (ver README › Firma del APK)."
+            exit 1
           else
-            echo "No hay KEYSTORE_BASE64: se firma con la clave de depuración estándar."
+            echo "No hay KEYSTORE_BASE64: se firma con la clave de depuración estándar (solo compilaciones de prueba)."
           fi
 
       - name: Compilar el APK
@@ -168,12 +174,18 @@ jobs:
         run: bash .github/scripts/errores.sh build.log
 
       - name: Comprobar la firma
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           apk=$(ls androidApp/build/outputs/apk/release/*.apk | head -n 1)
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)apksigner
           "$apksigner" verify --print-certs "$apk" | tee firma.txt
           # El certificado con el que se ha firmado, en el resumen de la ejecución.
           echo "::notice title=Firma del APK::$(grep -m 1 'certificate DN' firma.txt)"
+          if [[ "$GITHUB_REF" == refs/tags/v* || -n "$INPUT_VERSION" ]] && grep -q 'CN=Android Debug' firma.txt; then
+            echo "::error title=Firma::El APK de una versión publicada no puede ir con la clave de depuración."
+            exit 1
+          fi
           mkdir -p dist
           cp "$apk" "dist/FreedomPlayer-${FP_VERSION}-android.apk"
 

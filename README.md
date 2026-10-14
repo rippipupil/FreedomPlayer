@@ -54,6 +54,10 @@ El workflow firma el APK así:
   otras. Si la caché caduca (7 días sin compilar), la siguiente compilación lleva otra clave y hay
   que desinstalar la app antes de instalarla.
 
+Las versiones publicadas (etiqueta `v*` o «Run workflow» con versión) **exigen** la clave de
+publicación: sin los secretos, o si el APK sale con la de depuración, el workflow falla. La clave de
+depuración es pública y Play Protect avisa de las apps firmadas con ella.
+
 Al pasar de la clave de depuración a la de publicación también hay que desinstalar la versión
 anterior una vez. Para crear la clave de publicación (en tu equipo, nunca en el repositorio):
 
