@@ -1,6 +1,7 @@
 package com.freedomplayer.jvm
 
 import com.freedomplayer.core.AudioOption
+import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.LyricsData
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SearchResult
@@ -195,6 +196,43 @@ class DownloadsTest {
 
         downloader.deleteFiles(song)
         assertTrue(!File(song.audioPath!!).exists() && !File(song.cover!!).exists())
+    }
+
+    @Test
+    fun theDownloaderUsesTheChosenQualityAndFolder() = runBlocking {
+        serveAudio()
+        val dirs = AppDirs(File(tmp, "app"))
+        val music = File(tmp, "Música")
+        val result = SearchResult(
+            id = "yt:abcdefghijk",
+            title = "Luz de farola",
+            artist = "Ghostline",
+            durationSec = 167,
+            coverColor = 0xFF4A2A6B,
+            kind = ResultKind.Video,
+            url = "https://www.youtube.com/watch?v=abcdefghijk",
+        )
+        // La mejor no existe en el servidor: si se bajara esa, la prueba fallaría.
+        val best = AudioOption("$base/no-existe", "audio/webm", "webm", 160_000, true)
+        val light = AudioOption("$base/audio", "audio/mp4", "m4a", 48_000, true, audio.size.toLong())
+        val resolver = AudioResolver { ResolvedAudio(best, it.title, it.artist, 167, null, listOf(best, light)) }
+        val downloader = YouTubeDownloader(resolver, lyricsSource { _, _, _, _ -> null }, dirs, FileFetcher(chunkBytes = 100_000))
+
+        val request = DownloadRequest(result, "Luz de farola", "Ghostline", quality = AudioQuality.Saver, folder = music.absolutePath)
+        val song = downloader.download(request) {}.song
+        assertEquals(File(music, "yt_abcdefghijk.m4a").absolutePath, song.audioPath, "en la carpeta elegida y con la pista ligera")
+        assertContentEquals(audio, File(song.audioPath!!).readBytes())
+
+        val notMine = File(music, "mi-cancion.m4a").apply { writeText("mía") }
+        downloader.deleteFiles(song.copy(audioPath = notMine.absolutePath))
+        assertTrue(notMine.exists(), "fuera de la carpeta de la app no se borra lo que no bajó la app")
+        downloader.deleteFiles(song)
+        assertTrue(!File(song.audioPath!!).exists(), "lo que bajó la app se borra aunque esté en otra carpeta")
+
+        // Si la carpeta elegida no sirve (aquí es un archivo), se usa la de la app.
+        val notAFolder = File(tmp, "no-es-carpeta").apply { writeText("x") }
+        val again = downloader.download(request.copy(folder = notAFolder.absolutePath)) {}.song
+        assertEquals(File(dirs.music, "yt_abcdefghijk.m4a").absolutePath, again.audioPath)
     }
 
     private fun lyricsSource(block: suspend (String, String, String?, Int) -> LyricsData?): LyricsSource = object : LyricsSource {

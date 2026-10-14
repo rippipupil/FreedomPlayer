@@ -63,6 +63,7 @@ import com.freedomplayer.platform.DesktopAudioImporter
 import com.freedomplayer.platform.DesktopEngine
 import com.freedomplayer.platform.DesktopLibrary
 import com.freedomplayer.platform.DesktopUpdateInstaller
+import com.freedomplayer.platform.FolderPicker
 import com.freedomplayer.platform.MediaKey
 import com.freedomplayer.platform.MediaKeys
 import com.freedomplayer.ui.App
@@ -150,6 +151,29 @@ fun main() = application {
         }
         state.fileImporter = open
         onDispose { if (state.fileImporter === open) state.fileImporter = null }
+    }
+
+    // Ajustes → «Carpeta de descargas»: el selector de carpetas de Windows. Lo ya descargado no se mueve.
+    DisposableEffect(state) {
+        val appFolder = DesktopLibrary.dirs().music.absolutePath
+        state.appMusicFolder = appFolder
+        var picking = false
+        val pick: () -> Unit = {
+            if (!picking) {
+                picking = true
+                scope.launch {
+                    try {
+                        val start = File(state.settings.downloadFolder ?: appFolder)
+                        val chosen = withContext(Dispatchers.IO) { FolderPicker.choose("Carpeta para las descargas", start) }
+                        if (chosen != null) state.setDownloadFolder(chosen.absolutePath.takeIf { it != appFolder })
+                    } finally {
+                        picking = false
+                    }
+                }
+            }
+        }
+        state.folderPicker = pick
+        onDispose { if (state.folderPicker === pick) state.folderPicker = null }
     }
 
     fun toTray() {

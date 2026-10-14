@@ -2,6 +2,7 @@ package com.freedomplayer.data
 
 import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.AppRelease
+import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
 import com.freedomplayer.core.LyricsData
@@ -91,6 +92,10 @@ data class DownloadRequest(
     val title: String,
     val artist: String,
     val album: String? = null,
+    /** Calidad del audio (Ajustes → Descargas). */
+    val quality: AudioQuality = AudioQuality.DEFAULT,
+    /** Carpeta para el audio (Ajustes, solo en el PC); null: la de la app. */
+    val folder: String? = null,
 )
 
 data class DownloadedSong(val song: Song, val lyrics: LyricsData?)

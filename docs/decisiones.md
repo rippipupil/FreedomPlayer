@@ -344,8 +344,10 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   instalador publicado y no se buscan versiones.
 - **Firma:** para que una versión se instale encima de otra tienen que llevar la misma clave. Sin
   los secretos de la clave de publicación, el CI firma con una clave de depuración guardada en su
-  caché, que caduca si pasa una semana sin compilar. Con la clave de publicación en los secretos
-  no hay ese riesgo.
+  caché, que caduca si pasa una semana sin compilar. Las versiones publicadas exigen la clave de
+  publicación (el workflow falla sin ella o si el APK sale con la de depuración): la de depuración
+  es pública y Play Protect avisa de las apps firmadas con ella. La 0.5.0 es la primera firmada
+  con la clave de publicación; desde la 0.4.0 hay que desinstalar una vez.
 
 ### Notificación
 
@@ -365,3 +367,32 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   toque enseguida (600 ms) va a la anterior, y cada toque rápido más sigue hacia atrás. Si no hay
   anterior, vuelve a empezar la misma. El botón «anterior» del reproductor grande y del PC sigue
   como estaba (más de 3 s: al principio; si no, la anterior).
+
+### Descargas: calidad y carpeta
+
+- **Calidad:** Máxima, Normal y Ahorro. Se aplica al elegir la pista de audio que da NewPipe, igual
+  en Android y en el PC: Máxima es la de más bitrate (lo de antes, y lo que viene puesto), Normal la
+  más cercana a 128 kbps y Ahorro la de menos. Siguen valiendo las reglas de antes: solo pistas que
+  se bajan de una vez, nunca la doblada si hay original y, si empatan, m4a. Solo cuenta para
+  descargar: escuchar antes de añadir usa siempre la mejor.
+- **Carpeta en el PC:** el selector de carpetas de Windows (`IFileOpenDialog` en modo carpetas,
+  llamado por COM con JNA, que ya estaba por las teclas multimedia; no hace falta otra librería).
+  Va en un hilo propio con COM en modo STA. Si no se puede abrir, o fuera de Windows, sale el de
+  Swing.
+  - Lo ya descargado no se mueve: cada canción guarda la ruta de su archivo, así que basta con que
+    las nuevas vayan a la carpeta nueva. Las carátulas y las descargas a medias siguen en la
+    carpeta de la app.
+  - Si la carpeta elegida no existe y no se puede crear, o no se puede escribir en ella, se usa la
+    de la app en vez de fallar la descarga.
+  - Borrar los archivos de una canción (`deleteFiles`) fuera de la carpeta de la app solo toca el
+    que bajó la app, que se llama como la canción (`yt_<id>.<ext>`).
+- **Carpeta en Android:** no se cambia; la música sigue en el almacenamiento privado de la app.
+  La sincronización con Syncthing necesita una ruta de verdad, y las carpetas que se eligen en
+  Android (SAF) no lo son. Ajustes lo explica en vez de ofrecer el botón. Si el ajuste llegara al
+  móvil desde otro sitio, se ignora.
+- **Versión 0.5:** las compilaciones de prueba pasan a numerarse `0.5.<n.º de ejecución>`. El
+  `versionCode` de Android sigue siendo el número de ejecución, que siempre sube.
+
+### Lo que todavía no
+
+- Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.

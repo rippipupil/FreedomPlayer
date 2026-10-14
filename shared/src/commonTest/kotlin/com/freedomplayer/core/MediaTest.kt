@@ -22,6 +22,40 @@ class MediaTest {
         assertNull(AudioPicker.best(emptyList()))
     }
 
+    @Test
+    fun qualityPicksTheTrackClosestToIt() {
+        val opus160 = option("webm", 160)
+        val aac128 = option("m4a", 128)
+        val opus70 = option("webm", 70)
+        val opus50 = option("webm", 50)
+        val all = listOf(opus70, aac128, opus160, opus50)
+        assertEquals(opus160, AudioPicker.pick(all, AudioQuality.Best))
+        assertEquals(aac128, AudioPicker.pick(all, AudioQuality.Normal))
+        assertEquals(opus50, AudioPicker.pick(all, AudioQuality.Saver))
+        assertEquals(AudioPicker.best(all), AudioPicker.pick(all, AudioQuality.DEFAULT), "por defecto, lo de siempre")
+        assertEquals(opus160, AudioPicker.pick(listOf(opus160, opus70), AudioQuality.Normal), "Normal: la más cercana a 128 kbps")
+        assertEquals(opus70, AudioPicker.pick(listOf(opus70, option("webm", 40, original = false)), AudioQuality.Saver), "nunca la doblada si hay original")
+        assertEquals(opus70, AudioPicker.pick(listOf(opus70, option("webm", 30, progressive = false)), AudioQuality.Saver), "los manifiestos no se descargan")
+        assertEquals(opus70, AudioPicker.pick(listOf(option("webm", 0), opus70), AudioQuality.Saver), "sin bitrate conocido, al final")
+        assertEquals(option("m4a", 48), AudioPicker.pick(listOf(option("webm", 48), option("m4a", 48)), AudioQuality.Saver), "empate: m4a")
+        assertNull(AudioPicker.pick(emptyList(), AudioQuality.Saver))
+    }
+
+    @Test
+    fun folderNamesForTheNotices() {
+        assertEquals("FreedomPlayer", folderName("D:\\Música\\FreedomPlayer\\"))
+        assertEquals("Música", folderName("/home/cero/Música"))
+        assertEquals("D:", folderName("D:\\"))
+        assertEquals("/", folderName("/"))
+    }
+
+    @Test
+    fun savedQualityIsReadBack() {
+        for (q in AudioQuality.entries) assertEquals(q, AudioQuality.parse(q.name))
+        assertEquals(AudioQuality.Best, AudioQuality.parse(null), "sin ajuste, lo de siempre")
+        assertEquals(AudioQuality.Best, AudioQuality.parse("Ultra"))
+    }
+
     private fun lyric(track: String, artist: String, sec: Double, synced: Boolean = true, plain: Boolean = true) =
         LyricsCandidate(track, artist, null, sec, if (synced) "[00:01.00] x" else null, if (plain) "x" else null, false)
 

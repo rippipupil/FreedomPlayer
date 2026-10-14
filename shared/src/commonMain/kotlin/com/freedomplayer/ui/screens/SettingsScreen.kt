@@ -1,10 +1,13 @@
 package com.freedomplayer.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.Crossfade
 import com.freedomplayer.core.EqPreset
 import com.freedomplayer.ui.AppState
@@ -38,10 +42,12 @@ import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
 import com.freedomplayer.ui.components.Ghost
 import com.freedomplayer.ui.components.Mood
+import com.freedomplayer.ui.components.Motion
 import com.freedomplayer.ui.components.Nunito
 import com.freedomplayer.ui.components.ScreenHeader
 import com.freedomplayer.ui.components.SectionHeader
 import com.freedomplayer.ui.components.SwitchRow
+import com.freedomplayer.ui.components.TextAction
 import com.freedomplayer.ui.components.fpClickable
 import com.freedomplayer.ui.components.fpFloat
 import com.freedomplayer.ui.components.fpTween
@@ -93,9 +99,8 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
 
             SectionHeader(next(), "DESCARGAS", Modifier.padding(top = 18.dp))
             SwitchRow("Guardar para escuchar sin conexión", "Audio, carátula y letra se quedan en el dispositivo.", settings.keepOffline, { settings.keepOffline = it })
-            ActionRow(FpIcons.Download, "Carpeta y calidad", "Se guarda el mejor audio que da YouTube. Elegir carpeta llega en una próxima versión.") {
-                state.soon("Elegir carpeta y calidad")
-            }
+            QualityChoice(settings)
+            DownloadFolder(state)
             if (state.canImportFiles) {
                 ActionRow(FpIcons.Plus, "Añadir tus archivos de audio", "MP3, M4A, FLAC, OGG… Se copian a la biblioteca con su carátula.") {
                     state.importFiles()
@@ -205,5 +210,87 @@ private fun CrossfadeLength(settings: Settings) {
         for (seconds in Crossfade.choices) {
             ChoiceChip("$seconds s", settings.crossfadeSeconds == seconds) { settings.crossfadeSeconds = seconds }
         }
+    }
+}
+
+/** Calidad del audio que se descarga: tres opciones y qué significa la elegida. */
+@Composable
+private fun QualityChoice(settings: Settings) {
+    val enter = fadeIn(fpTween())
+    val exit = fadeOut(fpTween(Motion.QUICK))
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Nunito("Calidad del audio", 14.sp, weight = FontWeight.ExtraBold)
+        AnimatedContent(
+            targetState = settings.downloadQuality,
+            transitionSpec = { (enter togetherWith exit) using SizeTransform(clip = false) },
+            label = "downloadQuality",
+        ) { quality ->
+            Nunito(quality.detail, 12.sp, color = Fp.Mist, lineHeight = 17.sp)
+        }
+        Row(
+            Modifier.padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            for (quality in AudioQuality.entries) {
+                ChoiceChip(quality.label, settings.downloadQuality == quality) { settings.downloadQuality = quality }
+            }
+        }
+    }
+}
+
+/**
+ * Dónde se guardan las descargas. En el PC se elige con el selector de carpetas del sistema (y se
+ * puede volver a la de la app); en el móvil se queda dentro de la app.
+ */
+@Composable
+private fun DownloadFolder(state: AppState) {
+    if (!state.canChooseFolder) {
+        Column(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 8.dp), verticalArrangement = Arrangement.Center) {
+            Nunito("Carpeta de descargas", 14.sp, weight = FontWeight.ExtraBold)
+            Nunito(
+                if (LocalWide.current) {
+                    "La carpeta de la app."
+                } else {
+                    "Dentro de la app. En el móvil no se cambia: así la sincronización con el PC encuentra siempre la música."
+                },
+                12.sp,
+                color = Fp.Mist,
+                lineHeight = 17.sp,
+            )
+        }
+        return
+    }
+    val chosen = state.settings.downloadFolder
+    val enter = fadeIn(fpTween())
+    val exit = fadeOut(fpTween(Motion.QUICK))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .fpClickable(onClickLabel = "Elegir la carpeta de descargas", pressedScale = 0.98f, onClick = { state.chooseDownloadFolder() })
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Nunito("Carpeta de descargas", 14.sp, weight = FontWeight.ExtraBold)
+            AnimatedContent(
+                targetState = chosen ?: state.appMusicFolder ?: "La carpeta de la app",
+                transitionSpec = { (enter togetherWith exit) using SizeTransform(clip = false) },
+                label = "downloadFolder",
+            ) { path ->
+                Nunito(path, 12.sp, color = Fp.Bone, lineHeight = 17.sp, maxLines = 2)
+            }
+            Nunito("Solo cambia dónde van las descargas nuevas: lo que ya tienes se queda donde está.", 12.sp, color = Fp.Mist, lineHeight = 17.sp)
+        }
+        FpIconView(FpIcons.Folder, 18.dp, Fp.Idle)
+    }
+    AnimatedVisibility(
+        visible = chosen != null,
+        enter = fadeIn(fpTween()) + expandVertically(fpTween()),
+        exit = fadeOut(fpTween()) + shrinkVertically(fpTween()),
+    ) {
+        TextAction("VOLVER A LA CARPETA DE LA APP", { state.setDownloadFolder(null) })
     }
 }

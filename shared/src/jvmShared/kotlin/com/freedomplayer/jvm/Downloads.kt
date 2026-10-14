@@ -1,9 +1,11 @@
 package com.freedomplayer.jvm
 
 import com.freedomplayer.core.AudioOption
+import com.freedomplayer.core.AudioPicker
 import com.freedomplayer.core.LyricsData
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.Song
+import com.freedomplayer.core.SongIds
 import com.freedomplayer.data.DownloadRequest
 import com.freedomplayer.data.DownloadedSong
 import com.freedomplayer.data.FailureKind
@@ -27,6 +29,8 @@ data class ResolvedAudio(
     val artist: String,
     val durationSec: Int,
     val coverUrl: String?,
+    /** Todas las pistas que se pueden bajar, para elegir otra calidad; [option] es la mejor. */
+    val options: List<AudioOption> = listOf(option),
 )
 
 /** Quien sabe sacar el audio de un resultado del buscador (YouTube, con NewPipe). */
@@ -160,12 +164,14 @@ class YouTubeDownloader(
         val result = request.result
         progress(0f)
         val audio = resolver.resolve(result)
+        // La pista de la calidad elegida en Ajustes (la mejor si no hay otra).
+        val option = AudioPicker.pick(audio.options, request.quality) ?: audio.option
         progress(0.04f)
         val key = fileKey(result.id)
-        val partial = File(dirs.partial, "$key.${audio.option.extension}.part")
+        val partial = File(dirs.partial, "$key.${option.extension}.part")
         // Si se reintenta, se sigue donde se quedó (misma pista y mismo tamaño).
         try {
-            fetcher.fetch(audio.option.url, audio.option.headers, partial, audio.option.contentLength) { p ->
+            fetcher.fetch(option.url, option.headers, partial, option.contentLength) { p ->
                 progress(0.04f + p * 0.88f)
             }
         } catch (e: SourceException) {
@@ -177,7 +183,7 @@ class YouTubeDownloader(
             partial.delete()
             throw SourceException(FailureKind.Network, "Descarga vacía")
         }
-        val audioFile = File(dirs.music, "$key.${audio.option.extension}")
+        val audioFile = File(musicFolder(request.folder), "$key.${option.extension}")
         audioFile.delete()
         if (!partial.renameTo(audioFile)) {
             partial.copyTo(audioFile, overwrite = true)
@@ -211,10 +217,23 @@ class YouTubeDownloader(
         return DownloadedSong(song, found)
     }
 
+    /**
+     * Dónde va el audio: la carpeta elegida en Ajustes, si existe (o se puede crear) y se puede
+     * escribir en ella; si no (un disco que ya no está…), la de la app.
+     */
+    private fun musicFolder(chosen: String?): File {
+        val dir = chosen?.takeIf { it.isNotBlank() }?.let(::File) ?: return dirs.music
+        return if ((dir.isDirectory || dir.mkdirs()) && dir.canWrite()) dir else dirs.music
+    }
+
     override fun deleteFiles(song: Song) {
-        song.audioPath?.let { path -> File(path).takeIf { it.startsWith(dirs.root) }?.delete() }
+        // Fuera de la carpeta de la app solo se borra lo que bajó la app (se llama como la canción).
+        song.audioPath?.let { path -> File(path).takeIf { it.startsWith(dirs.root) || isOwnDownload(it, song) }?.delete() }
         song.cover?.let { path -> File(path).takeIf { it.isFile && it.startsWith(dirs.root) }?.delete() }
     }
+
+    private fun isOwnDownload(file: File, song: Song): Boolean =
+        file.isFile && !SongIds.isLocal(song.id) && file.nameWithoutExtension == fileKey(song.id)
 
     companion object {
         /** «yt:abc» → «yt_abc», válido como nombre de archivo en todos los sistemas. */

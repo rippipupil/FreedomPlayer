@@ -9,9 +9,10 @@ tus propios rankings.
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
 > temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. En el
-> PC responde a las teclas multimedia y añade tus propios archivos de audio. Avisa de las versiones nuevas y se
-> actualiza desde la propia app, y la notificación lleva el tema. Falta la
-> sincronización entre el móvil y el PC (en curso, con Syncthing) y algunos ajustes. Ver
+> PC responde a las teclas multimedia y añade tus propios archivos de audio. En Ajustes se elige
+> la calidad de las descargas y, en el PC, su carpeta. Avisa de las versiones nuevas y se
+> actualiza desde la propia app, y la notificación lleva el tema. Falta la sincronización entre
+> el móvil y el PC (en curso, con Syncthing). Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -73,8 +74,8 @@ ya no se podrán instalar encima de las antiguas.
 ## Publicar una versión
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 El workflow compila esa versión, pasa las pruebas y crea la release con el APK, el `.msi` y el

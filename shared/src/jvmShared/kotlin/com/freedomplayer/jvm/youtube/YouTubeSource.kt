@@ -134,6 +134,7 @@ class YouTubeSource(locale: Locale = Locale.getDefault()) : MusicSource, AudioRe
                 artist = info.uploaderName.orEmpty(),
                 durationSec = info.duration.toInt().coerceAtLeast(result.durationSec),
                 coverUrl = bestImage(info.thumbnails, Size.Cover) ?: result.cover,
+                options = options,
             )
         } catch (e: Throwable) {
             throw classify(e, "Audio")
