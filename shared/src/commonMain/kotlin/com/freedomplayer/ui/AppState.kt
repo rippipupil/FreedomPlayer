@@ -818,7 +818,8 @@ class AppState(
         searchRetry++
     }
 
-    private suspend fun search(q: String, tab: SearchTab) {
+    /** Busca [q] en la pestaña [tab]. internal: las capturas de pantalla la llaman sin el bucle. */
+    internal suspend fun search(q: String, tab: SearchTab) {
         val current = when (tab) {
             SearchTab.Songs -> songResults.query
             SearchTab.Videos -> videoResults.query
