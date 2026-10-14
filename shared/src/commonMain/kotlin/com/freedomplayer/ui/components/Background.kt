@@ -44,32 +44,35 @@ import androidx.compose.ui.unit.dp
 import kotlin.random.Random
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
-/** Un rectángulo del SVG del diseño: x, y, ancho, alto, color y opacidad. */
-private class R(val x: Float, val y: Float, val w: Float, val h: Float, val color: Long, val alpha: Float = 1f)
+/**
+ * Un rectángulo del SVG del diseño: x, y, ancho, alto, color y opacidad. No se puede llamar «R»:
+ * Android quita de las librerías las clases con ese nombre (las toma por las de recursos).
+ */
+private class Block(val x: Float, val y: Float, val w: Float, val h: Float, val color: Long, val alpha: Float = 1f)
 
 /** Edificios y ventanas del callejón del móvil (SVG de 390×300 pegado abajo). */
 private val MobileBuildings = listOf(
-    R(0f, 70f, 70f, 230f, 0xFF1A1328), R(62f, 120f, 58f, 180f, 0xFF160F22), R(112f, 40f, 84f, 260f, 0xFF1C1430),
-    R(190f, 100f, 64f, 200f, 0xFF150F21), R(248f, 60f, 78f, 240f, 0xFF1A1328), R(318f, 130f, 72f, 170f, 0xFF160F22),
-    R(12f, 92f, 7f, 9f, 0xFFFF3FA4, 0.55f), R(30f, 92f, 7f, 9f, 0xFF5B57D9, 0.5f), R(12f, 120f, 7f, 9f, 0xFFFF3FA4, 0.25f),
-    R(48f, 148f, 7f, 9f, 0xFFF4A6CB, 0.45f), R(126f, 60f, 8f, 10f, 0xFF5B57D9, 0.55f), R(146f, 60f, 8f, 10f, 0xFFFF3FA4, 0.6f),
-    R(166f, 86f, 8f, 10f, 0xFF2F9C82, 0.5f), R(126f, 112f, 8f, 10f, 0xFFFF3FA4, 0.3f), R(166f, 138f, 8f, 10f, 0xFFF4A6CB, 0.4f),
-    R(262f, 82f, 8f, 10f, 0xFFFF3FA4, 0.5f), R(282f, 82f, 8f, 10f, 0xFFFF3FA4, 0.2f), R(302f, 108f, 8f, 10f, 0xFF5B57D9, 0.55f),
-    R(262f, 134f, 8f, 10f, 0xFF2F9C82, 0.45f), R(334f, 152f, 8f, 10f, 0xFFF4A6CB, 0.35f), R(354f, 178f, 8f, 10f, 0xFFFF3FA4, 0.45f),
-    R(210f, 122f, 22f, 7f, 0xFFFF3FA4, 0.7f), R(0f, 292f, 390f, 8f, 0xFF0D0915),
+    Block(0f, 70f, 70f, 230f, 0xFF1A1328), Block(62f, 120f, 58f, 180f, 0xFF160F22), Block(112f, 40f, 84f, 260f, 0xFF1C1430),
+    Block(190f, 100f, 64f, 200f, 0xFF150F21), Block(248f, 60f, 78f, 240f, 0xFF1A1328), Block(318f, 130f, 72f, 170f, 0xFF160F22),
+    Block(12f, 92f, 7f, 9f, 0xFFFF3FA4, 0.55f), Block(30f, 92f, 7f, 9f, 0xFF5B57D9, 0.5f), Block(12f, 120f, 7f, 9f, 0xFFFF3FA4, 0.25f),
+    Block(48f, 148f, 7f, 9f, 0xFFF4A6CB, 0.45f), Block(126f, 60f, 8f, 10f, 0xFF5B57D9, 0.55f), Block(146f, 60f, 8f, 10f, 0xFFFF3FA4, 0.6f),
+    Block(166f, 86f, 8f, 10f, 0xFF2F9C82, 0.5f), Block(126f, 112f, 8f, 10f, 0xFFFF3FA4, 0.3f), Block(166f, 138f, 8f, 10f, 0xFFF4A6CB, 0.4f),
+    Block(262f, 82f, 8f, 10f, 0xFFFF3FA4, 0.5f), Block(282f, 82f, 8f, 10f, 0xFFFF3FA4, 0.2f), Block(302f, 108f, 8f, 10f, 0xFF5B57D9, 0.55f),
+    Block(262f, 134f, 8f, 10f, 0xFF2F9C82, 0.45f), Block(334f, 152f, 8f, 10f, 0xFFF4A6CB, 0.35f), Block(354f, 178f, 8f, 10f, 0xFFFF3FA4, 0.45f),
+    Block(210f, 122f, 22f, 7f, 0xFFFF3FA4, 0.7f), Block(0f, 292f, 390f, 8f, 0xFF0D0915),
 )
 
 /** Edificios y ventanas del callejón del PC (SVG de 1280×260 pegado abajo). */
 private val PcBuildings = listOf(
-    R(0f, 80f, 120f, 180f, 0xFF1A1328), R(110f, 130f, 90f, 130f, 0xFF160F22), R(196f, 50f, 130f, 210f, 0xFF1C1430),
-    R(320f, 110f, 100f, 150f, 0xFF150F21), R(414f, 70f, 120f, 190f, 0xFF1A1328), R(530f, 140f, 110f, 120f, 0xFF160F22),
-    R(636f, 40f, 140f, 220f, 0xFF1C1430), R(770f, 120f, 96f, 140f, 0xFF150F21), R(860f, 80f, 124f, 180f, 0xFF1A1328),
-    R(980f, 130f, 110f, 130f, 0xFF160F22), R(1086f, 60f, 120f, 200f, 0xFF1C1430), R(1200f, 110f, 80f, 150f, 0xFF150F21),
-    R(20f, 104f, 9f, 11f, 0xFFFF3FA4, 0.5f), R(44f, 104f, 9f, 11f, 0xFF5B57D9, 0.5f), R(216f, 74f, 9f, 11f, 0xFFFF3FA4, 0.55f),
-    R(240f, 102f, 9f, 11f, 0xFF2F9C82, 0.45f), R(290f, 74f, 9f, 11f, 0xFFF4A6CB, 0.4f), R(436f, 96f, 9f, 11f, 0xFF5B57D9, 0.55f),
-    R(476f, 124f, 9f, 11f, 0xFFFF3FA4, 0.35f), R(660f, 64f, 9f, 11f, 0xFFFF3FA4, 0.6f), R(684f, 64f, 9f, 11f, 0xFFFF3FA4, 0.25f),
-    R(720f, 92f, 9f, 11f, 0xFF2F9C82, 0.5f), R(690f, 120f, 30f, 8f, 0xFFFF3FA4, 0.7f), R(880f, 104f, 9f, 11f, 0xFFF4A6CB, 0.45f),
-    R(930f, 132f, 9f, 11f, 0xFF5B57D9, 0.5f), R(1106f, 84f, 9f, 11f, 0xFFFF3FA4, 0.5f), R(1150f, 112f, 9f, 11f, 0xFF2F9C82, 0.45f),
+    Block(0f, 80f, 120f, 180f, 0xFF1A1328), Block(110f, 130f, 90f, 130f, 0xFF160F22), Block(196f, 50f, 130f, 210f, 0xFF1C1430),
+    Block(320f, 110f, 100f, 150f, 0xFF150F21), Block(414f, 70f, 120f, 190f, 0xFF1A1328), Block(530f, 140f, 110f, 120f, 0xFF160F22),
+    Block(636f, 40f, 140f, 220f, 0xFF1C1430), Block(770f, 120f, 96f, 140f, 0xFF150F21), Block(860f, 80f, 124f, 180f, 0xFF1A1328),
+    Block(980f, 130f, 110f, 130f, 0xFF160F22), Block(1086f, 60f, 120f, 200f, 0xFF1C1430), Block(1200f, 110f, 80f, 150f, 0xFF150F21),
+    Block(20f, 104f, 9f, 11f, 0xFFFF3FA4, 0.5f), Block(44f, 104f, 9f, 11f, 0xFF5B57D9, 0.5f), Block(216f, 74f, 9f, 11f, 0xFFFF3FA4, 0.55f),
+    Block(240f, 102f, 9f, 11f, 0xFF2F9C82, 0.45f), Block(290f, 74f, 9f, 11f, 0xFFF4A6CB, 0.4f), Block(436f, 96f, 9f, 11f, 0xFF5B57D9, 0.55f),
+    Block(476f, 124f, 9f, 11f, 0xFFFF3FA4, 0.35f), Block(660f, 64f, 9f, 11f, 0xFFFF3FA4, 0.6f), Block(684f, 64f, 9f, 11f, 0xFFFF3FA4, 0.25f),
+    Block(720f, 92f, 9f, 11f, 0xFF2F9C82, 0.5f), Block(690f, 120f, 30f, 8f, 0xFFFF3FA4, 0.7f), Block(880f, 104f, 9f, 11f, 0xFFF4A6CB, 0.45f),
+    Block(930f, 132f, 9f, 11f, 0xFF5B57D9, 0.5f), Block(1106f, 84f, 9f, 11f, 0xFFFF3FA4, 0.5f), Block(1150f, 112f, 9f, 11f, 0xFF2F9C82, 0.45f),
 )
 
 private val Neon = Color(0xFFFF3FA4)

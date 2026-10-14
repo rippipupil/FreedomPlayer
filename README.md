@@ -25,6 +25,10 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
+Las compilaciones de prueba se numeran `0.1.<n.º de ejecución>`. Si en Windows instalaste una con
+un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
+no deja volver a una versión menor).
+
 ## Firma del APK
 
 El workflow firma el APK así:
@@ -74,8 +78,9 @@ Hace falta JDK 17 o posterior. Para Android, también el SDK de Android (compile
 En el PC, la variable `FP_REDUCE_MOTION=1` quita las animaciones aunque el sistema no lo pida.
 
 Las pruebas incluyen una prueba de humo de la interfaz (`AppSmokeTest`) que pinta la app sin
-ventana, con tamaño de móvil y de PC, y recorre todas las pantallas. Para probar el APK en un
-emulador de Android: Actions › «Probar en el emulador» › Run workflow.
+ventana, con tamaño de móvil y de PC, y recorre todas las pantallas. En cada compilación, además,
+el APK se instala en un emulador de Android 14, se abre y se gira la pantalla para comprobar que
+la app no se cierra.
 
 ### Estructura
 
