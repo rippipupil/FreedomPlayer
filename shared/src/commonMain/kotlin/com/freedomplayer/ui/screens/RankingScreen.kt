@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
@@ -345,14 +346,17 @@ private fun MineList(state: AppState, pad: PaddingValues) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Nunito(open.name, 16.sp, Modifier.weight(1f, fill = false), weight = FontWeight.ExtraBold, maxLines = 1)
-                        Chakra(
-                            if (open.songIds.size > 1) "ARRASTRA PARA ORDENAR" else "",
-                            11.sp,
-                            Modifier.padding(start = 10.dp),
-                            color = Fp.Mist,
-                            spacing = 1.5.sp,
-                        )
+                        Nunito(open.name, 16.sp, Modifier.weight(1f), weight = FontWeight.ExtraBold, maxLines = 2, lineHeight = 22.sp)
+                        if (open.songIds.size > 1) {
+                            Chakra(
+                                "ARRASTRA PARA ORDENAR",
+                                11.sp,
+                                Modifier.padding(start = 10.dp).widthIn(max = 116.dp),
+                                color = Fp.Mist,
+                                spacing = 1.5.sp,
+                                maxLines = 2,
+                            )
+                        }
                     }
                 }
             }
@@ -521,7 +525,7 @@ private fun MineRow(
                 if (shade > 0f) drawRect(Fp.Panel.copy(alpha = shade))
                 drawRect(Fp.Pink.copy(alpha = 0.1f), topLeft = Offset(14.dp.toPx(), 0f), size = Size(this.size.width - 28.dp.toPx(), 1.dp.toPx()))
             }
-            .padding(start = 14.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
+            .padding(start = 14.dp, end = 6.dp, top = 5.dp, bottom = 6.dp)
             .semantics(mergeDescendants = true) {
                 customActions = listOfNotNull(
                     if (index > 0) CustomAccessibilityAction("Subir ${song.title}") {
@@ -588,7 +592,7 @@ private fun OtherRanking(state: AppState, ranking: CustomRanking, modifier: Modi
 
 @Composable
 private fun UnratedList(state: AppState, unrated: List<Song>, pad: PaddingValues, wide: Boolean) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(7.dp)) {
         item(key = "hint") {
             HintNote("Toca la mitad izquierda o derecha de cada ✦ para poner medias.")
         }
@@ -622,8 +626,8 @@ private fun UnratedRow(state: AppState, song: Song, wide: Boolean, modifier: Mod
             .drawBehind {
                 drawRect(Fp.Pink.copy(alpha = 0.12f), topLeft = Offset(0f, this.size.height - 1.dp.toPx()), size = Size(this.size.width, 1.dp.toPx()))
             }
-            .padding(vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 44.dp).fpClickable(onClickLabel = "Reproducir", pressedScale = 0.98f) {

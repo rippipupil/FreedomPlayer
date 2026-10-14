@@ -633,7 +633,8 @@ class AppState(
 
     private fun restoreQueue() {
         if (isDemo) {
-            queue = PlayQueue.of(SampleData.playlists[0].songIds, "s5")
+            // Como en las capturas del diseño: «repetir todo» encendido.
+            queue = PlayQueue.of(SampleData.playlists[0].songIds, "s5", repeat = RepeatMode.All)
             queueSource = "NOCHES DE NEÓN"
             positionMs = 84_000
         } else {

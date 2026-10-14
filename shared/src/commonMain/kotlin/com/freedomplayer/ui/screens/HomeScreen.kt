@@ -249,9 +249,7 @@ private fun HomeWide(state: AppState, modifier: Modifier) {
             }
             val rank: @Composable (Modifier) -> Unit = { m ->
                 Column(m, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionHeader("03", "TU RANKING", Modifier.padding(bottom = 2.dp)) {
-                        TextAction("VER TODO →", { state.go(Screen.Rank) })
-                    }
+                    SectionHeader("03", "TU RANKING", Modifier.padding(bottom = 2.dp))
                     data.top.forEachIndexed { i, song ->
                         androidx.compose.runtime.key(song.id) {
                             RankingLine(i + 1, song, wide = true) { state.playFrom(topIds, song.id, "TU RANKING") }
@@ -390,7 +388,7 @@ private fun RankingLine(position: Int, song: Song, wide: Boolean, onClick: () ->
     Row(
         Modifier
             .fillMaxWidth()
-            .then(if (wide) Modifier.heightIn(min = 44.dp) else Modifier)
+            .then(if (wide) Modifier.heightIn(min = 28.dp) else Modifier)
             .fpClickable(onClickLabel = "Reproducir", pressedScale = 0.98f, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (wide) 14.dp else 10.dp),

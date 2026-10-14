@@ -106,7 +106,7 @@ import com.freedomplayer.ui.theme.LocalWide
 @Composable
 fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
     val wide = LocalWide.current
-    val pad = screenPadding(mobile = 46.dp)
+    val pad = screenPadding()
     val keyboard = LocalSoftwareKeyboardController.current
     Column(
         modifier
@@ -224,7 +224,7 @@ private fun SongResults(state: AppState, pad: PaddingValues) {
 @Composable
 private fun AlbumResults(state: AppState, pad: PaddingValues) {
     TabContent(state, SearchTab.Albums, state.albumResults, pad, skeleton = { SkeletonRows(76.dp, 76.dp, gap = 24.dp, rows = 4) }) { albums ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(albums, key = { it.key }) { album ->
                 AlbumRow(state, album, itemMotion())
             }

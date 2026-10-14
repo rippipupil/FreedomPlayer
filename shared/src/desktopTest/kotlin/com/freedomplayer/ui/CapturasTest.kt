@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.SampleData
+import com.freedomplayer.data.SampleSource
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
@@ -87,7 +88,14 @@ class CapturasTest {
         go(Screen.Search)
         this.query = query
         searchTab = tab
-        runBlocking { search(query, tab) }
+        runBlocking {
+            search(query, tab)
+            // Sin el bucle de la app, las canciones de cada álbum se piden aquí («N CANCIONES»).
+            if (tab == SearchTab.Albums) {
+                val source = SampleSource(latencyMs = 0)
+                albumResults.items.forEach { albumTracks[it.key] = source.albumTracks(it) }
+            }
+        }
     }
 
     private fun result(id: String) = SampleData.catalog.first { it.id == id }
