@@ -61,10 +61,11 @@ jobs:
           path: shared/build/reports/tests/
           if-no-files-found: ignore
 
-  # YouTube y LRCLIB de verdad: buscar, sacar el audio y pedir una letra. Solo avisa: YouTube a
-  # veces bloquea los servidores de GitHub, y eso no debe parar una compilación.
+  # YouTube, LRCLIB y Spotify de verdad: buscar, sacar el audio, pedir una letra y leer una
+  # playlist pública de Spotify. Solo avisa: YouTube a veces bloquea los servidores de GitHub, y
+  # eso no debe parar una compilación.
   red:
-    name: YouTube y LRCLIB (solo aviso)
+    name: YouTube, LRCLIB y Spotify (solo aviso)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     continue-on-error: true
@@ -78,7 +79,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Buscar, escuchar y letras
+      - name: Buscar, escuchar, letras y Spotify
         run: ./gradlew -Pfp.android=false :shared:networkSmoke 2>&1 | tee red.log
 
       - name: Resumen
@@ -86,9 +87,9 @@ jobs:
         run: |
           msg="$(grep -E '^(OK|FALLO)' red.log | sed -e 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }')"
           if grep -q '^FALLO' red.log || ! grep -q '^Todo bien' red.log; then
-            echo "::warning title=YouTube o LRCLIB (desde GitHub)::$msg"
+            echo "::warning title=YouTube, LRCLIB o Spotify (desde GitHub)::$msg"
           else
-            echo "::notice title=YouTube y LRCLIB responden::$msg"
+            echo "::notice title=YouTube, LRCLIB y Spotify responden::$msg"
           fi
 
   android:

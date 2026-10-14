@@ -119,8 +119,8 @@ private fun LazyListScope.pasteStep(state: AppState) {
     val sp = state.spotify
     item(key = "hint") {
         HintNote(
-            "En Spotify: Compartir → Copiar enlace. Pégalo aquí: se crea la playlist y cada canción se busca en " +
-                "YouTube Music. Las que no estén claras te las enseñamos para que elijas.",
+            "En Spotify: Compartir → Copiar enlace (la playlist tiene que ser pública). Pégalo aquí: se crea la " +
+                "playlist y cada canción se busca en YouTube Music. Las que no estén claras te las enseñamos para que elijas.",
         )
     }
     item(key = "field") {
@@ -183,8 +183,13 @@ private fun LazyListScope.matchingStep(state: AppState) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Ghost(Mood.Owo, 64.dp, Modifier.fpFloat())
-            Nunito("Buscando en YouTube Music…", 15.sp, weight = FontWeight.ExtraBold)
-            Chakra("${sp.checked} DE ${sp.total}", 12.sp, color = Fp.Mist, spacing = 2.sp)
+            // Primero se lee la playlist de Spotify; luego se busca cada canción.
+            Crossfade(targetState = sp.total == 0, animationSpec = tween(Motion.STANDARD), label = "matchingTitle") { reading ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Nunito(if (reading) "Leyendo la playlist de Spotify…" else "Buscando en YouTube Music…", 15.sp, weight = FontWeight.ExtraBold)
+                    Chakra(if (reading) "UN MOMENTO" else "${sp.checked} DE ${sp.total}", 12.sp, color = Fp.Mist, spacing = 2.sp)
+                }
+            }
             SegmentBar(
                 count = sp.total.coerceIn(4, 30),
                 fraction = if (sp.total == 0) 0f else sp.checked / sp.total.toFloat(),
@@ -209,6 +214,12 @@ private fun LazyListScope.doneStep(state: AppState) {
             "$sure seguras · ${doubtful.size} dudosas · ${missing.size} sin coincidencia. Lo seguro ya se está descargando.",
             edge = Fp.Jade,
         )
+    }
+    val note = sp.note
+    if (note != null) {
+        item(key = "note") {
+            HintNote(note)
+        }
     }
     if (doubtful.isNotEmpty()) {
         item(key = "doubtHeader") {

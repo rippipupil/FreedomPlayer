@@ -9,6 +9,7 @@ import com.freedomplayer.core.Playlist
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.Song
+import com.freedomplayer.core.SpotifyPlaylist
 
 /**
  * Lo que la app necesita de fuera: biblioteca guardada, buscador, descargas, letras y audio.
@@ -24,6 +25,8 @@ class Services(
     val demo: Boolean = false,
     /** Mide lo fuerte que suena cada canción (volumen igualado); sin él, no se iguala. */
     val loudness: LoudnessAnalyzer? = null,
+    /** Lee las playlists públicas de Spotify (para importarlas); sin él, no se puede importar. */
+    val spotify: SpotifyReader? = null,
 ) {
     companion object
 }
@@ -66,6 +69,15 @@ interface MusicSource {
 
     /** El audio de un resultado para escucharlo ya (vista previa). */
     suspend fun stream(result: SearchResult): StreamSource
+}
+
+/**
+ * Playlists públicas de Spotify, sin cuenta ni clave. Si falla, lanza [SourceException]:
+ * [FailureKind.Unavailable] si no existe o es privada, [FailureKind.Blocked] si Spotify no deja
+ * leerla y [FailureKind.Changed] si su página ha cambiado y ya no se entiende.
+ */
+interface SpotifyReader {
+    suspend fun playlist(id: String): SpotifyPlaylist
 }
 
 // ---------- Descargas y letras ----------

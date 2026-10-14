@@ -39,6 +39,7 @@ import com.freedomplayer.data.DownloadedSong
 import com.freedomplayer.data.FailureKind
 import com.freedomplayer.data.Services
 import com.freedomplayer.data.SoundSettings
+import com.freedomplayer.data.SpotifyReader
 import com.freedomplayer.data.Track
 import com.freedomplayer.data.demo
 import com.freedomplayer.data.explain
@@ -180,6 +181,8 @@ data class TabResults<T>(
 
 enum class ImportPhase { Paste, Matching, Done }
 
+private const val SPOTIFY_EDITORIAL = "Esa playlist la hace Spotify y no se puede importar. Prueba con una tuya."
+
 /** «Importar de Spotify» (y «Pegar playlist de Spotify», que es lo mismo). */
 class SpotifyImportState {
     var link by mutableStateOf("")
@@ -193,9 +196,13 @@ class SpotifyImportState {
     val decisions = mutableStateMapOf<Int, Boolean>()
     var playlistId by mutableStateOf<String?>(null)
 
+    /** Lo que conviene saber del resultado (Spotify enseña menos canciones, búsquedas que han fallado). */
+    var note by mutableStateOf<String?>(null)
+
     fun reset() {
         link = ""
         error = null
+        note = null
         phase = ImportPhase.Paste
         checked = 0
         total = 0
@@ -1456,44 +1463,112 @@ class AppState(
     var panelFilter by mutableStateOf("")
     val spotify = SpotifyImportState()
 
-    /** «Pegar playlist de Spotify» / «Importar de Spotify»: valida el enlace y empareja. */
+    /**
+     * «Pegar playlist de Spotify» / «Importar de Spotify»: valida el enlace, lee la playlist de su
+     * página pública (sin cuenta ni clave), busca cada canción en YouTube Music y crea la playlist
+     * con lo seguro; lo dudoso queda para confirmarlo.
+     */
     fun startSpotifyImport() {
         val sp = spotify
-        when (Spotify.parse(sp.link)) {
+        if (sp.phase == ImportPhase.Matching) return
+        when (val link = Spotify.parse(sp.link)) {
             SpotifyLink.Invalid -> sp.error = "Eso no parece un enlace de playlist de Spotify. En Spotify: Compartir → Copiar enlace."
-            SpotifyLink.Editorial -> sp.error = "Esa playlist la hace Spotify y no se puede importar. Prueba con una tuya."
+            SpotifyLink.Editorial -> sp.error = SPOTIFY_EDITORIAL
             is SpotifyLink.Playlist -> {
                 if (!online) {
                     sp.error = "Sin conexión: importar vuelve cuando haya internet."
                     return
                 }
-                if (!isDemo) {
-                    // TODO(hito 3): leer la playlist de Spotify y buscar cada canción en YouTube Music.
-                    sp.error = null
-                    soon("Importar playlists de Spotify")
+                val reader = services.spotify
+                if (reader == null) {
+                    sp.error = "Importar de Spotify no está disponible aquí."
                     return
                 }
+                val s = scope ?: return
                 sp.error = null
-                sp.phase = ImportPhase.Matching
+                sp.note = null
                 sp.checked = 0
-                val tracks = SampleData.spotifyTracks
-                sp.total = tracks.size
-                scope?.launch {
-                    for (i in tracks.indices) {
-                        delay(180)
-                        sp.checked = i + 1
+                sp.total = 0
+                sp.phase = ImportPhase.Matching
+                s.launch { importSpotify(reader, link.id) }
+            }
+        }
+    }
+
+    private val spotifyPermits = Semaphore(3)
+
+    private suspend fun importSpotify(reader: SpotifyReader, id: String) {
+        val sp = spotify
+        fun fail(text: String) {
+            sp.error = text
+            sp.phase = ImportPhase.Paste
+        }
+        val list = try {
+            reader.playlist(id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            fail(spotifyProblem(e.failureKind()))
+            return
+        }
+        if (list.editorial) return fail(SPOTIFY_EDITORIAL)
+        if (list.tracks.isEmpty()) return fail("Esa playlist está vacía, o Spotify no enseña sus canciones.")
+        sp.total = list.tracks.size
+        // Cada canción se busca en YouTube Music (de tres en tres) y se empareja con lo encontrado.
+        val found = arrayOfNulls<TrackMatch>(list.tracks.size)
+        var failed = 0
+        var problem = FailureKind.Unknown
+        coroutineScope {
+            list.tracks.forEachIndexed { i, track ->
+                launch {
+                    val results = spotifyPermits.withPermit {
+                        try {
+                            services.source.searchSongs(Spotify.query(track))
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            failed++
+                            problem = e.failureKind()
+                            emptyList()
+                        }
                     }
-                    val matches = Spotify.matchAll(tracks, SampleData.catalog)
-                    sp.matches.clear()
-                    sp.matches.addAll(matches)
-                    sp.decisions.clear()
-                    val pid = createPlaylist(SampleData.SPOTIFY_PLAYLIST_NAME)
-                    sp.playlistId = pid
-                    acceptMatches(pid, matches.filter { it.kind == MatchKind.Segura }.mapNotNull { it.result })
-                    sp.phase = ImportPhase.Done
+                    found[i] = Spotify.match(track, results)
+                    sp.checked++
                 }
             }
         }
+        if (failed == list.tracks.size) return fail("No se ha podido buscar en YouTube Music. " + problem.explain())
+        val matches = found.mapIndexed { i, m -> m ?: TrackMatch(list.tracks[i], MatchKind.SinCoincidencia, null) }
+        sp.matches.clear()
+        sp.matches.addAll(matches)
+        sp.decisions.clear()
+        val pid = createPlaylist(list.name.trim().ifEmpty { "De Spotify" })
+        sp.playlistId = pid
+        acceptMatches(pid, matches.filter { it.kind == MatchKind.Segura }.mapNotNull { it.result })
+        sp.note = listOfNotNull(
+            if (list.total > list.tracks.size) {
+                "Spotify solo enseña ${list.tracks.size} de las ${list.total} canciones sin iniciar sesión: se han buscado esas."
+            } else {
+                null
+            },
+            when (failed) {
+                0 -> null
+                1 -> "Una canción no se ha podido buscar: está en «Sin coincidencia» para buscarla a mano."
+                else -> "$failed canciones no se han podido buscar: están en «Sin coincidencia» para buscarlas a mano."
+            },
+        ).joinToString(" ").ifEmpty { null }
+        sp.phase = ImportPhase.Done
+    }
+
+    /** Por qué no se ha podido leer la playlist de Spotify, dicho claro. */
+    private fun spotifyProblem(kind: FailureKind): String = when (kind) {
+        FailureKind.Network -> "No hay conexión con Spotify. Comprueba la red y reintenta."
+        FailureKind.Unavailable ->
+            "Spotify no enseña esa playlist: puede que sea privada o que ya no exista. Hazla pública en Spotify y vuelve a probar."
+        FailureKind.Blocked -> "Spotify no deja leer la playlist sin iniciar sesión ahora mismo. Prueba dentro de un rato."
+        FailureKind.Changed ->
+            "Spotify ha cambiado su página y no se pueden leer las canciones. Hará falta una versión nueva de la app."
+        else -> "Spotify no responde. Prueba dentro de un rato."
     }
 
     /** Confirmar (✓) o descartar (✗) una coincidencia dudosa. */

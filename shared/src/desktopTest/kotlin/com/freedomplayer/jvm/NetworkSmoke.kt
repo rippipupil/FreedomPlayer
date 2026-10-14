@@ -1,5 +1,7 @@
 package com.freedomplayer.jvm
 
+import com.freedomplayer.core.Spotify
+import com.freedomplayer.core.SpotifyPlaylist
 import com.freedomplayer.jvm.youtube.YouTubeSource
 import kotlinx.coroutines.runBlocking
 import okhttp3.Request
@@ -7,8 +9,9 @@ import java.util.Locale
 import kotlin.system.exitProcess
 
 /**
- * Prueba de red con YouTube y LRCLIB de verdad: buscar canciones, vídeos y álbumes, sacar el
- * audio y bajar un trozo, y pedir una letra. No es una prueba obligatoria (YouTube a veces
+ * Prueba de red con YouTube, LRCLIB y Spotify de verdad: buscar canciones, vídeos y álbumes,
+ * sacar el audio y bajar un trozo, pedir una letra y leer una playlist pública de Spotify y
+ * emparejar sus canciones con YouTube Music. No es una prueba obligatoria (YouTube a veces
  * bloquea los servidores de GitHub): el workflow la lanza aparte y solo avisa si falla.
  *
  * ./gradlew -Pfp.android=false :shared:networkSmoke
@@ -68,6 +71,45 @@ fun main() {
         "${lyrics.lines().size} líneas, sincronizada: ${lyrics.synced != null}"
     }
 
+    // Spotify sin clave. La playlist es editorial (la app no las importa, solo las de usuario),
+    // pero su página pública es igual que la de cualquier playlist y siempre existe.
+    val spotifyId = "37i9dQZF1DXcBWIGoYBM5M"
+    var spotifyList: SpotifyPlaylist? = null
+    step("Playlist pública de Spotify (sin cuenta ni clave)") {
+        val list = SpotifyPages().playlist(spotifyId)
+        check(list.tracks.isNotEmpty()) { "sin canciones" }
+        spotifyList = list
+        "«${list.name}» de ${list.owner}: ${list.tracks.size} de ${list.total} canciones; " +
+            list.tracks.take(2).joinToString(" | ") { "${it.title} — ${it.artist} (${it.durationSec} s)" }
+    }
+    if (spotifyList == null) {
+        step("Spotify: qué trae la página para insertar") { pageSummary("https://open.spotify.com/embed/playlist/$spotifyId") }
+        step("Spotify: qué trae la página normal") { pageSummary("https://open.spotify.com/playlist/$spotifyId") }
+    }
+    step("Spotify → YouTube Music (6 canciones)") {
+        val list = checkNotNull(spotifyList) { "no se ha podido leer la playlist" }
+        val matches = list.tracks.take(6).map { t -> Spotify.match(t, youtube.searchSongs(Spotify.query(t))) }
+        val kinds = matches.groupingBy { it.kind }.eachCount().entries.joinToString { "${it.value} ${it.key}" }
+        "$kinds; " + matches.take(3).joinToString(" | ") { m ->
+            "${m.track.title} — ${m.track.artist}: ${m.kind}" + (m.result?.let { " → ${it.title} — ${it.artist}" } ?: "")
+        }
+    }
+
     println(if (failures == 0) "Todo bien." else "$failures pasos han fallado.")
     exitProcess(if (failures == 0) 0 else 1)
+}
+
+/** Qué devuelve una página (para saber qué ha cambiado si no se entiende). */
+private fun pageSummary(url: String): String {
+    val request = Request.Builder().url(url)
+        .header("User-Agent", Http.BROWSER_UA)
+        .header("Accept-Language", "es-ES,es;q=0.9")
+        .build()
+    return Http.client.newCall(request).execute().use { r ->
+        val html = r.body.string()
+        val ids = Regex("""<script\b[^>]*\bid="([^"]+)"""").findAll(html).map { it.groupValues[1] }.toList()
+        val title = Regex("<title>(.*?)</title>").find(html)?.groupValues?.get(1)
+        "HTTP ${r.code}, ${html.length} caracteres, título «$title», scripts con id $ids, " +
+            "trackList: ${html.contains("trackList")}, itemV2: ${html.contains("itemV2")}"
+    }
 }

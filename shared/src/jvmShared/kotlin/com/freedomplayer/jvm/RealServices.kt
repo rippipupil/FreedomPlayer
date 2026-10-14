@@ -10,8 +10,8 @@ import java.util.Locale
 
 /**
  * Lo de verdad, igual en Android y en el PC: biblioteca en SQLite ([driver]), YouTube con
- * NewPipe Extractor, descargas en [dirs] y letras de LRCLIB. El audio (y medir su sonoridad) lo
- * pone cada plataforma.
+ * NewPipe Extractor, descargas en [dirs], letras de LRCLIB y playlists públicas de Spotify. El
+ * audio (y medir su sonoridad) lo pone cada plataforma.
  */
 fun realServices(
     driver: SqlDriver,
@@ -29,5 +29,6 @@ fun realServices(
         lyrics = lyrics,
         engine = engine,
         loudness = loudness,
+        spotify = SpotifyPages(),
     )
 }

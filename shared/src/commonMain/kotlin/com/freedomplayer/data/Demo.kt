@@ -11,6 +11,7 @@ import com.freedomplayer.core.SampleData
 import com.freedomplayer.core.Search
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.Song
+import com.freedomplayer.core.SpotifyPlaylist
 import com.freedomplayer.core.Stats
 import kotlinx.coroutines.delay
 
@@ -24,6 +25,7 @@ fun Services.Companion.demo(startMillis: Long): Services = Services(
     lyrics = SampleLyrics(),
     engine = SimulatedEngine(),
     demo = true,
+    spotify = SampleSpotify(),
 )
 
 /** Biblioteca en memoria (no se guarda en ningún sitio). */
@@ -137,6 +139,14 @@ class SampleSource(private val latencyMs: Long = 150) : MusicSource {
     override suspend fun stream(result: SearchResult): StreamSource {
         delay(latencyMs)
         return StreamSource("demo:${result.id}", durationSec = result.durationSec)
+    }
+}
+
+/** La playlist de Spotify de ejemplo («Noches en el coche»), sin salir a internet. */
+class SampleSpotify(private val latencyMs: Long = 400) : SpotifyReader {
+    override suspend fun playlist(id: String): SpotifyPlaylist {
+        delay(latencyMs)
+        return SpotifyPlaylist(SampleData.SPOTIFY_PLAYLIST_NAME, "tú", SampleData.spotifyTracks)
     }
 }
 

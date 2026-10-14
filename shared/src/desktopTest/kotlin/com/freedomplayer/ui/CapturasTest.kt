@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.EqPreset
 import com.freedomplayer.core.SampleData
+import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.Stats
 import com.freedomplayer.data.SampleSource
 import com.freedomplayer.ui.components.Chakra
@@ -224,6 +225,26 @@ class CapturasTest {
         shoot("05g-movil-ajustes", wide = false) {
             togglePlay()
             go(Screen.Settings)
+        }
+        // Importar de Spotify: el aviso si no se puede leer, buscando y las dudosas para confirmar.
+        shoot("05h-movil-spotify-privada", wide = false) {
+            go(Screen.SpotifyImport)
+            spotify.link = "https://open.spotify.com/playlist/1a2B3c4D5e6F7g8H9i0J"
+            spotify.error = "Spotify no enseña esa playlist: puede que sea privada o que ya no exista. " +
+                "Hazla pública en Spotify y vuelve a probar."
+        }
+        shoot("05h2-movil-spotify-buscando", wide = false) {
+            go(Screen.SpotifyImport)
+            spotify.total = SampleData.spotifyTracks.size
+            spotify.checked = 4
+            spotify.phase = ImportPhase.Matching
+        }
+        shoot("05h3-movil-spotify-dudosas", wide = false) {
+            go(Screen.SpotifyImport)
+            spotify.matches.addAll(Spotify.matchAll(SampleData.spotifyTracks, SampleData.catalog))
+            spotify.playlistId = createPlaylist(SampleData.SPOTIFY_PLAYLIST_NAME)
+            spotify.note = "Spotify solo enseña 9 de las 12 canciones sin iniciar sesión: se han buscado esas."
+            spotify.phase = ImportPhase.Done
         }
     }
 
