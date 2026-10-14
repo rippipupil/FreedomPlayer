@@ -428,13 +428,67 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - Sincronizar la música que se descarga en otra carpeta elegida en el PC: solo se comparte la
   carpeta de la app (la de `freedomplayer-musica`), así que esas canciones se quedan en el PC.
 
-## Hito 6: decisiones técnicas
+## Hito 6: actualizaciones, notificación, playlists y reproductor
+
+Se hizo en otra rama, a la vez que la sincronización, y entra en la 0.6 con ella.
+
+### Actualizarse desde la app
+
+- La app mira las releases de GitHub del repositorio (es público: sin clave) al abrirse y cada
+  6 horas mientras está abierta. Usa la lista de releases y no «latest», porque las v0.* salen
+  como pre-release y «latest» no las devuelve. Se queda con la más nueva que trae instalador para
+  esa plataforma (`-android.apk` o `-windows.msi`).
+- Solo avisa si la publicada es más nueva que la instalada, comparando X.Y.Z número a número
+  (una beta va antes que su versión final). Las compilaciones de prueba (0.6.<n.º de ejecución>)
+  no ven la 0.6.0 como nueva. Compilada en el ordenador («dev»), nunca avisa.
+- El aviso sale abajo, como los demás, con «ACTUALIZAR» y «LUEGO». «LUEGO» guarda esa versión y
+  ya no vuelve a salir sola; «Ajustes › Buscar actualizaciones» la enseña otra vez.
+- **Android:** el APK se baja a la caché de la app (seguir donde se quedó si se corta) y se abre
+  con el instalador del sistema mediante un `FileProvider`, que pide confirmación. Antes se
+  comprueba que esté firmado con la misma clave que la app instalada (si no, Android lo rechaza
+  con un «App no instalada» sin explicación) y que la app tenga permiso de «Instalar apps
+  desconocidas» (si no, se abre ese ajuste y se explica). Por eso el APK pide
+  `REQUEST_INSTALL_PACKAGES`.
+- **Windows:** se baja el `.msi`, se abre con `msiexec` y la app se cierra para que el instalador
+  pueda reemplazar sus archivos (el `upgradeUuid` es siempre el mismo). Fuera de Windows no hay
+  instalador publicado y no se buscan versiones. El `.msi` no va firmado: solo se comprueba que
+  la descarga llegue entera (el tamaño que da GitHub).
+- **Firma:** para que una versión se instale encima de otra tienen que llevar la misma clave. Sin
+  los secretos de la clave de publicación, el CI firma con una clave de depuración guardada en su
+  caché, que caduca si pasa una semana sin compilar (ver README › Firma del APK).
+
+### Notificación
+
+- En Android 13+ los mandos de la notificación, del panel rápido y de la pantalla de bloqueo los
+  pinta el sistema, y saca los colores de la imagen de la canción. Por eso la app le da la
+  carátula ya montada en el tema (`ThemedArtwork`): la noche del callejón, el halo de la farola,
+  los edificios con ventanas de neón, la carátula con las esquinas cortadas y el marco desplazado,
+  la ✦ y el fantasmita. Las canciones sin carátula también llevan esa imagen.
+- Se hace en el cargador de imágenes de la sesión de Media3 (`ThemedBitmapLoader`), así sirve
+  igual para la notificación, el panel rápido y la pantalla de bloqueo.
+- El icono pequeño es el fantasma (blanco, con los ojos huecos; Android lo tiñe) y el canal se
+  llama «Reproducción».
+
+### Mini-reproductor
+
+- Botón «atrás» a la izquierda de reproducir: un toque vuelve al principio de la canción; otro
+  toque enseguida (600 ms) va a la anterior, y cada toque rápido más sigue hacia atrás. Si no hay
+  anterior, vuelve a empezar la misma. El botón «anterior» del reproductor grande y del PC sigue
+  como estaba (más de 3 s: al principio; si no, la anterior).
+
+### Avisos y «Probar estados»
+
+- El aviso de error y «Sin conexión» flotan encima del contenido y ahora son opacos: no dejan ver
+  lo de detrás.
+- «Ajustes › PROBAR ESTADOS» (simular sin conexión o la biblioteca vacía) solo sale en el modo de
+  ejemplo o tras tocar 5 veces «Acerca de», como las opciones de desarrollador de Android. No se
+  guarda.
 
 ### Actualizar sin perder nada
 
 - La biblioteca vive en SQLite (SQLDelight) dentro de los datos de la app. Android los conserva al
-  instalar una versión encima si lleva la misma firma (la clave de publicación, desde la 0.5.0) y
-  el mismo `applicationId`; en Windows están en la carpeta del usuario, fuera de lo que toca el
+  instalar una versión encima si lleva la misma firma (la clave de publicación) y el mismo
+  `applicationId`; en Windows están en la carpeta del usuario, fuera de lo que toca el
   instalador.
 - Cambiar la base de datos se hace siempre con una migración (`1.sqm`, `2.sqm`…), nunca borrando y
   creando de nuevo. Los drivers miran la versión guardada (`PRAGMA user_version` en el PC, la del

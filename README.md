@@ -12,7 +12,9 @@ tus propios rankings.
 > PC responde a las teclas multimedia y añade tus propios archivos de audio. En Ajustes se elige
 > la calidad de las descargas y, en el PC, su carpeta. El móvil y el PC se vinculan con un código
 > QR y se sincronizan con Syncthing, que va dentro de la app (canciones, notas, playlists,
-> rankings e historial). Ver
+> rankings e historial). Las playlists se ordenan por fecha o por nota, se puntúa desde el
+> reproductor y la notificación lleva el tema de la app y el botón de repetir. Avisa de las
+> versiones nuevas y se actualiza desde la propia app sin perder la biblioteca. Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -36,6 +38,15 @@ SmartScreen porque el instalador no está firmado: «Más información» › «E
 Las compilaciones de prueba se numeran `0.6.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
+
+## Actualizaciones
+
+La app avisa sola de las versiones nuevas publicadas en Releases (al abrirse y cada pocas horas):
+«ACTUALIZAR» descarga el APK o el `.msi` y abre el instalador. En «Ajustes › Buscar
+actualizaciones» se comprueba a mano. Las compilaciones de prueba de Actions no se avisan: solo
+las versiones publicadas. En Android, la versión nueva tiene que llevar la misma firma que la
+instalada (ver «Firma del APK»), y la primera vez Android pide permitir «Instalar apps
+desconocidas» para FreedomPlayer.
 
 ## Firma del APK
 
