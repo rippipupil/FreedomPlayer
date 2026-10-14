@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,8 +32,10 @@ import com.freedomplayer.data.StreamSource
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
+import com.freedomplayer.ui.components.MiniPlayer
 import com.freedomplayer.ui.components.Mood
 import com.freedomplayer.ui.theme.Fp
+import com.freedomplayer.ui.theme.FreedomTheme
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -327,6 +330,33 @@ class CapturasTest {
             go(Screen.Stats)
             statsTab = StatsTab.Monthly
             statsMonth = Stats.months(playLog).getOrNull(1)
+        }
+    }
+
+    /**
+     * El mini-reproductor flotante del PC: la ventanita (392×152, en desktopApp) lleva dentro este
+     * mini-reproductor sonando.
+     */
+    @Test
+    fun floatingMiniPlayer() {
+        val state = AppState()
+        state.togglePlay()
+        val scene = ImageComposeScene(width = 392, height = 152, density = Density(1f)) {
+            FreedomTheme(wide = false) {
+                Box(Modifier.fillMaxSize().background(Fp.Night), contentAlignment = Alignment.BottomCenter) {
+                    MiniPlayer(state, Modifier.padding(horizontal = 6.dp), onOpen = {})
+                }
+            }
+        }
+        try {
+            val clock = Clock(scene)
+            clock.frames(1_200)
+            Snapshot.sendApplyNotifications()
+            val png = scene.render(clock.nanos).encodeToData(EncodedImageFormat.PNG)?.bytes
+            assertTrue(png != null && png.size > 2_000, "mini-reproductor: no se ha pintado nada")
+            out?.let { File(it, "06p-pc-mini-reproductor.png").writeBytes(png) }
+        } finally {
+            scene.close()
         }
     }
 

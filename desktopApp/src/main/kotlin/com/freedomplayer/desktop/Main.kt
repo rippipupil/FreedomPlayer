@@ -22,10 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,8 +59,11 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.isTraySupported
 import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
+import com.freedomplayer.platform.DesktopAudioImporter
 import com.freedomplayer.platform.DesktopEngine
 import com.freedomplayer.platform.DesktopLibrary
+import com.freedomplayer.platform.MediaKey
+import com.freedomplayer.platform.MediaKeys
 import com.freedomplayer.ui.App
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.components.Chakra
@@ -75,12 +80,17 @@ import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.FreedomTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Cursor
 import java.awt.Dimension
+import java.awt.FileDialog
+import java.awt.Frame
 import java.awt.GraphicsEnvironment
 import java.awt.MouseInfo
 import java.awt.Rectangle
+import java.io.File
+import javax.swing.SwingUtilities
 
 /**
  * FreedomPlayer en el PC: ventana sin marco del sistema con la barra de título del diseño,
@@ -111,6 +121,30 @@ fun main() = application {
         }
     }
 
+    // Teclas multimedia del teclado (Windows), aunque la ventana no tenga el foco o esté en la bandeja.
+    DisposableEffect(state) {
+        val keys = MediaKeys.listen { key -> SwingUtilities.invokeLater { onMediaKey(state, key) } }
+        onDispose { keys?.close() }
+    }
+
+    // «+ TUS ARCHIVOS DE AUDIO»: el selector de archivos del sistema; se copian a la biblioteca.
+    val scope = rememberCoroutineScope()
+    DisposableEffect(state) {
+        val importer = DesktopAudioImporter(DesktopLibrary.dirs())
+        val open: () -> Unit = {
+            val files = chooseAudioFiles()
+            if (files.isNotEmpty()) {
+                state.toast(if (files.size == 1) "Añadiendo el archivo…" else "Añadiendo ${files.size} archivos…", Mood.Owo)
+                scope.launch {
+                    val (songs, failed) = importer.import(files)
+                    state.addImported(songs, failed)
+                }
+            }
+        }
+        state.fileImporter = open
+        onDispose { if (state.fileImporter === open) state.fileImporter = null }
+    }
+
     fun toTray() {
         if (!tray) {
             exitApplication()
@@ -137,6 +171,7 @@ fun main() = application {
             menu = {
                 Item(if (state.isPlaying) "Pausar" else "Reproducir", onClick = { state.togglePlay() })
                 Item("Siguiente", onClick = { state.next() })
+                Item("Anterior", onClick = { state.previous() })
                 Separator()
                 Item("Abrir FreedomPlayer", onClick = {
                     mainVisible = true
@@ -236,6 +271,30 @@ fun main() = application {
             )
         }
     }
+}
+
+/** Lo que hace cada tecla multimedia del teclado. */
+private fun onMediaKey(state: AppState, key: MediaKey) {
+    when (key) {
+        MediaKey.PlayPause -> state.togglePlay()
+        MediaKey.Next -> state.next()
+        MediaKey.Previous -> state.previous()
+        MediaKey.Stop -> if (state.isPlaying) state.togglePlay()
+    }
+}
+
+/** Formatos de audio que se pueden añadir (los que lee FFmpeg y se suelen tener). */
+private val audioExtensions = listOf("mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "webm", "aif", "aiff", "alac", "mka")
+
+/** El selector de archivos del sistema, para elegir uno o varios archivos de audio. */
+private fun chooseAudioFiles(): List<File> {
+    val dialog = FileDialog(null as Frame?, "Añadir tus archivos de audio", FileDialog.LOAD)
+    dialog.isMultipleMode = true
+    // En Windows el filtro va en el nombre («*.mp3;*.m4a;…»); en Linux y macOS, con el filtro de nombres.
+    dialog.file = audioExtensions.joinToString(";") { "*.$it" }
+    dialog.setFilenameFilter { _, name -> name.substringAfterLast('.', "").lowercase() in audioExtensions }
+    dialog.isVisible = true
+    return dialog.files.orEmpty().filter { it.isFile }
 }
 
 /** El área útil de la pantalla donde está la ventana (sin la barra de tareas). */

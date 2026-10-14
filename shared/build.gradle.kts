@@ -100,6 +100,8 @@ kotlin {
                 implementation("org.bytedeco:javacpp:$javacvVersion:$nativePlatform")
                 implementation("org.bytedeco:ffmpeg:$ffmpegVersion")
                 implementation("org.bytedeco:ffmpeg:$ffmpegVersion:$nativePlatform")
+                // Teclas multimedia en Windows (RegisterHotKey).
+                implementation("net.java.dev.jna:jna:5.18.1")
             }
         }
         // Prueba de humo de la interfaz (AppSmokeTest): pinta la app sin ventana.
