@@ -320,3 +320,34 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 
 - Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.
 - Elegir carpeta y calidad de las descargas.
+
+## Hito 5: decisiones técnicas
+
+### Descargas: calidad y carpeta
+
+- **Calidad:** Máxima, Normal y Ahorro. Se aplica al elegir la pista de audio que da NewPipe, igual
+  en Android y en el PC: Máxima es la de más bitrate (lo de antes, y lo que viene puesto), Normal la
+  más cercana a 128 kbps y Ahorro la de menos. Siguen valiendo las reglas de antes: solo pistas que
+  se bajan de una vez, nunca la doblada si hay original y, si empatan, m4a. Solo cuenta para
+  descargar: escuchar antes de añadir usa siempre la mejor.
+- **Carpeta en el PC:** el selector de carpetas de Windows (`IFileOpenDialog` en modo carpetas,
+  llamado por COM con JNA, que ya estaba por las teclas multimedia; no hace falta otra librería).
+  Va en un hilo propio con COM en modo STA. Si no se puede abrir, o fuera de Windows, sale el de
+  Swing.
+  - Lo ya descargado no se mueve: cada canción guarda la ruta de su archivo, así que basta con que
+    las nuevas vayan a la carpeta nueva. Las carátulas y las descargas a medias siguen en la
+    carpeta de la app.
+  - Si la carpeta elegida no existe y no se puede crear, o no se puede escribir en ella, se usa la
+    de la app en vez de fallar la descarga.
+  - Borrar los archivos de una canción (`deleteFiles`) fuera de la carpeta de la app solo toca el
+    que bajó la app, que se llama como la canción (`yt_<id>.<ext>`).
+- **Carpeta en Android:** no se cambia; la música sigue en el almacenamiento privado de la app.
+  La sincronización con Syncthing necesita una ruta de verdad, y las carpetas que se eligen en
+  Android (SAF) no lo son. Ajustes lo explica en vez de ofrecer el botón. Si el ajuste llegara al
+  móvil desde otro sitio, se ignora.
+- **Versión 0.5:** las compilaciones de prueba pasan a numerarse `0.5.<n.º de ejecución>`. El
+  `versionCode` de Android sigue siendo el número de ejecución, que siempre sube.
+
+### Lo que todavía no
+
+- Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.

@@ -4,13 +4,14 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 4.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> **Estado: hito 5.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
 > añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
 > temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. En el
-> PC responde a las teclas multimedia y añade tus propios archivos de audio. Falta la
-> sincronización entre el móvil y el PC (en curso, con Syncthing) y algunos ajustes. Ver
+> PC responde a las teclas multimedia y añade tus propios archivos de audio. En Ajustes se elige
+> la calidad de las descargas y, en el PC, su carpeta. Falta la sincronización entre el móvil y el
+> PC (en curso, con Syncthing). Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -31,7 +32,7 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
-Las compilaciones de prueba se numeran `0.4.<n.º de ejecución>`. Si en Windows instalaste una con
+Las compilaciones de prueba se numeran `0.5.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
 
@@ -61,8 +62,8 @@ ya no se podrán instalar encima de las antiguas.
 ## Publicar una versión
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 El workflow compila esa versión, pasa las pruebas y crea la release con el APK, el `.msi` y el
