@@ -123,7 +123,9 @@ jobs:
         run: |
           apk=$(ls androidApp/build/outputs/apk/release/*.apk | head -n 1)
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)apksigner
-          "$apksigner" verify --print-certs "$apk"
+          "$apksigner" verify --print-certs "$apk" | tee firma.txt
+          # El certificado con el que se ha firmado, en el resumen de la ejecución.
+          echo "::notice title=Firma del APK::$(grep -m 1 'certificate DN' firma.txt)"
           mkdir -p dist
           cp "$apk" "dist/FreedomPlayer-${FP_VERSION}-android.apk"
 
