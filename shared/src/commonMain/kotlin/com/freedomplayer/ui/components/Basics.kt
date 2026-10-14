@@ -355,7 +355,10 @@ fun PrimaryButton(
     }
 }
 
-/** Botón secundario: texto Jade entre dos rayas Jade. */
+/**
+ * Botón secundario: texto Jade entre dos rayas Jade. Con [icon], el icono en vez del texto (que
+ * queda como nombre del botón para la accesibilidad).
+ */
 @Composable
 fun SecondaryButton(
     text: String,
@@ -366,20 +369,23 @@ fun SecondaryButton(
     color: Color = Fp.JadeLight,
     lineColor: Color = Fp.Jade.copy(alpha = 0.6f),
     enabled: Boolean = true,
+    icon: FpIcon? = null,
 ) {
+    val tint = if (enabled) color else color.copy(alpha = 0.4f)
     Box(
         modifier
             .height(maxOf(height, 44.dp))
             .fpClickable(enabled = enabled, onClick = onClick)
+            .then(if (icon != null) Modifier.semantics { contentDescription = text } else Modifier)
             .drawBehind {
                 val px = 1.dp.toPx()
                 drawRect(lineColor, size = Size(this.size.width, px))
                 drawRect(lineColor, topLeft = Offset(0f, this.size.height - px), size = Size(this.size.width, px))
             }
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = if (icon != null) 14.dp else 18.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Chakra(text, fontSize, color = if (enabled) color else color.copy(alpha = 0.4f), spacing = 2.sp)
+        if (icon != null) FpIconView(icon, 20.dp, tint) else Chakra(text, fontSize, color = tint, spacing = 2.sp)
     }
 }
 

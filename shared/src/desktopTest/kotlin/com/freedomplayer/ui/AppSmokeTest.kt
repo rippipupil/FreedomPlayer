@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.freedomplayer.core.MatchKind
+import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SampleData
 import com.freedomplayer.core.YearMonth
@@ -15,6 +16,7 @@ import com.freedomplayer.ui.components.Mood
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -109,8 +111,16 @@ class AppSmokeTest {
         state.togglePreview(song)
         settle()
         assertNotNull(state.preview)
+        // La vista previa también se abre en el reproductor, y se cierra con él.
+        state.playerOpen = true
+        settle()
+        state.togglePlay()
+        settle()
+        state.seekTo(0.3f)
+        settle()
         state.stopPreview()
         settle()
+        assertFalse(state.playerOpen)
         state.requestAdd(AddTarget.Result(song))
         settle()
         assertNotNull(state.sheet)
@@ -185,11 +195,19 @@ class AppSmokeTest {
         val playlist = state.playlists.first()
         state.go(Screen.PlaylistDetail(playlist.id))
         settle()
+        state.sortPlaylistsBy(PlaylistSort.Score)
+        settle()
+        state.flipPlaylistOrder()
+        settle()
+        state.sortPlaylistsBy(PlaylistSort.Added)
+        settle()
         state.playPlaylist(playlist.id, shuffle = true)
         settle()
 
-        // Reproductor
+        // Reproductor (y puntuar la que suena)
         state.playerOpen = true
+        settle()
+        state.currentSong?.let { state.rate(it.id, 7) }
         settle()
         if (!state.isPlaying) state.togglePlay()
         settle(1_500)

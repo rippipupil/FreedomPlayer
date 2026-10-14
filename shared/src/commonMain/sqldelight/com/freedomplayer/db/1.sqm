@@ -1,0 +1,5 @@
+-- Versión 1 → 2 (FreedomPlayer 0.6): cuándo entró cada canción en cada playlist, para ordenarlas
+-- por fecha. Las que ya estaban toman la fecha en que entraron en la biblioteca. No se borra nada.
+ALTER TABLE playlist_song ADD COLUMN added_at INTEGER NOT NULL DEFAULT 0;
+
+UPDATE playlist_song SET added_at = COALESCE((SELECT song.added_at FROM song WHERE song.id = playlist_song.song_id), 0);

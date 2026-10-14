@@ -264,6 +264,11 @@ data class EngineSnapshot(
     val error: String? = null,
     val errorSerial: Int = 0,
     val preview: PreviewSnapshot? = null,
+    /**
+     * Cómo repite el reproductor, si se puede cambiar desde fuera de la app (el botón de la
+     * notificación en Android); null si solo lo cambia la app.
+     */
+    val repeat: RepeatMode? = null,
 )
 
 /**

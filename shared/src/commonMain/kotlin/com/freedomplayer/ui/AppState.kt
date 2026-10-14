@@ -23,6 +23,8 @@ import com.freedomplayer.core.MatchKind
 import com.freedomplayer.core.PlayEvent
 import com.freedomplayer.core.PlayQueue
 import com.freedomplayer.core.Playlist
+import com.freedomplayer.core.PlaylistOrder
+import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.Ranking
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.ResultKind
@@ -313,6 +315,17 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
             write("download.folder", v)
         }
 
+    private val orderState = mutableStateOf(PlaylistOrder.decode(read("playlist.order")))
+
+    /** Orden de las canciones dentro de las playlists (por fecha o por nota; de mayor a menor o al revés). */
+    var playlistOrder: PlaylistOrder
+        get() = orderState.value
+        set(value) {
+            if (value == orderState.value) return
+            orderState.value = value
+            write("playlist.order", value.encode())
+        }
+
     /** Para probar los estados sin red y con la biblioteca vacía (no se guardan). */
     var demoOffline by mutableStateOf(false)
     var demoEmpty by mutableStateOf(false)
@@ -352,6 +365,19 @@ class AppState(
     fun song(id: String?): Song? = if (id == null) null else songs.firstOrNull { it.id == id }
 
     fun playlist(id: String?): Playlist? = if (id == null) null else playlists.firstOrNull { it.id == id }
+
+    /** Las canciones de una playlist en el orden elegido (Ajustes › orden de las playlists). */
+    fun playlistSongs(p: Playlist): List<Song> = settings.playlistOrder.sort(p, p.songIds.mapNotNull { song(it) })
+
+    /** FECHA / NOTA en una playlist: tocar el elegido le da la vuelta. */
+    fun sortPlaylistsBy(sort: PlaylistSort) {
+        settings.playlistOrder = settings.playlistOrder.tap(sort)
+    }
+
+    /** El botón de la flecha: de mayor a menor o de menor a mayor. */
+    fun flipPlaylistOrder() {
+        settings.playlistOrder = settings.playlistOrder.flipped()
+    }
 
     /** Las carátulas de las primeras canciones de una playlist (para sus carátulas apiladas). */
     fun coversOf(p: Playlist): List<String> = p.songIds.asSequence().mapNotNull { song(it)?.cover }.take(2).toList()
@@ -633,7 +659,7 @@ class AppState(
     /** REPRODUCIR / ALEATORIO de una playlist. */
     fun playPlaylist(id: String, shuffle: Boolean) {
         val p = playlist(id) ?: return
-        val ids = p.songIds.filter { sid -> song(sid)?.let(::canPlay) == true }
+        val ids = playlistSongs(p).filter(::canPlay).map { it.id }
         if (ids.isEmpty()) return
         dropPreview()
         queue = PlayQueue.of(ids, if (shuffle) ids.random() else ids.first(), shuffle = shuffle, repeat = queue.repeat)
@@ -914,6 +940,12 @@ class AppState(
             if (isPlaying && preview == null) isPlaying = false
             return
         }
+        // «Repetir» cambiado desde fuera de la app (el botón de la notificación).
+        val repeat = snap.repeat
+        if (repeat != null && repeat != queue.repeat) {
+            queue = queue.copy(repeat = repeat)
+            saveQueue()
+        }
         if (snap.index != queue.index && snap.index < queue.items.size) {
             queue = queue.jumpTo(snap.index)
             durationMs = 0
@@ -1069,6 +1101,9 @@ class AppState(
     var previewDurationMs by mutableLongStateOf(0L)
         private set
     private var previewResult: SearchResult? = null
+
+    /** El resultado que suena en la vista previa (para añadirlo desde el reproductor). */
+    val previewTarget: SearchResult? get() = previewResult.takeIf { preview != null }
     private var previewJob: Job? = null
     private var resumeAfterPreview = false
 
@@ -1126,6 +1161,8 @@ class AppState(
         if (preview == null) return
         previewJob?.cancel()
         engine.stopPreview()
+        // Si el reproductor enseñaba la vista previa, se cierra con ella.
+        playerOpen = false
         preview = null
         previewResult = null
         previewPlaying = false
@@ -1490,8 +1527,10 @@ class AppState(
         val i = playlists.indexOfFirst { it.id == id }
         if (i < 0) return
         val p = playlists[i]
-        val updated = p.copy(songIds = p.songIds + songIds.filter { it !in p.songIds }.distinct())
-        if (updated == p) return
+        val added = songIds.filter { it !in p.songIds }.distinct()
+        if (added.isEmpty()) return
+        val now = nowMillis()
+        val updated = p.copy(songIds = p.songIds + added, addedAt = p.addedAt + added.associateWith { now })
         playlists[i] = updated
         savePlaylistAt(i)
     }

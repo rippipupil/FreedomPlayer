@@ -3,8 +3,10 @@ package com.freedomplayer.android
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
+import android.os.Bundle
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.freedomplayer.android.AudioFiles.onMain
@@ -12,6 +14,7 @@ import com.freedomplayer.android.AudioFiles.track
 import com.freedomplayer.android.AudioFiles.wav
 import com.freedomplayer.android.playback.AndroidEngine
 import com.freedomplayer.android.playback.PlaybackService
+import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.data.EngineSnapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -89,6 +92,31 @@ class PlaybackServiceTest {
             assertTrue(next.playing)
 
             AudioFiles.waitFor("la notificación con «Canción 2»", 20_000, { notificationTitles() }) { "Canción 2" in it }
+        } finally {
+            onMain { MediaController.releaseFuture(future) }
+        }
+    }
+
+    @Test
+    fun theRepeatButtonOfTheNotificationCyclesLikeTheApp() {
+        val tracks = (1..2).map { track("$it", wav(dir, "$it.wav", 8.0)) }
+        val future = onMain { PlaybackService.connect(context) }
+        val controller = future.get(20, TimeUnit.SECONDS)
+        try {
+            onMain {
+                engine.setRepeat(RepeatMode.Off)
+                engine.load(tracks, 0, 0, play = false)
+            }
+            val repeat = SessionCommand(PlaybackService.REPEAT_ACTION, Bundle.EMPTY)
+            AudioFiles.waitFor("el botón de repetir en la sesión", 20_000, {
+                controller.mediaButtonPreferences.mapNotNull { it.sessionCommand?.customAction }
+            }) { PlaybackService.REPEAT_ACTION in it }
+            assertTrue(onMain { controller.isSessionCommandAvailable(repeat) })
+
+            for (expected in listOf(RepeatMode.All, RepeatMode.One, RepeatMode.Off)) {
+                onMain { controller.sendCustomCommand(repeat, Bundle.EMPTY) }.get(10, TimeUnit.SECONDS)
+                waitFor("repetir: $expected") { it.repeat == expected }
+            }
         } finally {
             onMain { MediaController.releaseFuture(future) }
         }

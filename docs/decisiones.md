@@ -441,3 +441,45 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - Ver y quitar los dispositivos vinculados.
 - Sincronizar la música que se descarga en otra carpeta elegida en el PC: solo se comparte la
   carpeta de la app (la de `freedomplayer-musica`), así que esas canciones se quedan en el PC.
+
+## Hito 6: decisiones técnicas
+
+### Actualizar sin perder nada
+
+- La biblioteca vive en SQLite (SQLDelight) dentro de los datos de la app. Android los conserva al
+  instalar una versión encima si lleva la misma firma (la clave de publicación, desde la 0.5.0) y
+  el mismo `applicationId`; en Windows están en la carpeta del usuario, fuera de lo que toca el
+  instalador.
+- Cambiar la base de datos se hace siempre con una migración (`1.sqm`, `2.sqm`…), nunca borrando y
+  creando de nuevo. Los drivers miran la versión guardada (`PRAGMA user_version` en el PC, la del
+  `SQLiteOpenHelper` en Android) y solo aplican los pasos que faltan.
+- `MigrationTest` crea una biblioteca con las tablas de la versión 1 (canciones, notas, playlists,
+  rankings, escuchas, letras y ajustes), la abre con la de ahora y comprueba que no falta nada.
+
+### Orden de las playlists
+
+- `playlist_song.added_at` (versión 2 de la base de datos): cuándo entró cada canción en cada
+  playlist. La migración rellena las que ya estaban con cuándo entraron en la biblioteca.
+- El orden es uno para todas las playlists (`playlist.order` en los ajustes): Fecha o Nota, de
+  mayor a menor o al revés. Con la misma fecha manda el orden guardado de la playlist; en Nota, las
+  que no tienen nota van al final y los empates, las más nuevas primero.
+- La cola sigue el orden de la pantalla: lo que se ve es lo que suena.
+- La fecha no viaja al sincronizar (el JSON de la sincronización no cambia, para no romper la
+  compatibilidad con el otro dispositivo): cada uno guarda las suyas y las que llegan se ordenan
+  por cuándo entraron en la biblioteca.
+
+### Repetir en la notificación
+
+- Un botón propio de la sesión de Media3 (`com.freedomplayer.REPEAT`), con los iconos de repetir de
+  Media3 (nada, todo, una). Cambia el modo del reproductor en el mismo orden que el botón de la app.
+  El mando estándar de repetir sigue quitado: el orden de la cola lo decide la app.
+- La app se entera en el siguiente vistazo al reproductor (`EngineSnapshot.repeat`) y lo guarda con
+  la cola. El icono se actualiza al cambiar el modo, venga de donde venga.
+
+### Reproductor
+
+- Las ✦ bajo el título se tocan para puntuar (`StarsInput`, como en Ranking), con el aviso de
+  «DESHACER».
+- La vista previa también se abre en el reproductor: misma carátula y barra, sin nota, cola ni
+  herramientas, y «+» para añadirla con el selector de siempre. Al cerrarla se cierra el
+  reproductor.

@@ -34,8 +34,17 @@ class SqlLibraryStore(driver: SqlDriver) : LibraryStore {
                 addedAt = r.added_at,
             )
         }
-        val playlistSongs = q.allPlaylistSongs().executeAsList().groupBy({ it.playlist_id }, { it.song_id })
-        val playlists = q.allPlaylists().executeAsList().map { Playlist(it.id, it.name, playlistSongs[it.id].orEmpty(), it.cover_color) }
+        val playlistSongs = q.allPlaylistSongs().executeAsList().groupBy { it.playlist_id }
+        val playlists = q.allPlaylists().executeAsList().map { p ->
+            val rows = playlistSongs[p.id].orEmpty()
+            Playlist(
+                p.id,
+                p.name,
+                rows.map { it.song_id },
+                p.cover_color,
+                addedAt = rows.filter { it.added_at > 0 }.associate { it.song_id to it.added_at },
+            )
+        }
         val rankingSongs = q.allRankingSongs().executeAsList().groupBy({ it.ranking_id }, { it.song_id })
         val rankings = q.allRankings().executeAsList().map { CustomRanking(it.id, it.name, rankingSongs[it.id].orEmpty()) }
         val log = q.allPlays().executeAsList().map { PlayEvent(it.song_id, it.at_millis) }
@@ -76,7 +85,7 @@ class SqlLibraryStore(driver: SqlDriver) : LibraryStore {
         db.transaction {
             q.upsertPlaylist(playlist.id, playlist.name, playlist.coverColor, position.toLong())
             q.clearPlaylistSongs(playlist.id)
-            playlist.songIds.forEachIndexed { i, id -> q.insertPlaylistSong(playlist.id, id, i.toLong()) }
+            playlist.songIds.forEachIndexed { i, id -> q.insertPlaylistSong(playlist.id, id, i.toLong(), playlist.addedAt[id] ?: 0L) }
         }
     }
 

@@ -427,6 +427,12 @@ class AndroidEngine(context: Context) : AudioEngine {
             transitions = transitions,
             error = error,
             errorSerial = errorSerial,
+            // Se puede cambiar desde la notificación (ver PlaybackService).
+            repeat = when (player.repeatMode) {
+                Player.REPEAT_MODE_ALL -> RepeatMode.All
+                Player.REPEAT_MODE_ONE -> RepeatMode.One
+                else -> RepeatMode.Off
+            },
             preview = preview?.let { p ->
                 val ps = p.playbackState
                 PreviewSnapshot(
