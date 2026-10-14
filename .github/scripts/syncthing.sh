@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Syncthing para empaquetarlo con la app: los binarios oficiales de GitHub (syncthing/syncthing),
 # comprobados con la lista de sumas SHA-256 de esa versión. No se guardan en el repositorio.
-#   android: linux-arm64, linux-arm y linux-amd64 → androidApp/src/main/jniLibs/<abi>/libsyncthing.so
-#            (Android los saca a la carpeta de bibliotecas nativas, desde donde se pueden ejecutar)
+#   android: linux-arm64 y linux-arm → androidApp/src/main/jniLibs/<abi>/libsyncthing.so
+#            (Android los saca a la carpeta de bibliotecas nativas, desde donde se pueden ejecutar);
+#            x86_64 se compila del código fuente oficial con el NDK (ver build_android)
 #   windows: windows-amd64 → desktopApp/resources/windows/syncthing.exe
 #   linux:   linux-amd64 → build/syncthing/syncthing (solo para las pruebas de la CI)
 set -euo pipefail
@@ -29,9 +30,53 @@ fetch() {
   echo "$1: suma SHA-256 correcta ($actual)"
 }
 
+# Compila Syncthing para Android con el NDK, del código fuente oficial de la versión (comprobado con
+# su suma SHA-256; trae sus dependencias en vendor/). Se usa en x86_64 (emulador y Chromebooks): el
+# binario oficial para Linux amd64 llama a lstat() (la SQLite que lleva dentro), y el filtro seccomp
+# de Android x86_64 no deja esa llamada a las apps, así que se cerraba al arrancar (SIGSYS). Para
+# Android, SQLite va con la libc de Android (bionic), que no la usa. En ARM no hace falta: esas
+# llamadas antiguas no existen allí.
+#   $1: GOARCH  $2: ABI de Android  $3: prefijo del clang del NDK
+build_android() {
+  goarch="$1"
+  abi="$2"
+  triple="$3"
+  if ! command -v go > /dev/null; then
+    echo "::error title=Syncthing::Falta Go para compilar Syncthing para Android ($abi)"
+    exit 1
+  fi
+  if [ ! -d "$WORK/syncthing" ]; then
+    fetch "syncthing-source-$VERSION.tar.gz"
+    tar -xzf "$WORK/syncthing-source-$VERSION.tar.gz" -C "$WORK"
+  fi
+  ndk="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+  if [ -z "$ndk" ] || [ ! -d "$ndk" ]; then
+    ndk="$(ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/ndk/*/ 2> /dev/null | sort -V | tail -n 1 || true)"
+  fi
+  # La versión mínima de Android de la app (minSdk 26).
+  cc="${ndk%/}/toolchains/llvm/prebuilt/linux-x86_64/bin/${triple}26-clang"
+  if [ ! -x "$cc" ]; then
+    echo "::error title=Syncthing::No se encuentra el NDK de Android (falta $cc)"
+    exit 1
+  fi
+  out="$PWD/androidApp/src/main/jniLibs/$abi/libsyncthing.so"
+  mkdir -p "$(dirname "$out")"
+  # Las etiquetas de las compilaciones oficiales, sin netgo: en Android los nombres (DNS) los
+  # resuelve el sistema. -checklinkname=0: lo pide github.com/wlynxg/anet (interfaces de red en
+  # Android) desde Go 1.23.
+  (
+    cd "$WORK/syncthing"
+    CGO_ENABLED=1 BUILD_USER=freedomplayer BUILD_HOST=github-actions EXTRA_LDFLAGS="-checklinkname=0" \
+      go run build.go -goos android -goarch "$goarch" -cc "$cc" -no-upgrade \
+      -tags "sqlite_omit_load_extension sqlite_dbstat" -build-out "$out" build syncthing
+  )
+  chmod 755 "$out"
+  echo "$abi: Syncthing $VERSION compilado para Android con $(basename "$cc") ($(go version))"
+}
+
 case "${1:-}" in
   android)
-    for pair in arm64:arm64-v8a arm:armeabi-v7a amd64:x86_64; do
+    for pair in arm64:arm64-v8a arm:armeabi-v7a; do
       arch="${pair%%:*}"
       abi="${pair#*:}"
       name="syncthing-linux-$arch-$VERSION"
@@ -40,6 +85,7 @@ case "${1:-}" in
       mkdir -p "androidApp/src/main/jniLibs/$abi"
       install -m 755 "$WORK/$name/syncthing" "androidApp/src/main/jniLibs/$abi/libsyncthing.so"
     done
+    build_android amd64 x86_64 x86_64-linux-android
     ;;
   windows)
     name="syncthing-windows-amd64-$VERSION"

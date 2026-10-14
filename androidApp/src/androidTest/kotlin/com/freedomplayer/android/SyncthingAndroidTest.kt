@@ -14,9 +14,10 @@ import org.junit.runner.RunWith
 import java.io.File
 
 /**
- * Syncthing de verdad en Android: el binario oficial que va en el APK como biblioteca nativa
- * (libsyncthing.so) se puede ejecutar, arranca solo en 127.0.0.1 con la clave que se genera aquí,
- * responde por su API y acepta la vinculación con el PC (sus dos carpetas, dentro de la app).
+ * Syncthing de verdad en Android: el que va en el APK como biblioteca nativa (libsyncthing.so; en
+ * x86_64, el emulador, compilado para Android del código oficial) se puede ejecutar, arranca solo
+ * en 127.0.0.1 con la clave que se genera aquí, responde por su API y acepta la vinculación con el
+ * PC (sus dos carpetas, dentro de la app).
  */
 @RunWith(AndroidJUnit4::class)
 class SyncthingAndroidTest {
@@ -55,11 +56,24 @@ class SyncthingAndroidTest {
                 }
             }
         } catch (e: Throwable) {
-            val log = File(root, "syncthing/syncthing.log").takeIf { it.isFile }?.readText().orEmpty().takeLast(4000)
-            throw AssertionError("Syncthing en Android: $e\n$log", e)
+            val log = File(root, "syncthing/syncthing.log").takeIf { it.isFile }?.readText().orEmpty()
+            throw AssertionError("Syncthing en Android: $e\n${crashSummary(log)}", e)
         } finally {
             backend.stop()
             root.deleteRecursively()
         }
+    }
+
+    /**
+     * Lo que explica en el log de Syncthing por qué se ha cerrado: el principio y, si Go se ha
+     * caído, la señal o el pánico con la goroutine que lo ha provocado (si no, el final del log).
+     */
+    private fun crashSummary(log: String): String {
+        val lines = log.lines()
+        val crash = lines.indexOfFirst { line ->
+            line.startsWith("panic:") || line.startsWith("fatal error:") || Regex("^SIG[A-Z]+:").containsMatchIn(line)
+        }
+        val rest = if (crash >= 0) lines.drop(crash).take(30) else lines.drop(15).takeLast(25)
+        return (lines.take(15) + listOf("…") + rest).joinToString("\n").take(6000)
     }
 }
