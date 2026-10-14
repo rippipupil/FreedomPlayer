@@ -113,6 +113,19 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
                 state.soon("Vincular con un QR")
             }
 
+            if (state.canUpdate) {
+                SectionHeader(next(), "ACTUALIZACIONES", Modifier.padding(top = 18.dp))
+                val available = state.update
+                ActionRow(
+                    FpIcons.Update,
+                    if (state.checkingUpdates) "Buscando versiones…" else "Buscar actualizaciones",
+                    when {
+                        available != null -> "Hay una versión nueva: ${available.version}. Tienes la ${state.appVersion}."
+                        else -> "Tienes la ${state.appVersion}. Se mira sola al abrir la app y te avisa abajo."
+                    },
+                ) { state.checkForUpdates() }
+            }
+
             // Herramientas para probar los avisos: solo en el modo de ejemplo o tras tocar 5 veces
             // «Acerca de» (como las opciones de desarrollador de Android). No se guardan.
             if (state.isDemo || aboutTaps >= TEST_TOOLS_TAPS) {

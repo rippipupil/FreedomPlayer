@@ -128,7 +128,7 @@ jobs:
             fi
             version="$INPUT_VERSION"
           else
-            version="0.4.${GITHUB_RUN_NUMBER}"
+            version="0.5.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"
@@ -323,7 +323,7 @@ jobs:
             fi
             version="$INPUT_VERSION"
           else
-            version="0.4.${GITHUB_RUN_NUMBER}"
+            version="0.5.${GITHUB_RUN_NUMBER}"
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"

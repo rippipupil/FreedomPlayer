@@ -5,6 +5,7 @@ import com.freedomplayer.data.AudioEngine
 import com.freedomplayer.data.Services
 import com.freedomplayer.db.FpDatabase
 import com.freedomplayer.jvm.AppDirs
+import com.freedomplayer.jvm.UpdateInstaller
 import com.freedomplayer.jvm.realServices
 import java.io.File
 import java.util.Properties
@@ -28,10 +29,10 @@ object DesktopLibrary {
 
     fun dirs(): AppDirs = AppDirs(dataDir())
 
-    fun services(engine: AudioEngine): Services {
+    fun services(engine: AudioEngine, updater: UpdateInstaller? = null): Services {
         val dirs = dirs()
         dirs.root.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dirs.database.absolutePath}", Properties(), FpDatabase.Schema)
-        return realServices(driver, dirs, engine, FfmpegLoudness)
+        return realServices(driver, dirs, engine, FfmpegLoudness, updater = updater)
     }
 }

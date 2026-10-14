@@ -320,3 +320,48 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 
 - Vincular con QR y sincronizar: está a medias en la rama `syncthing-wip`.
 - Elegir carpeta y calidad de las descargas.
+
+## Hito 5: decisiones técnicas
+
+### Actualizarse desde la app
+
+- La app mira las releases de GitHub del repositorio (es público: sin clave) al abrirse y cada
+  6 horas mientras está abierta. Usa la lista de releases y no «latest», porque las v0.* salen
+  como pre-release y «latest» no las devuelve. Se queda con la más nueva que trae instalador para
+  esa plataforma (`-android.apk` o `-windows.msi`).
+- Solo avisa si la publicada es más nueva que la instalada, comparando X.Y.Z número a número
+  (una beta va antes que su versión final). Las compilaciones de prueba (0.5.<n.º de ejecución>)
+  no ven la 0.5.0 como nueva. Compilada en el ordenador («dev»), nunca avisa.
+- El aviso sale abajo, como los demás, con «ACTUALIZAR» y «LUEGO». «LUEGO» guarda esa versión y
+  ya no vuelve a salir sola; «Ajustes › Buscar actualizaciones» la enseña otra vez.
+- **Android:** el APK se baja a la caché de la app (seguir donde se quedó si se corta) y se abre
+  con el instalador del sistema mediante un `FileProvider`, que pide confirmación. Antes se
+  comprueba que esté firmado con la misma clave que la app instalada (si no, Android lo rechaza
+  con un «App no instalada» sin explicación) y que la app tenga permiso de «Instalar apps
+  desconocidas» (si no, se abre ese ajuste y se explica).
+- **Windows:** se baja el `.msi`, se abre con `msiexec` y la app se cierra para que el instalador
+  pueda reemplazar sus archivos (el `upgradeUuid` es siempre el mismo). Fuera de Windows no hay
+  instalador publicado y no se buscan versiones.
+- **Firma:** para que una versión se instale encima de otra tienen que llevar la misma clave. Sin
+  los secretos de la clave de publicación, el CI firma con una clave de depuración guardada en su
+  caché, que caduca si pasa una semana sin compilar. Con la clave de publicación en los secretos
+  no hay ese riesgo.
+
+### Notificación
+
+- En Android 13+ los mandos de la notificación, del panel rápido y de la pantalla de bloqueo los
+  pinta el sistema, y saca los colores de la imagen de la canción. Por eso la app le da la
+  carátula ya montada en el tema (`ThemedArtwork`): la noche del callejón, el halo de la farola,
+  los edificios con ventanas de neón, la carátula con las esquinas cortadas y el marco desplazado,
+  la ✦ y el fantasmita. Las canciones sin carátula también llevan esa imagen.
+- Se hace en el cargador de imágenes de la sesión de Media3 (`ThemedBitmapLoader`), así sirve
+  igual para la notificación, el panel rápido y la pantalla de bloqueo.
+- El icono pequeño es el fantasma (blanco, con los ojos huecos; Android lo tiñe) y el canal se
+  llama «Reproducción».
+
+### Mini-reproductor
+
+- Botón «atrás» a la izquierda de reproducir: un toque vuelve al principio de la canción; otro
+  toque enseguida (600 ms) va a la anterior, y cada toque rápido más sigue hacia atrás. Si no hay
+  anterior, vuelve a empezar la misma. El botón «anterior» del reproductor grande y del PC sigue
+  como estaba (más de 3 s: al principio; si no, la anterior).

@@ -4,12 +4,13 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 4.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> **Estado: hito 5.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
 > añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
 > temporizador, estadísticas por meses e importa playlists públicas de Spotify sin clave. En el
-> PC responde a las teclas multimedia y añade tus propios archivos de audio. Falta la
+> PC responde a las teclas multimedia y añade tus propios archivos de audio. Avisa de las versiones nuevas y se
+> actualiza desde la propia app, y la notificación lleva el tema. Falta la
 > sincronización entre el móvil y el PC (en curso, con Syncthing) y algunos ajustes. Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
@@ -31,9 +32,16 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
-Las compilaciones de prueba se numeran `0.4.<n.º de ejecución>`. Si en Windows instalaste una con
+Las compilaciones de prueba se numeran `0.5.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
+
+## Actualizaciones
+
+La app avisa sola de las versiones nuevas publicadas en Releases (al abrirse y cada pocas horas):
+«ACTUALIZAR» descarga el APK o el `.msi` y abre el instalador. En «Ajustes › Buscar
+actualizaciones» se comprueba a mano. Las compilaciones de prueba de Actions no se avisan: solo
+las versiones publicadas.
 
 ## Firma del APK
 
