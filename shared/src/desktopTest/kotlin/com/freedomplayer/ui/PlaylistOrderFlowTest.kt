@@ -33,12 +33,12 @@ class PlaylistOrderFlowTest {
 
     /** El motor simulado, pero con «repetir» que se puede cambiar desde fuera (como la notificación). */
     private class Notification(private val inner: SimulatedEngine = SimulatedEngine()) : AudioEngine by inner {
-        var repeat = RepeatMode.Off
+        var mode = RepeatMode.Off
         override fun setRepeat(mode: RepeatMode) {
-            repeat = mode
+            this.mode = mode
             inner.setRepeat(mode)
         }
-        override fun snapshot(): EngineSnapshot = inner.snapshot().copy(repeat = repeat)
+        override fun snapshot(): EngineSnapshot = inner.snapshot().copy(repeat = mode)
     }
 
     private fun app(store: MemoryStore = store(), engine: AudioEngine = SimulatedEngine()) =
@@ -98,12 +98,12 @@ class PlaylistOrderFlowTest {
         state.playFrom(ids, "s1", "NOCHES")
         assertEquals(RepeatMode.Off, state.queue.repeat)
 
-        engine.repeat = RepeatMode.All
+        engine.mode = RepeatMode.All
         state.step(100)
         assertEquals(RepeatMode.All, state.queue.repeat)
 
         state.cycleRepeat()
-        assertEquals(RepeatMode.One, engine.repeat, "y lo de la app llega al reproductor")
+        assertEquals(RepeatMode.One, engine.mode, "y lo de la app llega al reproductor")
         state.step(100)
         assertEquals(RepeatMode.One, state.queue.repeat)
     }
