@@ -11,13 +11,16 @@ import com.freedomplayer.data.SimulatedDownloader
 import com.freedomplayer.data.SimulatedEngine
 import com.freedomplayer.data.SyncBackend
 import com.freedomplayer.data.SyncCount
+import com.freedomplayer.jvm.SyncthingBackend
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -169,5 +172,45 @@ class SyncFlowTest {
         val saved = store.load()
         assertTrue(saved.songs.any { it.id == "yt:nueva" && it.score == 8 }, "y queda guardado")
         assertEquals(listOf("Del PC"), saved.playlists.map { it.name })
+    }
+
+    @Test
+    fun aPcThatDoesNotShowUpIsExplainedWithoutGivingUp() {
+        // Vinculados, pero el PC no aparece (apagado, sin la app abierta o en otra red).
+        val phone = FakeSync(showsQr = false, id = phoneId).apply { count = null }
+        val phoneApp = app(phone).apply { syncConnectTimeoutMs = 0 }
+        phoneApp.live {
+            pairWith(pcId)
+            waitFor("el aviso de que no se encuentra el PC") { sync.error.orEmpty().startsWith("No se encuentra el PC") }
+            assertEquals(SyncPhase.Syncing, sync.phase, "sigue esperando: no se da por fallido")
+            assertFalse(sync.connected)
+            // Aparece el PC: se quita el aviso y se ve cuánto lleva.
+            phone.count = SyncCount(3, 5)
+            waitFor("conectado, 3 de 5") { sync.connected && sync.done == 3L && sync.error == null }
+        }
+        assertEquals(listOf(pcId to "PC"), phone.paired)
+    }
+
+    @Test
+    fun withoutTheSyncthingBinaryItSaysSoWithoutCrashing() {
+        val dir = Files.createTempDirectory("sin-syncthing").toFile()
+        try {
+            val missing = SyncthingBackend(
+                executable = { null },
+                home = dir.resolve("syncthing"),
+                music = dir.resolve("musica"),
+                library = dir.resolve("sincronizar"),
+                showsQr = true,
+            )
+            val pcApp = app(missing)
+            pcApp.live {
+                openSync()
+                assertEquals(Screen.Sync, screen)
+                waitFor("el aviso") { sync.phase == SyncPhase.Failed }
+            }
+            assertTrue(pcApp.sync.error.orEmpty().contains("no trae Syncthing"), pcApp.sync.error)
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 }

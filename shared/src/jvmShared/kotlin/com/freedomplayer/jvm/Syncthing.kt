@@ -4,6 +4,7 @@ import com.freedomplayer.core.SyncIds
 import com.freedomplayer.data.LibraryData
 import com.freedomplayer.data.SyncBackend
 import com.freedomplayer.data.SyncCount
+import com.freedomplayer.data.SyncUnavailableException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -202,7 +203,7 @@ class SyncthingBackend(
 
     override suspend fun start(): String = lock.withLock {
         api?.let { running -> if (running.ping()) return@withLock running.myId() }
-        val exe = executable() ?: throw IOException("Syncthing no está en esta instalación")
+        val exe = executable() ?: throw SyncUnavailableException("Syncthing no está en esta instalación")
         home.mkdirs()
         val port = SyncthingIds.freePort()
         val key = SyncthingIds.newApiKey()

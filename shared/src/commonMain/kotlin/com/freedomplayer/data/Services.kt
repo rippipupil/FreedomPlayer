@@ -67,6 +67,9 @@ interface SyncBackend {
     suspend fun exchange(local: LibraryData): LibraryData?
 }
 
+/** Esta instalación no trae Syncthing (falta su binario), así que aquí no se puede sincronizar. */
+class SyncUnavailableException(message: String) : Exception(message)
+
 /** La biblioteca para sincronizar: canciones (con su nota), playlists, rankings y escuchas. */
 data class LibraryData(
     val songs: List<Song>,

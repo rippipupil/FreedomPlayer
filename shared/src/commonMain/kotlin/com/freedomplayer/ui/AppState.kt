@@ -45,6 +45,7 @@ import com.freedomplayer.data.Services
 import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.SpotifyReader
 import com.freedomplayer.data.SyncBackend
+import com.freedomplayer.data.SyncUnavailableException
 import com.freedomplayer.data.Track
 import com.freedomplayer.data.demo
 import com.freedomplayer.data.explain
@@ -203,6 +204,9 @@ class SyncState {
     var done by mutableStateOf(0L)
     var total by mutableStateOf(0L)
     var error by mutableStateOf<String?>(null)
+
+    /** Ya vinculados: si ahora mismo está conectado con el otro dispositivo. */
+    var connected by mutableStateOf(false)
 }
 
 /** «Importar de Spotify» (y «Pegar playlist de Spotify», que es lo mismo). */
@@ -407,6 +411,12 @@ class AppState(
     val canSync: Boolean get() = services.sync != null
 
     private var syncWatch: Job? = null
+
+    /**
+     * Cuánto se espera a que aparezca el otro dispositivo antes de avisar de que no se encuentra.
+     * Syncthing reintenta conectar cada minuto, así que algo más de uno.
+     */
+    internal var syncConnectTimeoutMs = 90_000L
 
     // ---------- Navegación ----------
 
@@ -1755,6 +1765,9 @@ class AppState(
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: SyncUnavailableException) {
+                sync.phase = SyncPhase.Failed
+                sync.error = "Esta instalación no trae Syncthing, así que aquí no se puede sincronizar."
             } catch (e: Exception) {
                 sync.phase = SyncPhase.Failed
                 sync.error = "No se ha podido arrancar la sincronización. Vuelve a probar dentro de un rato."
@@ -1823,14 +1836,25 @@ class AppState(
     private fun watchSync(backend: SyncBackend, peer: String) {
         syncWatch?.cancel()
         sync.phase = SyncPhase.Syncing
+        sync.connected = false
+        val notFound = syncNotFound(backend)
         syncWatch = scope?.launch {
             var tick = 0
+            var lastSeen = TimeSource.Monotonic.markNow()
             while (isActive) {
                 val count = runCatching { backend.progress(peer) }.getOrNull()
                 if (count != null) {
+                    lastSeen = TimeSource.Monotonic.markNow()
+                    sync.connected = true
+                    if (sync.error == notFound) sync.error = null
                     sync.done = count.done
                     sync.total = count.total
                     sync.phase = if (count.done >= count.total) SyncPhase.Synced else SyncPhase.Syncing
+                } else {
+                    // Sin el otro dispositivo (apagado, sin FreedomPlayer abierto u otra red): se sigue
+                    // esperando, y pasado un rato se avisa de qué comprobar.
+                    sync.connected = false
+                    if (lastSeen.elapsedNow().inWholeMilliseconds >= syncConnectTimeoutMs) sync.error = notFound
                 }
                 if (tick % 10 == 0) {
                     val local = LibraryData(songs.toList(), playlists.toList(), rankings.toList(), playLog.toList())
@@ -1841,6 +1865,14 @@ class AppState(
             }
         }
     }
+
+    /** El aviso de cuando, ya vinculados, el otro dispositivo no aparece. */
+    private fun syncNotFound(backend: SyncBackend): String =
+        if (backend.showsQr) {
+            "No se encuentra el móvil. Comprueba que tiene FreedomPlayer abierto y que los dos estáis en la misma wifi."
+        } else {
+            "No se encuentra el PC. Comprueba que tiene FreedomPlayer abierto y que los dos estáis en la misma wifi."
+        }
 
     /** Lo que llega del otro dispositivo, ya juntado con lo de aquí (ver LibrarySync). */
     fun applySync(merged: LibraryData) {

@@ -76,11 +76,15 @@ fun SyncScreen(state: AppState, modifier: Modifier = Modifier) {
                     }
                 }
                 SyncPhase.Pairing -> StateCard(Mood.Owo, "Vinculando…", "Se está añadiendo $other y compartiendo la música.", Fp.Jade)
-                SyncPhase.Syncing -> {
+                SyncPhase.Syncing, SyncPhase.Synced -> if (!sync.connected) {
+                    // Vinculados, pero el otro no aparece (todavía): sin «0 de 0».
+                    StateCard(Mood.Owo, "Buscando $other…", "Tiene que tener FreedomPlayer abierto, en la misma wifi.", Fp.Jade)
+                } else if (sync.phase == SyncPhase.Syncing) {
                     StateCard(Mood.Guino, "Sincronizando con $other", "${sync.done} de ${sync.total} canciones nuevas", Fp.Jade)
                     SegmentBar(10, if (sync.total > 0) sync.done.toFloat() / sync.total else 0f, Modifier.fillMaxWidth(), color = Fp.Jade, offColor = Fp.Jade.copy(alpha = 0.2f))
+                } else {
+                    StateCard(Mood.Feliz, "Todo sincronizado", "Lo nuevo se pasa solo mientras los dos tengan FreedomPlayer abierto en la misma red.", Fp.Jade)
                 }
-                SyncPhase.Synced -> StateCard(Mood.Feliz, "Todo sincronizado", "Lo nuevo se pasa solo mientras los dos tengan FreedomPlayer abierto en la misma red.", Fp.Jade)
                 SyncPhase.Failed -> {
                     StateCard(Mood.Triste, "No se pudo sincronizar", sync.error ?: "Algo ha fallado.", Fp.Neon)
                     PrimaryButton("REINTENTAR", { state.startSync() }, Modifier.fillMaxWidth(), fill = true)
