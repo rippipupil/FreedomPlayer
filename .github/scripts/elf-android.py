@@ -130,7 +130,8 @@ def main():
             ok = False
             continue
         try:
-            print(check(path, abi, min_api))
+            # Como aviso de la CI: así se ve en el resumen de la ejecución.
+            print(f"::notice title=Syncthing ({abi})::{check(path, abi, min_api)}")
         except (NoValido, struct.error) as e:
             print(f"::error title=Syncthing ({abi})::{path}: {e}")
             ok = False
