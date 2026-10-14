@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Si una compilación falla, saca sus errores (de Kotlin, de Gradle y de lint) del log y los
+# Si una compilación falla, saca sus errores (de Kotlin, Gradle, lint y pruebas) del log y los
 # publica también como anotaciones de la ejecución, para verlos sin abrir el log entero.
 # Uso: errores.sh build.log
 log="${1:-build.log}"
@@ -13,7 +13,14 @@ awk '
   /^e: / || /: Error: / || /^ERROR:/ || /error: / { print; next }
   /^\* What went wrong:/ { inside = 1; print; next }
   /^\* Try:/ { inside = 0 }
-  inside && NF { print }
+  inside && NF { print; next }
+  # Prueba fallida: el nombre, el mensaje del error y las líneas de nuestro código.
+  / FAILED$/ { print; test = 1; shown = 0; next }
+  test && /^[ \t]/ {
+    if ($1 != "at" || $0 ~ /freedomplayer/ || shown < 6) { print; shown++ }
+    next
+  }
+  { test = 0 }
 ' "$log" | cut -c1-500 | awk '!seen[$0]++' | head -n 300 > "$out"
 
 if [ ! -s "$out" ]; then
@@ -31,6 +38,6 @@ for part in "$out".part.*; do
   n=$((n + 1))
   [ "$n" -gt 10 ] && break
   msg="$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' "$part" | awk 'BEGIN { ORS = "%0A" } { print }')"
-  echo "::error title=Errores de compilación ($n)::$msg"
+  echo "::error title=Errores ($n)::$msg"
 done
 rm -f "$out" "$out".part.*

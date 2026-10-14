@@ -48,6 +48,10 @@ jobs:
         if: failure()
         run: bash .github/scripts/errores.sh build.log
 
+      - name: Resumen de las pruebas
+        if: always()
+        run: python3 .github/scripts/resumen-pruebas.py shared/build/test-results/desktopTest
+
       - name: Guardar el informe de pruebas
         if: failure()
         uses: actions/upload-artifact@v6
@@ -214,5 +218,5 @@ jobs:
             gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
-              --title "FreedomPlayer ${TAG}" --notes-file "$notes" "${flags[@]}"
+              --title "${TAG}" --notes-file "$notes" "${flags[@]}"
           fi
