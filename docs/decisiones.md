@@ -548,3 +548,19 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   sin cortar (`reorder`). Así cada canción suena una vez por vuelta y cada vuelta lleva otro orden.
 - «Atrás» del mini-reproductor en la primera canción sigue volviendo a empezar la misma (como se
   pidió en la 0.5); el «anterior» del reproductor grande sí salta a la última.
+
+## Letra y notificación (0.10)
+
+- **Letra que se mueve a mano:** la caja de la letra se desplaza (`verticalScroll`). Lo que cuenta
+  como «a mano» son los toques, arrastres y la rueda (`pointerInput` en la pasada inicial), no el
+  valor del desplazamiento, para no confundirlo con el movimiento automático. Después de tocarla,
+  deja de seguir a la canción durante 4 s desde el último movimiento.
+- **Letra a pantalla completa:** `lyricsOpen` en `AppState`, encima del reproductor (con su
+  callejón, título, reproducir/pausar y la barra). «Atrás» la cierra antes que el reproductor, y
+  se cierra sola si se cierra el reproductor.
+- **Notificación:** la tarjeta de Android 13+ pone la imagen de fondo recortada a lo ancho por el
+  centro (≈ 1,9 : 1 en un móvil, una franja del 53 % del alto). La carátula entera (encajada, sin
+  recortar) mide el 42 % del lado, a la derecha y centrada en vertical, así cabe en esa franja y no
+  tapa el texto, que el sistema pone a la izquierda. De fondo va la propia carátula oscurecida con
+  la noche del tema, para que los colores que saca Android sean los de la canción y los del tema.
+  El icono pequeño sigue siendo el fantasma.

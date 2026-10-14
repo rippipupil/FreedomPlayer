@@ -88,6 +88,8 @@ object FpIcons {
     val Moon = FpIcon("M20 14.5 A8 8 0 1 1 9.5 4 A6.5 6.5 0 0 0 20 14.5 Z")
     val Pencil = FpIcon("M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11")
     val Queue = FpIcon("M4 6 H20 M4 12 H14 M4 18 H11 M17 15 V21 L21 18 Z")
+    /** Abrir en grande (dos esquinas hacia fuera). */
+    val Expand = FpIcon("M14 4 H20 V10 M20 4 L13 11 M10 20 H4 V14 M4 20 L11 13", strokeWidth = 2f)
     val Lyrics = FpIcon("M4 5 H20 V16 H11 L6 20 V16 H4 Z M8 9 H16 M8 12 H13")
     val Volume = FpIcon("M4 9 H8 L13 5 V19 L8 15 H4 Z M16.5 9 Q18.5 12 16.5 15")
     val Mute = FpIcon("M4 9 H8 L13 5 V19 L8 15 H4 Z M16 9.5 L21 14.5 M21 9.5 L16 14.5")

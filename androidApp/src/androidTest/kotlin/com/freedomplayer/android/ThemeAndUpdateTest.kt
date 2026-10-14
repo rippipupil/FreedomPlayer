@@ -34,9 +34,15 @@ class ThemeAndUpdateTest {
         val art = ThemedArtwork.compose(cover)
         assertEquals(ThemedArtwork.SIZE, art.width)
         assertEquals(ThemedArtwork.SIZE, art.height)
-        assertTrue("las esquinas son la noche del tema", isDark(art.getPixel(4, ThemedArtwork.SIZE / 2)))
-        val middle = art.getPixel(ThemedArtwork.SIZE / 2, (ThemedArtwork.SIZE * 0.45f).toInt())
-        assertTrue("en medio, la carátula", Color.green(middle) > 150 && Color.red(middle) < 80)
+        val s = ThemedArtwork.SIZE
+        assertTrue("a la izquierda (donde va el texto), la noche del tema", isDark(art.getPixel(4, s / 2)))
+        fun green(x: Float, y: Float) = art.getPixel((s * x).toInt(), (s * y).toInt()).let { Color.green(it) > 150 && Color.red(it) < 80 }
+        // La carátula (más ancha que alta) va entera a la derecha: de 0,53 a 0,95 de ancho y 0,28 de alto, centrada.
+        assertTrue("en su sitio, la carátula", green(0.74f, 0.5f))
+        assertTrue("entera: su borde izquierdo", green(0.54f, 0.5f))
+        assertTrue("entera: su borde derecho", green(0.94f, 0.5f))
+        assertTrue("entera: arriba y abajo", green(0.74f, 0.37f) && green(0.74f, 0.63f))
+        assertTrue("dentro de la franja que enseña la tarjeta ancha", !green(0.74f, 0.2f) && !green(0.74f, 0.8f))
     }
 
     @Test
@@ -44,7 +50,7 @@ class ThemeAndUpdateTest {
         val loader = ThemedBitmapLoader(DataSourceBitmapLoader(context))
         val art = loader.loadBitmap(ThemedArtwork.PLACEHOLDER).get(10, TimeUnit.SECONDS)
         assertEquals(ThemedArtwork.SIZE, art.width)
-        assertFalse(isDark(art.getPixel(ThemedArtwork.SIZE / 2, (ThemedArtwork.SIZE * 0.45f).toInt())))
+        assertFalse(isDark(art.getPixel((ThemedArtwork.SIZE * 0.74f).toInt(), ThemedArtwork.SIZE / 2)))
     }
 
     @Test

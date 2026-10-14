@@ -24,16 +24,26 @@ import kotlin.random.Random
 
 /**
  * La imagen que ven la notificación, el panel de reproducción y la pantalla de bloqueo. En
- * Android 13+ el sistema pinta los mandos él mismo y saca los colores de esa imagen, así que en
- * vez de la carátula sola se le da la carátula montada en el tema: el callejón de noche, la
- * farola rosa, el marco de neón y un fantasmita. Así la tarjeta del sistema queda con los
- * colores de FreedomPlayer y no con los de cada portada.
+ * Android 13+ el sistema la pone de fondo de su tarjeta (recortada a lo ancho, por el centro) y
+ * saca de ella sus colores. Por eso se le da la carátula montada en el tema:
+ *
+ * - de fondo, la propia carátula a todo lo ancho, oscurecida con la noche del tema (más a la
+ *   izquierda, donde el sistema escribe el título);
+ * - el halo de la farola, la ✦ y el callejón abajo;
+ * - y la carátula **entera** (sin recortar, aunque no sea cuadrada, como las miniaturas de los
+ *   vídeos), con el marco de neón desplazado y el fantasmita asomando por fuera.
+ *
+ * La carátula va a la derecha y centrada en vertical, dentro de la franja que se ve en la
+ * tarjeta ancha; el icono pequeño (el fantasma de arriba a la izquierda) lo pone el sistema.
  */
 object ThemedArtwork {
     /** Para las canciones sin carátula: igualmente se manda la imagen del tema. */
     val PLACEHOLDER: Uri = Uri.parse("freedomplayer://artwork/sin-caratula")
 
     const val SIZE = 720
+
+    /** La carátula ocupa este tanto del lado, para caber entera en la franja de la tarjeta ancha (≈ 1,9 : 1). */
+    private const val COVER = 0.42f
 
     private val night = Color.parseColor("#110C1B")
     private val nightTop = Color.parseColor("#1E1630")
@@ -50,51 +60,76 @@ object ThemedArtwork {
         val c = Canvas(out)
         val s = size.toFloat()
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val smooth = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
-        // Noche, de arriba a abajo.
-        paint.shader = LinearGradient(0f, 0f, 0f, s, nightTop, nightDeep, Shader.TileMode.CLAMP)
+        // Fondo: la carátula a todo lo ancho (o la noche, sin carátula)…
+        if (cover != null) {
+            c.drawBitmap(cover, centerCrop(cover), RectF(0f, 0f, s, s), smooth)
+        } else {
+            paint.shader = LinearGradient(0f, 0f, 0f, s, nightTop, nightDeep, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, s, s, paint)
+            paint.shader = null
+        }
+        // …oscurecida con la noche: más a la izquierda, donde va el texto del sistema.
+        paint.shader = LinearGradient(0f, 0f, s, 0f, withAlpha(nightDeep, 238), withAlpha(night, 170), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, s, s, paint)
+        paint.shader = LinearGradient(0f, 0f, 0f, s, intArrayOf(withAlpha(nightTop, 90), Color.TRANSPARENT, withAlpha(nightDeep, 200)), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, s, s, paint)
         paint.shader = null
 
         // El halo de la farola, arriba a la derecha.
-        val lampX = s * 0.80f
-        val lampY = s * 0.07f
-        paint.shader = RadialGradient(lampX, lampY, s * 0.62f, intArrayOf(withAlpha(neon, 120), withAlpha(neon, 34), Color.TRANSPARENT), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        val lampX = s * 0.86f
+        val lampY = s * 0.06f
+        paint.shader = RadialGradient(lampX, lampY, s * 0.6f, intArrayOf(withAlpha(neon, 110), withAlpha(neon, 30), Color.TRANSPARENT), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, s, s, paint)
         paint.shader = null
         paint.color = Color.parseColor("#FFE3F1")
-        c.drawCircle(lampX, lampY, s * 0.022f, paint)
+        c.drawCircle(lampX, lampY, s * 0.02f, paint)
 
         skyline(c, s, paint)
 
-        // La carátula, con las esquinas cortadas y el marco de neón desplazado (como en el reproductor).
-        val side = s * 0.60f
-        val left = (s - side) / 2f
-        val top = s * 0.15f
-        val cut = side * 0.08f
-        val shift = s * 0.028f
+        // La carátula entera, a la derecha y centrada en vertical.
+        val box = s * COVER
+        val boxLeft = s * 0.95f - box
+        val boxTop = (s - box) / 2f
+        val art = if (cover != null) fit(cover, boxLeft, boxTop, box) else RectF(boxLeft, boxTop, boxLeft + box, boxTop + box)
+        val shift = s * 0.022f
+        // Sombra y marco de neón desplazado, detrás.
+        paint.color = withAlpha(Color.BLACK, 120)
+        c.drawRect(art.left + s * 0.01f, art.top + s * 0.014f, art.right + s * 0.01f, art.bottom + s * 0.014f, paint)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = s * 0.005f
-        paint.color = withAlpha(neon, 170)
-        c.drawPath(cutCorners(left + shift, top + shift, side, cut), paint)
+        paint.color = withAlpha(neon, 190)
+        c.drawRect(art.left + shift, art.top + shift, art.right + shift, art.bottom + shift, paint)
         paint.style = Paint.Style.FILL
-
-        val coverPath = cutCorners(left, top, side, cut)
-        c.save()
-        c.clipPath(coverPath)
         if (cover != null) {
-            c.drawBitmap(cover, centerCrop(cover), RectF(left, top, left + side, top + side), Paint(Paint.FILTER_BITMAP_FLAG))
+            c.drawBitmap(cover, null, art, smooth)
         } else {
             paint.color = coverFallback
-            c.drawRect(left, top, left + side, top + side, paint)
-            ghost(c, left + side * 0.25f, top + side * 0.22f, side * 0.5f, paint)
+            c.drawRect(art, paint)
+            ghost(c, art.left + art.width() * 0.25f, art.top + art.height() * 0.22f, art.width() * 0.5f, paint)
         }
-        c.restore()
+        // Un filo rosa alrededor, sin tapar nada de la carátula.
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = s * 0.004f
+        paint.color = withAlpha(ghostPink, 150)
+        c.drawRect(art.left - s * 0.002f, art.top - s * 0.002f, art.right + s * 0.002f, art.bottom + s * 0.002f, paint)
+        paint.style = Paint.Style.FILL
 
-        // Brillo rosa bajo la carátula y el fantasmita asomando por la esquina.
-        sparkle(c, left - s * 0.035f, top + s * 0.02f, s * 0.045f, paint)
-        if (cover != null) ghost(c, left + side - s * 0.075f, top - s * 0.075f, s * 0.15f, paint)
+        // La ✦ arriba a la izquierda de la carátula y el fantasmita asomando por abajo, fuera de ella.
+        sparkle(c, art.left - s * 0.045f, art.top + s * 0.01f, s * 0.035f, paint)
+        if (cover != null) ghost(c, art.left - s * 0.13f, art.bottom - s * 0.11f, s * 0.12f, paint)
         return out
+    }
+
+    /** Dónde va [b] entera (sin recortar) dentro del cuadrado de lado [side] en ([x], [y]), centrada. */
+    private fun fit(b: Bitmap, x: Float, y: Float, side: Float): RectF {
+        val k = minOf(side / b.width, side / b.height)
+        val w = b.width * k
+        val h = b.height * k
+        val left = x + (side - w) / 2f
+        val top = y + (side - h) / 2f
+        return RectF(left, top, left + w, top + h)
     }
 
     private fun skyline(c: Canvas, s: Float, paint: Paint) {
@@ -125,17 +160,6 @@ object ThemedArtwork {
         }
         paint.color = night
         c.drawRect(0f, base - s * 0.012f, s, base, paint)
-    }
-
-    /** Cuadrado con las esquinas de arriba-izquierda y abajo-derecha cortadas. */
-    private fun cutCorners(x: Float, y: Float, side: Float, cut: Float) = Path().apply {
-        moveTo(x + cut, y)
-        lineTo(x + side, y)
-        lineTo(x + side, y + side - cut)
-        lineTo(x + side - cut, y + side)
-        lineTo(x, y + side)
-        lineTo(x, y + cut)
-        close()
     }
 
     /** Recorte centrado de la carátula para llenar un cuadrado. */

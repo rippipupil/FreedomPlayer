@@ -496,6 +496,9 @@ class AppState(
         private set
     var panel by mutableStateOf<Side?>(null)
     var playerOpen by mutableStateOf(false)
+
+    /** La letra a pantalla completa, encima del reproductor. */
+    var lyricsOpen by mutableStateOf(false)
     var sheet by mutableStateOf<Sheet?>(null)
     var prompt by mutableStateOf<Prompt?>(null)
 
@@ -506,6 +509,7 @@ class AppState(
         panel = null
         sheet = null
         playerOpen = false
+        lyricsOpen = false
         val from = screen
         if (target == from) return
         navForward = target != Screen.Home
@@ -525,6 +529,7 @@ class AppState(
             prompt != null -> prompt = null
             sheet != null -> sheet = null
             panel != null -> panel = null
+            lyricsOpen -> lyricsOpen = false
             playerOpen -> playerOpen = false
             history.size > 1 -> {
                 val from = history.removeAt(history.lastIndex)

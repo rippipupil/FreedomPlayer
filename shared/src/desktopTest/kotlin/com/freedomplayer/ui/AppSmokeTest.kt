@@ -235,6 +235,13 @@ class AppSmokeTest {
         settle()
         state.currentSong?.let { state.rate(it.id, 7) }
         settle()
+        // La letra a pantalla completa: se abre y «atrás» la cierra sin cerrar el reproductor.
+        state.lyricsOpen = true
+        settle()
+        state.back()
+        settle()
+        assertFalse(state.lyricsOpen)
+        assertTrue(state.playerOpen)
         if (!state.isPlaying) state.togglePlay()
         settle(1_500)
         state.next()

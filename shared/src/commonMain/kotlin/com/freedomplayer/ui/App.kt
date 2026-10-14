@@ -99,7 +99,7 @@ fun App(
 }
 
 /** Para que una capa de encima (el reproductor) no deje pasar los toques a lo de debajo. */
-private fun Modifier.blockTouchesBelow(): Modifier = this.pointerInput(Unit) {
+internal fun Modifier.blockTouchesBelow(): Modifier = this.pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
             awaitPointerEvent()

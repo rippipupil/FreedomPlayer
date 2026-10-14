@@ -1,6 +1,7 @@
 package com.freedomplayer.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -36,11 +37,15 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +57,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
@@ -70,6 +78,7 @@ import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.Prompt
 import com.freedomplayer.ui.Sheet
+import com.freedomplayer.ui.blockTouchesBelow
 import com.freedomplayer.ui.components.AddButton
 import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Chakra
@@ -77,8 +86,8 @@ import com.freedomplayer.ui.components.CoverImage
 import com.freedomplayer.ui.components.FpIcon
 import com.freedomplayer.ui.components.FpIcons
 import com.freedomplayer.ui.components.Ghost
-import com.freedomplayer.ui.components.InLibraryBadge
 import com.freedomplayer.ui.components.IconButton
+import com.freedomplayer.ui.components.InLibraryBadge
 import com.freedomplayer.ui.components.LocalReduceMotion
 import com.freedomplayer.ui.components.LocalScreenInsets
 import com.freedomplayer.ui.components.Mood
@@ -100,6 +109,7 @@ import com.freedomplayer.ui.components.nowPositionMs
 import com.freedomplayer.ui.components.statusBarHeight
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
+import kotlinx.coroutines.delay
 
 /**
  * El reproductor: carátula grande, datos y nota (se puntúa aquí mismo), barra de 48 segmentos,
@@ -114,7 +124,62 @@ fun PlayerScreen(state: AppState, modifier: Modifier = Modifier) {
     val p = state.preview
     val song = if (p != null) Song(p.id, p.title, p.artist, p.durationSec, p.coverColor, cover = p.cover) else state.currentSong ?: return
     val preview = p != null
-    if (LocalWide.current) PlayerWide(state, song, preview, modifier) else PlayerMobile(state, song, preview, modifier)
+    // Al cerrarse el reproductor, la letra a pantalla completa se cierra con él.
+    DisposableEffect(Unit) { onDispose { state.lyricsOpen = false } }
+    val reduce = LocalReduceMotion.current
+    Box(modifier) {
+        if (LocalWide.current) PlayerWide(state, song, preview, Modifier) else PlayerMobile(state, song, preview, Modifier)
+        AnimatedVisibility(
+            visible = state.lyricsOpen && !preview,
+            enter = if (reduce) fadeIn(tween(Motion.QUICK)) else fadeIn(tween(Motion.STANDARD)) + scaleIn(tween(Motion.STANDARD, easing = Motion.Standard), initialScale = 0.96f),
+            exit = if (reduce) fadeOut(tween(Motion.QUICK)) else fadeOut(tween(Motion.QUICK)) + scaleOut(tween(Motion.QUICK), targetScale = 0.98f),
+        ) {
+            LyricsFull(state, song)
+        }
+    }
+}
+
+/**
+ * La letra a pantalla completa: el callejón con el color de la canción, título y artista, la
+ * letra grande (se mueve a mano y vuelve a seguir sola), la barra y reproducir/pausar.
+ */
+@Composable
+private fun LyricsFull(state: AppState, song: Song) {
+    val wide = LocalWide.current
+    val top = if (wide) 18.dp else statusBarHeight() + 12.dp
+    val bottom = if (wide) 20.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp
+    val side = if (wide) LocalScreenInsets.current.wideSide else 28.dp
+    Box(Modifier.fillMaxSize().background(Fp.Night).blockTouchesBelow()) {
+        AlleyBackground(Modifier.fillMaxSize(), wide = wide, flicker = false, tint = Color(song.coverColor))
+        Column(
+            Modifier.fillMaxSize().padding(start = side, end = side, top = top, bottom = bottom),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(
+                    FpIcons.ChevronDown,
+                    "Cerrar la letra",
+                    { state.lyricsOpen = false },
+                    Modifier.offset(x = (-10).dp),
+                    iconSize = 22.dp,
+                    color = Fp.Bone,
+                )
+                Column(Modifier.weight(1f)) {
+                    Nunito(song.title, if (wide) 22.sp else 18.sp, weight = FontWeight.ExtraBold, maxLines = 1)
+                    Nunito(song.artist, 13.sp, color = Fp.Mist, maxLines = 1)
+                }
+                PlayPauseButton(state.isPlaying, { state.togglePlay() }, size = 48.dp, cutSize = 11.dp, iconSize = 18.dp)
+            }
+            LyricsBox(
+                state,
+                song,
+                visibleLines = if (wide) 10 else 8,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                big = true,
+            )
+            Progress(state, segments = if (wide) 60 else 40)
+        }
+    }
 }
 
 /** «SONANDO · NOCHES DE NEÓN» (o «VISTA PREVIA») con ⌄ para cerrar y ⋯ para más opciones. */
@@ -175,7 +240,14 @@ private fun PlayerMobile(state: AppState, song: Song, preview: Boolean, modifier
                 }
                 Progress(state, segments = 48)
                 Controls(state, preview, big = true)
-                LyricsBox(state, song, visibleLines = 4, modifier = Modifier.weight(1f).fillMaxWidth(), preview = preview)
+                LyricsBox(
+                    state,
+                    song,
+                    visibleLines = 4,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    preview = preview,
+                    onExpand = { state.lyricsOpen = true },
+                )
                 if (!preview) Tools(state)
             }
         }
@@ -204,7 +276,15 @@ private fun PlayerWide(state: AppState, song: Song, preview: Boolean, modifier: 
                     SongInfo(state, song, preview, Modifier.padding(top = 8.dp))
                     if (!preview) Tools(state)
                 }
-                LyricsBox(state, song, visibleLines = 9, modifier = Modifier.weight(1f).fillMaxHeight(), big = true, preview = preview)
+                LyricsBox(
+                    state,
+                    song,
+                    visibleLines = 9,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    big = true,
+                    preview = preview,
+                    onExpand = { state.lyricsOpen = true },
+                )
             }
         }
     }
@@ -437,9 +517,19 @@ private fun Controls(state: AppState, preview: Boolean, big: Boolean) {
 /**
  * La letra (LRCLIB, guardada para escucharla sin conexión): la línea que suena, grande y blanca;
  * las anteriores apagadas y las siguientes en gris violeta. Al avanzar, las líneas suben deslizando.
+ * Se puede mover a mano (con el dedo o la rueda): mientras tanto no sigue a la canción, y vuelve
+ * a seguirla [FOLLOW_AGAIN_MS] después de soltar. Con [onExpand], «⤢» la abre a pantalla completa.
  */
 @Composable
-private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: Modifier = Modifier, big: Boolean = false, preview: Boolean = false) {
+private fun LyricsBox(
+    state: AppState,
+    song: Song,
+    visibleLines: Int,
+    modifier: Modifier = Modifier,
+    big: Boolean = false,
+    preview: Boolean = false,
+    onExpand: (() -> Unit)? = null,
+) {
     // La vista previa no tiene letra guardada: se busca al añadirla.
     val data = if (preview) null else state.lyricsFor(song.id)
     val lines = remember(data) { data?.lines().orEmpty() }
@@ -458,9 +548,22 @@ private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: 
             .padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Chakra("LETRA", 11.sp, color = Fp.Pink, spacing = 3.sp)
-            Chakra(if (lines.isEmpty()) "LRCLIB" else "LRCLIB · OFFLINE", 11.sp, color = Fp.MistDim, spacing = 3.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Chakra(if (lines.isEmpty()) "LRCLIB" else "LRCLIB · OFFLINE", 11.sp, color = Fp.MistDim, spacing = 3.sp)
+                if (onExpand != null && lines.isNotEmpty()) {
+                    IconButton(
+                        FpIcons.Expand,
+                        "Ver la letra a pantalla completa",
+                        onExpand,
+                        Modifier.offset(x = 8.dp),
+                        size = 36.dp,
+                        iconSize = 16.dp,
+                        color = Fp.Pink,
+                    )
+                }
+            }
         }
         if (lines.isEmpty()) {
             NoLyrics(instrumental = data?.instrumental == true, online = state.online, preview = preview)
@@ -468,12 +571,39 @@ private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: 
             val scroll = rememberScrollState()
             val tops = remember(song.id) { mutableStateMapOf<Int, Int>() }
             val target = tops[start]
-            LaunchedEffect(start, target) {
+            // Mientras la persona la mueve (dedo o rueda), deja de seguir a la canción.
+            var follow by remember { mutableStateOf(true) }
+            var touched by remember { mutableIntStateOf(0) }
+            LaunchedEffect(song.id) { follow = true }
+            LaunchedEffect(touched) {
+                if (touched == 0) return@LaunchedEffect
+                delay(FOLLOW_AGAIN_MS)
+                follow = true
+            }
+            LaunchedEffect(start, target, follow) {
                 val y = target ?: return@LaunchedEffect
+                if (!follow) return@LaunchedEffect
                 if (reduce) scroll.scrollTo(y) else scroll.animateScrollTo(y, tween(Motion.SLOW, easing = Motion.Standard))
             }
             Column(
-                Modifier.weight(1f).fillMaxWidth().clipToBounds().verticalScroll(scroll, enabled = false),
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val e = awaitPointerEvent(PointerEventPass.Initial)
+                                val byHand = e.type == PointerEventType.Scroll || e.type == PointerEventType.Press ||
+                                    (e.type == PointerEventType.Move && e.changes.any { it.pressed })
+                                if (byHand) {
+                                    follow = false
+                                    touched++
+                                }
+                            }
+                        }
+                    }
+                    .verticalScroll(scroll),
                 verticalArrangement = Arrangement.spacedBy(if (big) 12.dp else 8.dp),
             ) {
                 lines.forEachIndexed { i, line ->
@@ -495,6 +625,9 @@ private fun LyricsBox(state: AppState, song: Song, visibleLines: Int, modifier: 
         }
     }
 }
+
+/** Después de mover la letra a mano, vuelve a seguir a la canción pasado este tiempo. */
+private const val FOLLOW_AGAIN_MS = 4_000L
 
 private enum class LineState { Past, Now, Next, Plain }
 
