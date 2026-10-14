@@ -28,7 +28,7 @@ val buildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toI
 val appVersion = providers.environmentVariable("FP_VERSION").orNull
     ?.substringBefore('-')
     ?.takeIf { Regex("""\d+\.\d+\.\d+""").matches(it) }
-    ?: "0.5.$buildNumber"
+    ?: "0.6.$buildNumber"
 
 compose.desktop {
     application {
