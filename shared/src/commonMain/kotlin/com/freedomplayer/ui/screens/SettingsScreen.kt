@@ -55,13 +55,13 @@ import com.freedomplayer.ui.components.screenPadding
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
 
+/** Toques en «Acerca de» que enseñan «PROBAR ESTADOS». */
+private const val TEST_TOOLS_TAPS = 5
+
 /**
  * Ajustes (sencilla): reproducción, descargas, el PC, sincronización, pruebas de estados
  * y «Acerca de». Lo que aún no existe avisa de que llega en una próxima versión.
  */
-/** Toques en «Acerca de» que enseñan «PROBAR ESTADOS». */
-private const val TEST_TOOLS_TAPS = 5
-
 @Composable
 fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
     val wide = LocalWide.current
