@@ -4,6 +4,7 @@
 #   android: linux-arm64, linux-arm y linux-amd64 → androidApp/src/main/jniLibs/<abi>/libsyncthing.so
 #            (Android los saca a la carpeta de bibliotecas nativas, desde donde se pueden ejecutar)
 #   windows: windows-amd64 → desktopApp/resources/windows/syncthing.exe
+#   linux:   linux-amd64 → build/syncthing/syncthing (solo para las pruebas de la CI)
 set -euo pipefail
 VERSION="${SYNCTHING_VERSION:-v2.1.6}"
 BASE="https://github.com/syncthing/syncthing/releases/download/$VERSION"
@@ -50,8 +51,17 @@ with zipfile.ZipFile(sys.argv[1]) as z, z.open(sys.argv[2]) as src, open(sys.arg
     shutil.copyfileobj(src, dst)
 PY
     ;;
+  linux)
+    # Solo para las pruebas (dos Syncthing de verdad en el mismo equipo): build/syncthing/syncthing
+    name="syncthing-linux-amd64-$VERSION"
+    fetch "$name.tar.gz"
+    tar -xzf "$WORK/$name.tar.gz" -C "$WORK" "$name/syncthing"
+    mkdir -p build/syncthing
+    install -m 755 "$WORK/$name/syncthing" build/syncthing/syncthing
+    if [ -n "${GITHUB_ENV:-}" ]; then echo "SYNCTHING_BIN=$PWD/build/syncthing/syncthing" >> "$GITHUB_ENV"; fi
+    ;;
   *)
-    echo "Uso: syncthing.sh android|windows" >&2
+    echo "Uso: syncthing.sh android|windows|linux" >&2
     exit 2
     ;;
 esac

@@ -1747,7 +1747,12 @@ class AppState(
                 if (backend.showsQr) sync.qr = backend.qr(id)
                 val peer = store.setting(SYNC_PEER)
                 sync.peer = peer
-                if (peer == null) sync.phase = SyncPhase.Waiting else watchSync(backend, peer)
+                if (peer != null) {
+                    watchSync(backend, peer)
+                } else {
+                    sync.phase = SyncPhase.Waiting
+                    if (backend.showsQr) awaitPeer(backend)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1766,27 +1771,47 @@ class AppState(
     /** Vincula el dispositivo del código leído (o escrito a mano). */
     fun pairWith(text: String) {
         val backend = services.sync ?: return
-        val s = scope ?: return
         val id = SyncIds.device(text)
         when {
             id == null -> sync.error = "Ese código no es el de FreedomPlayer en el PC. Escanea el QR de «Vincular con el móvil»."
             id == sync.myId -> sync.error = "Ese es el código de este mismo dispositivo."
-            else -> {
-                sync.error = null
-                sync.phase = SyncPhase.Pairing
-                s.launch {
-                    try {
-                        backend.pair(id, if (backend.showsQr) "Móvil" else "PC")
-                        store.setSetting(SYNC_PEER, id)
-                        sync.peer = id
-                        watchSync(backend, id)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        sync.phase = SyncPhase.Failed
-                        sync.error = "No se ha podido vincular. Comprueba que el PC tiene abierto «Vincular con el móvil» y que los dos estáis en la misma red."
-                    }
+            else -> pairDevice(backend, id)
+        }
+    }
+
+    private fun pairDevice(backend: SyncBackend, id: String) {
+        val s = scope ?: return
+        sync.error = null
+        sync.phase = SyncPhase.Pairing
+        s.launch {
+            try {
+                backend.pair(id, if (backend.showsQr) "Móvil" else "PC")
+                store.setSetting(SYNC_PEER, id)
+                sync.peer = id
+                watchSync(backend, id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                sync.phase = SyncPhase.Failed
+                sync.error = "No se ha podido vincular. Comprueba que el PC tiene abierto «Vincular con el móvil» y que los dos estáis en la misma red."
+            }
+        }
+    }
+
+    /**
+     * El PC, con su QR a la vista: cuando el móvil lo escanea, intenta conectar; mientras esta
+     * pantalla espera, se acepta a ese móvil (y solo entonces).
+     */
+    private fun awaitPeer(backend: SyncBackend) {
+        syncWatch?.cancel()
+        syncWatch = scope?.launch {
+            while (isActive && sync.phase == SyncPhase.Waiting) {
+                val asking = runCatching { backend.pendingDevice() }.getOrNull()
+                if (asking != null && asking != sync.myId) {
+                    pairDevice(backend, asking)
+                    break
                 }
+                delay(2_000)
             }
         }
     }

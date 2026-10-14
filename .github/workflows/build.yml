@@ -42,6 +42,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      # Dos Syncthing de verdad se vinculan y se pasan música y biblioteca (SyncthingRealTest).
+      - name: Syncthing para las pruebas (binario oficial de Linux)
+        run: bash .github/scripts/syncthing.sh linux
+
       - name: Pruebas (lógica e interfaz)
         run: ./gradlew -Pfp.android=false :shared:desktopTest 2>&1 | tee build.log
 

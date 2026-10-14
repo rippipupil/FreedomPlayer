@@ -96,12 +96,24 @@ class SyncthingApi(
         return all.filter { (_, v) -> ((v as? JsonObject)?.get("connected") as? JsonPrimitive)?.booleanOrNull == true }.keys
     }
 
-    /** Cuántos archivos de [folderId] tiene ya [device] de los que debería tener. */
-    suspend fun completion(folderId: String, device: String): SyncProgress {
-        val o = get("/rest/db/completion?folder=$folderId&device=$device")
+    /** Cuántos archivos de [folderId] tiene ya [device] (sin él, este dispositivo) de los que debería tener. */
+    suspend fun completion(folderId: String, device: String? = null): SyncProgress {
+        val o = get("/rest/db/completion?folder=$folderId" + (device?.let { "&device=$it" } ?: ""))
         val total = (o["globalItems"] as? JsonPrimitive)?.longOrNull ?: 0
         val need = (o["needItems"] as? JsonPrimitive)?.longOrNull ?: 0
         return SyncProgress((total - need).coerceAtLeast(0), total)
+    }
+
+    /** Los dispositivos sin vincular que han intentado conectar: en el PC, el móvil que acaba de escanear su QR. */
+    suspend fun pendingDevices(): Set<String> =
+        get("/rest/cluster/pending/devices").keys.mapNotNull { SyncthingIds.device(it) }.toSet()
+
+    /** Cambia solo los campos dados de la configuración (opciones, un dispositivo…). */
+    internal suspend fun patch(path: String, body: JsonObject) = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(base + path).header("X-API-Key", apiKey).patch(body.toString().toRequestBody(jsonType)).build()
+        client.newCall(request).execute().use { r ->
+            if (!r.isSuccessful) throw IOException("Syncthing: HTTP ${r.code} en $path")
+        }
     }
 
     private suspend fun get(path: String): JsonObject = withContext(Dispatchers.IO) {
@@ -137,8 +149,17 @@ class SyncthingPairing(private val api: SyncthingApi, private val music: File, p
         api.shareFolder(SyncthingApi.LIBRARY_FOLDER, "FreedomPlayer · biblioteca", library.absolutePath, listOf(id))
     }
 
-    /** Lo que lleva el otro dispositivo de la música (para «Sincronizando con el PC 12 de 20»). */
-    suspend fun progress(otherId: String): SyncProgress = api.completion(SyncthingApi.MUSIC_FOLDER, otherId)
+    /**
+     * «Sincronizando con el PC 12 de 20»: de todas las canciones (las de los dos), cuántas están ya
+     * en los dos. Cuenta lo que le falta a este dispositivo y lo que le falta al otro.
+     */
+    suspend fun progress(otherId: String): SyncProgress {
+        val here = api.completion(SyncthingApi.MUSIC_FOLDER)
+        val there = api.completion(SyncthingApi.MUSIC_FOLDER, otherId)
+        val total = maxOf(here.total, there.total)
+        val missing = (here.total - here.done) + (there.total - there.done)
+        return SyncProgress((total - missing).coerceAtLeast(0), total)
+    }
 }
 
 /** Cómo se arranca Syncthing: solo en 127.0.0.1, con la clave generada aquí y sin abrir el navegador. */
@@ -175,6 +196,9 @@ class SyncthingBackend(
     private var process: Process? = null
     private var api: SyncthingApi? = null
     private var myId: String? = null
+
+    /** La API del Syncthing que está en marcha (para las pruebas con dos de verdad). */
+    internal val restApi: SyncthingApi? get() = api
 
     override suspend fun start(): String = lock.withLock {
         api?.let { running -> if (running.ping()) return@withLock running.myId() }
@@ -213,9 +237,11 @@ class SyncthingBackend(
     override suspend fun progress(otherId: String): SyncCount? {
         val running = api ?: return null
         if (otherId !in running.connected()) return null
-        val p = running.completion(SyncthingApi.MUSIC_FOLDER, otherId)
+        val p = SyncthingPairing(running, music, library).progress(otherId)
         return SyncCount(p.done, p.total)
     }
+
+    override suspend fun pendingDevice(): String? = api?.pendingDevices()?.firstOrNull()
 
     override suspend fun exchange(local: LibraryData): LibraryData? {
         val device = myId ?: return null

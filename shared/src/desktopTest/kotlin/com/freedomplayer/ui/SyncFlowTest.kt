@@ -32,6 +32,7 @@ class SyncFlowTest {
         var failStart = false
         val paired = mutableListOf<Pair<String, String>>()
         var count: SyncCount? = SyncCount(12, 20)
+        var asking: String? = null
         var incoming: LibraryData? = null
         val sent = mutableListOf<LibraryData>()
 
@@ -45,6 +46,8 @@ class SyncFlowTest {
         override suspend fun pair(otherId: String, otherName: String) {
             paired += otherId to otherName
         }
+
+        override suspend fun pendingDevice(): String? = asking
 
         override suspend fun progress(otherId: String): SyncCount? = count
 
@@ -83,9 +86,14 @@ class SyncFlowTest {
             openSync()
             assertEquals(Screen.Sync, screen)
             waitFor("esperando al móvil") { sync.phase == SyncPhase.Waiting }
+            assertEquals(pcId, sync.myId)
+            assertNotNull(sync.qr, "el PC enseña su QR")
+            assertTrue(pc.paired.isEmpty())
+            // El móvil lo escanea e intenta conectar: el PC, que lo está esperando, lo acepta.
+            pc.asking = phoneId
+            waitFor("vinculado con el móvil") { sync.peer == phoneId && sync.phase == SyncPhase.Syncing }
         }
-        assertEquals(pcId, pcApp.sync.myId)
-        assertNotNull(pcApp.sync.qr, "el PC enseña su QR")
+        assertEquals(listOf(phoneId to "Móvil"), pc.paired)
 
         val phone = FakeSync(showsQr = false, id = phoneId)
         val phoneApp = app(phone)

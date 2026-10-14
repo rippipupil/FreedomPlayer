@@ -54,6 +54,9 @@ interface SyncBackend {
     /** Vincula el otro dispositivo y comparte con él la música y la biblioteca. */
     suspend fun pair(otherId: String, otherName: String)
 
+    /** En el PC, con su QR a la vista: el móvil que lo acaba de escanear y pide vincularse (su id). */
+    suspend fun pendingDevice(): String?
+
     /** Lo que lleva sincronizado con [otherId], o null si ahora no están conectados. */
     suspend fun progress(otherId: String): SyncCount?
 

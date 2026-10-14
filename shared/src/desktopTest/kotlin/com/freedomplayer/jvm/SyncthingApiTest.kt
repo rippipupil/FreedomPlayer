@@ -25,7 +25,11 @@ class SyncthingApiTest {
                 ex.requestURI.path == "/rest/system/ping" -> 200 to """{"ping":"pong"}"""
                 ex.requestURI.path == "/rest/system/status" -> 200 to """{"myID":"$pc","uptime":3}"""
                 ex.requestURI.path == "/rest/system/connections" -> 200 to """{"connections":{"$pc":{"connected":true},"OTRO":{"connected":false}}}"""
-                ex.requestURI.path == "/rest/db/completion" -> 200 to """{"completion":60,"globalItems":20,"needItems":8}"""
+                // A este dispositivo le faltan 5 canciones de 20 y al otro (device=…), 3.
+                ex.requestURI.path == "/rest/db/completion" ->
+                    200 to (if ("device=" in ex.requestURI.query.orEmpty()) """{"completion":85,"globalItems":20,"needItems":3}""" else """{"completion":75,"globalItems":20,"needItems":5}""")
+                ex.requestURI.path == "/rest/cluster/pending/devices" ->
+                    200 to """{"$pc":{"time":"2026-10-14T05:00:00Z","name":"Pixel","address":"192.168.1.20:22000"},"no-es-un-id":{}}"""
                 ex.requestMethod == "PUT" -> 200 to ""
                 else -> 404 to "no"
             }
@@ -47,7 +51,11 @@ class SyncthingApiTest {
             assertTrue(api.ping())
             assertEquals(pc, api.myId())
             assertEquals(setOf(pc), api.connected())
-            assertEquals(SyncProgress(12, 20), api.completion(SyncthingApi.MUSIC_FOLDER, pc))
+            assertEquals(SyncProgress(17, 20), api.completion(SyncthingApi.MUSIC_FOLDER, pc))
+            assertEquals(SyncProgress(15, 20), api.completion(SyncthingApi.MUSIC_FOLDER))
+            assertEquals(setOf(pc), api.pendingDevices())
+            // «12 de 20»: lo que le falta a cada uno.
+            assertEquals(SyncProgress(12, 20), SyncthingPairing(api, File("/m"), File("/b")).progress(pc))
             val wrong = SyncthingApi(base, "otra")
             assertTrue(!wrong.ping())
             assertFailsWith<java.io.IOException> { wrong.myId() }
