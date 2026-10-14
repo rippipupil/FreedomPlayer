@@ -96,7 +96,7 @@ fun NavRow(state: AppState, modifier: Modifier = Modifier) {
             val inset = if (wide) 14.dp else 12.dp
             Box(
                 Modifier
-                    .size(if (wide) 52.dp else 50.dp, if (wide) 48.dp else 50.dp)
+                    .size(if (wide) 52.dp else 50.dp, if (wide) 48.dp else 52.dp)
                     .fpClickable(role = Role.Tab) { state.go(entry.screen) }
                     .semantics {
                         contentDescription = entry.label
@@ -192,7 +192,7 @@ fun ColumnScope.PlaylistsPanelContent(state: AppState) {
     val wide = LocalWide.current
     NavRow(state)
     PanelTitle("Playlists", state.playlists.size)
-    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) 12.dp else 10.dp)) {
+    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) 12.dp else 8.dp)) {
         items(state.playlists, key = { it.id }) { p ->
             PlaylistRow(p, onClick = { state.go(Screen.PlaylistDetail(p.id)) }, modifier = itemMotion(), covers = state.coversOf(p))
         }

@@ -290,7 +290,7 @@ private fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Mod
                     enabled = state.online,
                 ) { state.togglePreview(r) },
         ) {
-            Nunito(r.title, 14.sp, color = if (previewing) Fp.NeonSoft else Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
+            Nunito(r.title, 14.sp, color = Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
             SubText(listOfNotNull(r.artist.ifBlank { null }, r.album, formatTime(r.durationSec)).joinToString(" · "))
         }
         if (inLibrary) {
@@ -492,7 +492,7 @@ private fun VideoRow(state: AppState, v: SearchResult, modifier: Modifier = Modi
                     enabled = state.online,
                 ) { state.togglePreview(v) },
         ) {
-            Nunito(v.title, 13.sp, color = if (previewing) Fp.NeonSoft else Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 2, lineHeight = 17.sp)
+            Nunito(v.title, 13.sp, color = Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 2, lineHeight = 17.sp)
             SubText(v.note ?: v.artist)
         }
         AddButton(state.addStateFor(v), "Añadir vídeo como canción", onClick = { state.requestAdd(AddTarget.Result(v)) })

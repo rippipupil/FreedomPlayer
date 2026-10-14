@@ -264,7 +264,6 @@ private fun GeneralRow(
         fpTween(Motion.SLOW),
         label = "rankBg",
     )
-    val playing = state.currentSong?.id == song.id
     Column(modifier.fillMaxWidth().highlight(edge, bg)) {
         Row(
             Modifier
@@ -288,7 +287,7 @@ private fun GeneralRow(
                 }
             }
             Column(Modifier.weight(1f)) {
-                Nunito(song.title, 14.sp, color = if (playing) Fp.NeonSoft else Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
+                Nunito(song.title, 14.sp, color = Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
                 Row(
                     Modifier
                         .padding(top = 2.dp)

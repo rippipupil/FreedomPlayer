@@ -176,7 +176,7 @@ private fun HomeMobile(state: AppState, modifier: Modifier) {
             HomeHeader(state, Modifier.padding(bottom = 22.dp))
         }
         item(key = "recent") {
-            Column(Modifier.padding(bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 SectionHeader("01", "RECIENTES")
                 RecentRow(state, data.recent, cover = 98.dp, gap = 14.dp)
             }
@@ -194,13 +194,12 @@ private fun HomeMobile(state: AppState, modifier: Modifier) {
                 position = i + 1,
                 song = song,
                 count = count,
-                playing = state.currentSong?.id == song.id,
                 onClick = { state.playFrom(mostIds, song.id, "MÁS ESCUCHADAS") },
                 modifier = itemMotion().padding(bottom = 8.dp),
             )
         }
         item(key = "rank") {
-            RankingCard(state, data.top, Modifier.padding(top = 14.dp))
+            RankingCard(state, data.top, Modifier.padding(top = 12.dp))
         }
     }
 }
@@ -225,15 +224,15 @@ private fun HomeWide(state: AppState, modifier: Modifier) {
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         HomeHeader(state)
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.padding(bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionHeader("01", "RECIENTES")
             RecentRow(state, data.recent, cover = 140.dp, gap = 26.dp)
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val twoColumns = maxWidth >= 640.dp
             val most: @Composable (Modifier) -> Unit = { m ->
-                Column(m, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionHeader("02", "MÁS ESCUCHADAS", Modifier.padding(bottom = 2.dp))
+                Column(m, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SectionHeader("02", "MÁS ESCUCHADAS", Modifier.padding(bottom = 4.dp))
                     if (data.most.isEmpty()) HintNote("Aquí salen las que más escuchas en los últimos 30 días.")
                     data.most.forEachIndexed { i, (song, count) ->
                         androidx.compose.runtime.key(song.id) {
@@ -241,7 +240,6 @@ private fun HomeWide(state: AppState, modifier: Modifier) {
                                 position = i + 1,
                                 song = song,
                                 count = count,
-                                playing = state.currentSong?.id == song.id,
                                 onClick = { state.playFrom(mostIds, song.id, "MÁS ESCUCHADAS") },
                             )
                         }
@@ -298,7 +296,7 @@ private fun RecentRow(state: AppState, recent: List<Song>, cover: Dp, gap: Dp) {
             Modifier
                 .fillMaxWidth()
                 .then(if (wide) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
-                .padding(top = 4.dp),
+                .padding(top = if (wide) 0.dp else 4.dp),
             horizontalArrangement = Arrangement.spacedBy(gap),
         ) {
             recent.forEachIndexed { i, song ->
@@ -362,7 +360,7 @@ private fun PinnedCard(song: Song, size: Dp, tilt: Float, drop: Dp, onClick: () 
 
 /** Fila de Más escuchadas: puesto, carátula, título, artista y «84×». */
 @Composable
-private fun MostPlayedRow(position: Int, song: Song, count: Int, playing: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MostPlayedRow(position: Int, song: Song, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val wide = LocalWide.current
     Row(
         modifier
@@ -376,7 +374,7 @@ private fun MostPlayedRow(position: Int, song: Song, count: Int, playing: Boolea
         Position(position, Fp.MostPlayedPos.getOrElse(position - 1) { Fp.MistDim }, 20.sp, if (wide) 24.dp else 22.dp)
         Cover(song.coverColor, if (wide) 40.dp else 42.dp, image = song.cover)
         Column(Modifier.weight(1f)) {
-            Nunito(song.title, 14.sp, color = if (playing) Fp.NeonSoft else Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
+            Nunito(song.title, 14.sp, color = Fp.Bone, weight = FontWeight.ExtraBold, maxLines = 1)
             SubText(song.artist)
         }
         Chakra(timesText(count), 12.sp, color = Fp.Mist, weight = FontWeight.Medium)
@@ -416,8 +414,8 @@ private fun RankingCard(state: AppState, top: List<Song>, modifier: Modifier = M
             .fillMaxWidth()
             .background(Fp.Card, shape)
             .border(1.dp, Fp.Neon.copy(alpha = 0.5f), shape)
-            .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 9.dp, bottom = 15.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         SectionHeader("03", "TU RANKING", line = false) {
             TextAction("VER TODO →", { state.go(Screen.Rank) }, Modifier.offset(x = 6.dp))
@@ -425,9 +423,11 @@ private fun RankingCard(state: AppState, top: List<Song>, modifier: Modifier = M
         if (top.isEmpty()) {
             Nunito("Puntúa canciones en Ranking y aquí verás tus favoritas.", 13.sp, color = Fp.Mist)
         }
-        top.forEachIndexed { i, song ->
-            androidx.compose.runtime.key(song.id) {
-                RankingLine(i + 1, song, wide = false) { state.playFrom(ids, song.id, "TU RANKING") }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            top.forEachIndexed { i, song ->
+                androidx.compose.runtime.key(song.id) {
+                    RankingLine(i + 1, song, wide = false) { state.playFrom(ids, song.id, "TU RANKING") }
+                }
             }
         }
     }

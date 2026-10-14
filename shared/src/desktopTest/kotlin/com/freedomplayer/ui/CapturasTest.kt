@@ -27,6 +27,7 @@ import com.freedomplayer.core.SampleData
 import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.Stats
 import com.freedomplayer.data.SampleSource
+import com.freedomplayer.data.StreamSource
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.FpIconView
 import com.freedomplayer.ui.components.FpIcons
@@ -107,6 +108,8 @@ class CapturasTest {
     /** «Luz de farola (versión acústica)» sonando en vista previa por el 1:18, como en el diseño. */
     private fun AppState.previewAcoustic() {
         togglePreview(result("c1"))
+        // Sin el bucle de la app no llega el audio de la vista previa: se arranca aquí, como al llegar.
+        services.engine.startPreview(StreamSource("demo:c1", durationSec = result("c1").durationSec))
         step(78_000)
     }
 
