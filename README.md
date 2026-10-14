@@ -35,7 +35,7 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
-Las compilaciones de prueba se numeran `0.5.<n.º de ejecución>`. Si en Windows instalaste una con
+Las compilaciones de prueba se numeran `0.6.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
 
@@ -76,8 +76,8 @@ ya no se podrán instalar encima de las antiguas.
 ## Publicar una versión
 
 ```bash
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
 El workflow compila esa versión, pasa las pruebas y crea la release con el APK, el `.msi` y el
@@ -100,9 +100,9 @@ Hace falta JDK 17 o posterior. Para Android, también el SDK de Android (compile
 NewPipe Extractor se descarga de JitPack; el resto, de Maven Central y Google Maven.
 
 Syncthing no está en el repositorio: `.github/scripts/syncthing.sh android|windows|linux` lo
-descarga de sus releases y comprueba su suma SHA-256 (para Android x86_64 lo compila del código
-fuente oficial, y eso necesita Go y el NDK de Android). Sin él, la app funciona igual y
-«Vincular» avisa de que esa instalación no trae Syncthing.
+descarga de sus releases y comprueba su suma SHA-256 (para Android lo compila del código fuente
+oficial para arm64-v8a, armeabi-v7a y x86_64, y eso necesita Go y el NDK de Android). Sin él, la
+app funciona igual y «Vincular» avisa de que esa instalación no trae Syncthing.
 
 En el PC, la variable `FP_REDUCE_MOTION=1` quita las animaciones aunque el sistema no lo pida.
 

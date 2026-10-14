@@ -6,7 +6,7 @@ import com.freedomplayer.android.playback.AndroidEngine
 import com.freedomplayer.android.update.AndroidUpdateInstaller
 import com.freedomplayer.platform.AndroidLibrary
 import com.freedomplayer.ui.AppState
-import com.freedomplayer.ui.SyncPhase
+import com.freedomplayer.ui.needsForeground
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
@@ -23,10 +23,11 @@ class FreedomApp : Application() {
         AppState(System.currentTimeMillis(), AndroidLibrary.services(this, engine, AndroidUpdateInstaller(this))).also { s ->
             s.appVersion = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "dev"
             scope.launch { s.run() }
-            // Syncthing sigue mientras se sincroniza, aunque se cierre la pantalla.
+            // Syncthing sigue mientras se sincroniza, aunque se cierre la pantalla: en primer plano
+            // solo mientras hace falta (arrancar, vincular, pasar canciones).
             scope.launch {
-                snapshotFlow { s.sync.phase }.collect { phase ->
-                    SyncService.update(this@FreedomApp, phase != SyncPhase.Off && phase != SyncPhase.Failed)
+                snapshotFlow { s.sync.phase.needsForeground }.collect { needed ->
+                    SyncService.update(this@FreedomApp, needed)
                 }
             }
         }

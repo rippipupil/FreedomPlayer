@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Syncthing para empaquetarlo con la app: los binarios oficiales de GitHub (syncthing/syncthing),
-# comprobados con la lista de sumas SHA-256 de esa versión. No se guardan en el repositorio.
-#   android: linux-arm64 y linux-arm → androidApp/src/main/jniLibs/<abi>/libsyncthing.so
+# Syncthing para empaquetarlo con la app, de las descargas oficiales de GitHub (syncthing/syncthing),
+# comprobadas con la lista de sumas SHA-256 de esa versión. No se guardan en el repositorio.
+#   android: el código fuente oficial, compilado para Android con el NDK (ver build_android) para
+#            arm64-v8a, armeabi-v7a y x86_64 → androidApp/src/main/jniLibs/<abi>/libsyncthing.so
 #            (Android los saca a la carpeta de bibliotecas nativas, desde donde se pueden ejecutar);
-#            x86_64 se compila del código fuente oficial con el NDK (ver build_android)
+#            elf-android.py comprueba después que cada uno es de Android y de su arquitectura
 #   windows: windows-amd64 → desktopApp/resources/windows/syncthing.exe
 #   linux:   linux-amd64 → build/syncthing/syncthing (solo para las pruebas de la CI)
 set -euo pipefail
@@ -31,11 +32,12 @@ fetch() {
 }
 
 # Compila Syncthing para Android con el NDK, del código fuente oficial de la versión (comprobado con
-# su suma SHA-256; trae sus dependencias en vendor/). Se usa en x86_64 (emulador y Chromebooks): el
-# binario oficial para Linux amd64 llama a lstat() (la SQLite que lleva dentro), y el filtro seccomp
-# de Android x86_64 no deja esa llamada a las apps, así que se cerraba al arrancar (SIGSYS). Para
-# Android, SQLite va con la libc de Android (bionic), que no la usa. En ARM no hace falta: esas
-# llamadas antiguas no existen allí.
+# su suma SHA-256; trae sus dependencias en vendor/). Los binarios oficiales son para Linux y no
+# sirven en Android: el de amd64 llama a lstat() (la SQLite que lleva dentro, con una libc
+# estática), y el filtro seccomp de Android x86_64 no deja esa llamada a las apps, así que se
+# cerraba al arrancar (SIGSYS); en ARM no se pueden probar en la CI, pueden chocar con otras
+# llamadas que el filtro no deja y, sin la libc de Android, no saben resolver nombres (DNS). Para
+# Android, SQLite va con la libc de Android (bionic) y los nombres los resuelve el sistema.
 #   $1: GOARCH  $2: ABI de Android  $3: prefijo del clang del NDK
 build_android() {
   goarch="$1"
@@ -66,7 +68,8 @@ build_android() {
   # Android) desde Go 1.23.
   (
     cd "$WORK/syncthing"
-    CGO_ENABLED=1 BUILD_USER=freedomplayer BUILD_HOST=github-actions EXTRA_LDFLAGS="-checklinkname=0" \
+    # GOARM=7: armeabi-v7a (ARMv7 con coma flotante por hardware); las demás ABI no lo usan.
+    CGO_ENABLED=1 GOARM=7 BUILD_USER=freedomplayer BUILD_HOST=github-actions EXTRA_LDFLAGS="-checklinkname=0" \
       go run build.go -goos android -goarch "$goarch" -cc "$cc" -no-upgrade \
       -tags "sqlite_omit_load_extension sqlite_dbstat" -build-out "$out" build syncthing
   )
@@ -76,16 +79,11 @@ build_android() {
 
 case "${1:-}" in
   android)
-    for pair in arm64:arm64-v8a arm:armeabi-v7a; do
-      arch="${pair%%:*}"
-      abi="${pair#*:}"
-      name="syncthing-linux-$arch-$VERSION"
-      fetch "$name.tar.gz"
-      tar -xzf "$WORK/$name.tar.gz" -C "$WORK" "$name/syncthing"
-      mkdir -p "androidApp/src/main/jniLibs/$abi"
-      install -m 755 "$WORK/$name/syncthing" "androidApp/src/main/jniLibs/$abi/libsyncthing.so"
-    done
+    build_android arm64 arm64-v8a aarch64-linux-android
+    build_android arm armeabi-v7a armv7a-linux-androideabi
     build_android amd64 x86_64 x86_64-linux-android
+    # Cada uno, un ELF de su arquitectura con el enlazador de Android (no uno de Linux).
+    python3 "$(dirname "$0")/elf-android.py" androidApp/src/main/jniLibs 26
     ;;
   windows)
     name="syncthing-windows-amd64-$VERSION"

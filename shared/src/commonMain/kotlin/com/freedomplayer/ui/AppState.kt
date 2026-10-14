@@ -204,6 +204,19 @@ private const val SPOTIFY_EDITORIAL = "Esa playlist la hace Spotify y no se pued
 /** En qué va la sincronización con el otro dispositivo. */
 enum class SyncPhase { Off, Starting, Waiting, Pairing, Syncing, Synced, Failed }
 
+/**
+ * Si Android tiene que mantener viva la app (el servicio en primer plano de «sincronización de
+ * datos», con su notificación): solo mientras arranca Syncthing, se vincula o se pasan canciones.
+ * Esperando el QR, ya sincronizado, parado o con error no hace falta, y Android 15 solo da a ese
+ * servicio 6 horas al día con la app en segundo plano.
+ */
+val SyncPhase.needsForeground: Boolean
+    get() = this == SyncPhase.Starting || this == SyncPhase.Pairing || this == SyncPhase.Syncing
+
+/** El aviso de cuando Android para la sincronización con la app en segundo plano. */
+const val SYNC_STOPPED_BY_ANDROID =
+    "Android ha pausado la sincronización: con la app en segundo plano solo la deja seguir unas horas al día. Toca REINTENTAR para seguir."
+
 /** «Vincular»: Syncthing, el QR (en el PC), el otro dispositivo y cuánto lleva. */
 class SyncState {
     var phase by mutableStateOf(SyncPhase.Off)
@@ -1946,6 +1959,22 @@ class AppState(
         }
     }
 
+    /**
+     * Android ha parado el servicio de la sincronización y no deja volver a ponerlo en primer plano
+     * (en Android 15 o más, el de «sincronización de datos» tiene 6 horas al día con la app en
+     * segundo plano). Se para Syncthing y se avisa. No vuelve a arrancar sola, porque fallaría
+     * otra vez: sigue con «REINTENTAR» o «Vincular», con la app abierta.
+     */
+    fun syncStoppedBySystem() {
+        syncWatch?.cancel()
+        syncWatch = null
+        services.sync?.let { runCatching { it.stop() } }
+        sync.connected = false
+        sync.phase = SyncPhase.Failed
+        sync.error = SYNC_STOPPED_BY_ANDROID
+        toast("Sincronización en pausa: Android no la deja seguir en segundo plano.", Mood.Dormido, Tone.Bone)
+    }
+
     /** Abre el escáner del móvil para leer el QR del PC. */
     fun scanSyncCode() {
         val scan = qrScanner ?: return
@@ -2025,7 +2054,7 @@ class AppState(
                     // Sin el otro dispositivo (apagado, sin FreedomPlayer abierto u otra red): se sigue
                     // esperando, y pasado un rato se avisa de qué comprobar.
                     sync.connected = false
-                    if (lastSeen.elapsedNow().inWholeMilliseconds >= syncConnectTimeoutMs) sync.error = notFound
+                    if (isActive && lastSeen.elapsedNow().inWholeMilliseconds >= syncConnectTimeoutMs) sync.error = notFound
                 }
                 if (tick % 10 == 0) {
                     val local = LibraryData(songs.toList(), playlists.toList(), rankings.toList(), playLog.toList())

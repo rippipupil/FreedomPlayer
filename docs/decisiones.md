@@ -306,8 +306,8 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 
 ### Lo que todavía no
 
-- Vincular con QR y sincronizar, y elegir carpeta y calidad de las descargas: llegan en el hito 5
-  (ver abajo).
+- Elegir carpeta y calidad de las descargas llega en el hito 5, y vincular con QR y sincronizar,
+  en el hito 6 (ver abajo).
 
 ## Hito 5: decisiones técnicas
 
@@ -381,19 +381,33 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - **Versión 0.5:** las compilaciones de prueba pasan a numerarse `0.5.<n.º de ejecución>`. El
   `versionCode` de Android sigue siendo el número de ejecución, que siempre sube.
 
+### Lo que todavía no
+
+- Vincular con QR y sincronizar: llega en el hito 6 (ver abajo).
+
+## Hito 6: decisiones técnicas
+
 ### Sincronizar (Syncthing)
 
-- Syncthing oficial (v2.1.6), descargado en CI de sus releases de GitHub y comprobado con su lista
-  de sumas SHA-256; nunca se guarda en el repositorio. En Windows va dentro del paquete
-  (`syncthing.exe`). En Android va como biblioteca nativa (`libsyncthing.so`), que Android deja
-  ejecutar desde su carpeta:
-  - arm64-v8a y armeabi-v7a: los binarios oficiales `linux-arm64` y `linux-arm`, que son
-    estáticos.
-  - x86_64 (el emulador y los Chromebook): el código fuente oficial de la misma versión, con su
-    suma SHA-256, compilado para Android con el NDK. El binario oficial `linux-amd64` lleva SQLite
-    con una libc estática que llama a `lstat()`, y el filtro seccomp de las apps de Android x86_64
-    no deja esa llamada: Syncthing se cerraba al arrancar (SIGSYS). En ARM esas llamadas antiguas
-    no existen.
+- Syncthing oficial (v2.1.6). En Windows va dentro del paquete (`syncthing.exe`, el binario
+  oficial). En Android va como biblioteca nativa (`libsyncthing.so`), que Android deja ejecutar
+  desde su carpeta. Nunca se guarda en el repositorio: la CI lo descarga de sus releases de GitHub
+  y lo comprueba con su lista de sumas SHA-256.
+- **En Android, compilado para Android** en las tres ABI del APK (arm64-v8a, armeabi-v7a y
+  x86_64): el código fuente oficial de la misma versión, con su suma SHA-256, compilado con el
+  NDK de la CI y Go (`build.go`, con la API 26, la mínima de la app). Los binarios oficiales son
+  para Linux y no sirven en Android:
+  - El de `linux-amd64` lleva SQLite con una libc estática que llama a `lstat()`, y el filtro
+    seccomp de las apps de Android x86_64 no deja esa llamada: Syncthing se cerraba al arrancar
+    (SIGSYS).
+  - Los de ARM no se pueden ejecutar en la CI, pueden chocar con otras llamadas que el filtro no
+    deja y, sin la libc de Android, no saben resolver nombres (no hay `/etc/resolv.conf`): sin DNS
+    no hay descubrimiento global ni relés.
+  - Compilado para Android, SQLite va con la libc de Android (bionic) y los nombres los resuelve
+    el sistema (sin `netgo`).
+  - La CI comprueba cada `libsyncthing.so` (`.github/scripts/elf-android.py`): un ELF de 64 o 32
+    bits de su arquitectura, con el enlazador de Android (`/system/bin/linker64` o
+    `/system/bin/linker`, que un binario de Linux no lleva) y la nota del NDK con la API mínima.
 - Se configura solo por su API REST local (127.0.0.1), con una clave que se genera en el
   dispositivo cada vez que se arranca.
 - La biblioteca (playlists, notas, rankings e historial) va en un JSON por dispositivo en una
@@ -405,9 +419,10 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   acepta al dispositivo que pide conectar (`/rest/cluster/pending/devices`) y comparte con él las
   mismas dos carpetas.
 - Dónde se vincula: la insignia «SYNC · PC» de Inicio («SYNC · MÓVIL» en el PC), Ajustes ›
-  «Vincular con el PC» («con el móvil» en el PC) y «VINCULAR PC» con la biblioteca vacía. El
-  diseño solo nombra el QR en la biblioteca vacía; la insignia y Ajustes llevan a la misma
-  pantalla.
+  «Vincular con el PC» («con el móvil» en el PC) y el botón de la biblioteca vacía, «VINCULAR PC»
+  en el móvil y «VINCULAR MÓVIL» en el PC: siempre se nombra el otro dispositivo. El diseño solo
+  tiene el móvil, y solo nombra el QR en la biblioteca vacía; la insignia y Ajustes llevan a la
+  misma pantalla.
 - «Sincronizando con el PC 12 de 20»: de las canciones de la carpeta de música, las que ya están
   en los dos (lo que le falta a cada uno, según `/rest/db/completion`).
 - Avisos, sin cerrar la app:
@@ -419,22 +434,38 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   - Un código que no es de un dispositivo, o el del propio dispositivo, se explica sin vincular
     nada.
 - Con la app abierta, la biblioteca se intercambia cada 20 s. Una canción del otro dispositivo
-  aparece cuando su audio ya ha llegado. En Android, Syncthing va en un servicio en primer plano
-  (`dataSync`) mientras se sincroniza.
+  aparece cuando su audio ya ha llegado.
+- **Servicio en primer plano en Android** (`dataSync`, con la notificación «Sincronizando con el
+  PC»): mantiene la app (y Syncthing, que es un proceso hijo) con la pantalla apagada. Va solo
+  mientras hace falta: al arrancar Syncthing, al vincular y mientras se pasan canciones
+  (`SyncPhase.needsForeground`). Esperando el QR, con todo sincronizado, parado o con error, no.
+- **Android 15 o más** da a los servicios `dataSync` 6 horas cada 24 con la app en segundo plano
+  (al abrirla vuelve a contar):
+  - Al acabarse, Android llama a `onTimeout`: el servicio quita el primer plano y se para en el
+    momento (si tarda unos segundos, Android cierra la app con un error).
+  - Después, Android no deja volver a ponerlo en primer plano hasta que se abra la app
+    (`ForegroundServiceStartNotAllowedException`). Ese fallo se captura en el servicio, que se
+    para sin cerrar la app.
+  - En los dos casos la app para Syncthing y pasa a «No se pudo sincronizar» con el aviso de que
+    Android la ha pausado y «REINTENTAR». No la vuelve a arrancar sola (fallaría otra vez): sigue
+    con «REINTENTAR» o «Vincular», con la app abierta.
 - Pruebas: la mezcla del JSON, el intercambio, la API (con un servidor falso), la pantalla (con un
-  Syncthing de mentira: vincular, códigos que no valen, el otro que no aparece y sin el binario) y,
-  en la CI, dos Syncthing de verdad que se vinculan y se pasan una canción, su nota y una
-  playlist, y el Syncthing del APK arrancando y vinculando en el emulador (Android 14, x86_64).
+  Syncthing de mentira: vincular, códigos que no valen, el otro que no aparece, sin el binario y
+  la parada de Android sin reintentos), las fases que necesitan el primer plano, el botón de la
+  biblioteca vacía en el móvil y en el PC y, en la CI, dos Syncthing de verdad que se vinculan y
+  se pasan una canción, su nota y una playlist, y el Syncthing del APK arrancando y vinculando en
+  el emulador (Android 14, x86_64).
+- **Versión 0.6:** las compilaciones de prueba pasan a numerarse `0.6.<n.º de ejecución>`. La
+  versión 0.5.0 publicada no lleva la sincronización: sus notas solo cuentan la calidad y la
+  carpeta de las descargas, y todo lo de Syncthing está en las de la 0.6.0.
 
 ### Lo que todavía no
 
 - Probarlo entre un móvil y un PC de verdad. En la CI, los dos Syncthing están en el mismo
-  equipo, con las direcciones puestas a mano, y en el emulador solo corre el de x86_64: los
-  binarios de ARM no se ejecutan en la CI.
-- Fuera de la misma wifi puede no funcionar en los móviles ARM: el binario de Linux, en Android,
-  probablemente no sabe resolver nombres (no hay `/etc/resolv.conf`), y sin eso no hay
-  descubrimiento global ni relés. En la misma wifi se encuentran por descubrimiento local. El de
-  x86_64, compilado para Android sin `netgo`, debería resolver con la libc de Android.
+  equipo, con las direcciones puestas a mano, y en el emulador solo corre el de x86_64: los de
+  ARM se comprueban (arquitectura y que son de Android), pero no se ejecutan.
+- El límite de Android 15 solo se ha probado con un Syncthing de mentira: en el emulador de la CI
+  (Android 14) no existe.
 - Las carátulas no se sincronizan todavía: las canciones que llegan salen con su color.
 - Preguntar «¿Vincular con este móvil?» en el PC. Ahora acepta al primero que pide conectar
   mientras enseña el QR.
@@ -442,7 +473,7 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - Sincronizar la música que se descarga en otra carpeta elegida en el PC: solo se comparte la
   carpeta de la app (la de `freedomplayer-musica`), así que esas canciones se quedan en el PC.
 
-## Hito 6: decisiones técnicas
+## Hito 6: actualizar, playlists y reproductor
 
 ### Actualizar sin perder nada
 

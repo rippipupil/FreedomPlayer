@@ -68,6 +68,9 @@ interface SyncBackend {
      * resultado de juntarlas, o null si todavía no ha llegado nada de otro dispositivo.
      */
     suspend fun exchange(local: LibraryData): LibraryData?
+
+    /** Para Syncthing si está en marcha (p. ej., cuando Android para la sincronización); [start] lo vuelve a arrancar. */
+    fun stop() {}
 }
 
 /** Esta instalación no trae Syncthing (falta su binario), así que aquí no se puede sincronizar. */

@@ -261,6 +261,13 @@ fun NoticeStack(state: AppState, modifier: Modifier = Modifier) {
 }
 
 /**
+ * El texto de «Biblioteca vacía»: nombra el otro dispositivo, el PC en el móvil (como en el diseño)
+ * y el móvil en el PC, como «SYNC · MÓVIL» y «Vincular con el móvil».
+ */
+fun emptyLibraryText(wide: Boolean): String =
+    "Busca tu primera canción o vincula ${if (wide) "el móvil" else "el PC"} con un QR."
+
+/**
  * Estado que llena la pantalla (Biblioteca vacía, Nada por aquí, Sin conexión…):
  * recuadro discontinuo, fantasmas, título, texto y botones para salir de ahí.
  */

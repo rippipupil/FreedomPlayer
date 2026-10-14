@@ -249,8 +249,8 @@ class SyncthingBackend(
         return withContext(Dispatchers.IO) { SyncExchange(device, library, music, File(home, "sincronizar.json")).exchange(local) }
     }
 
-    /** Para Syncthing (al salir de la app). */
-    fun stop() {
+    /** Para Syncthing (al salir de la app o cuando Android para la sincronización). */
+    override fun stop() {
         process?.destroy()
         process = null
         api = null
