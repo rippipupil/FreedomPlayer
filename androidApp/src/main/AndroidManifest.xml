@@ -8,6 +8,8 @@
     <!-- Seguir sonando con la pantalla apagada: servicio en primer plano con su notificación. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Sincronizar con el PC (Syncthing) con la pantalla apagada. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- El ecualizador del sistema (android.media.audiofx) sobre el audio de la app. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -32,6 +34,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Sincronizar con el PC: Syncthing sigue mientras se sincroniza. -->
+        <service
+            android:name=".SyncService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Reproducción en segundo plano (Media3): notificación, pantalla de bloqueo y auriculares. -->
         <service

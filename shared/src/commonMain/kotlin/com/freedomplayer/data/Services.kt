@@ -56,7 +56,21 @@ interface SyncBackend {
 
     /** Lo que lleva sincronizado con [otherId], o null si ahora no están conectados. */
     suspend fun progress(otherId: String): SyncCount?
+
+    /**
+     * Escribe la biblioteca de aquí en la carpeta compartida, lee la de los demás y devuelve el
+     * resultado de juntarlas, o null si todavía no ha llegado nada de otro dispositivo.
+     */
+    suspend fun exchange(local: LibraryData): LibraryData?
 }
+
+/** La biblioteca para sincronizar: canciones (con su nota), playlists, rankings y escuchas. */
+data class LibraryData(
+    val songs: List<Song>,
+    val playlists: List<Playlist>,
+    val rankings: List<CustomRanking>,
+    val plays: List<PlayEvent>,
+)
 
 /** Por qué ha fallado algo de YouTube, para decirlo claro en el aviso. */
 enum class FailureKind { Network, Blocked, Unavailable, Changed, Storage, Unknown }

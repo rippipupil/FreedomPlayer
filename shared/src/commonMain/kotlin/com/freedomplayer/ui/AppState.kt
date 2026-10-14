@@ -40,6 +40,7 @@ import com.freedomplayer.core.starsText
 import com.freedomplayer.data.DownloadRequest
 import com.freedomplayer.data.DownloadedSong
 import com.freedomplayer.data.FailureKind
+import com.freedomplayer.data.LibraryData
 import com.freedomplayer.data.Services
 import com.freedomplayer.data.SoundSettings
 import com.freedomplayer.data.SpotifyReader
@@ -1790,11 +1791,15 @@ class AppState(
         }
     }
 
-    /** Cada 2 s, cuánto lleva («12 de 20»), mientras la app esté abierta. */
+    /**
+     * Cada 2 s, cuánto lleva («12 de 20»), mientras la app esté abierta; y cada 20 s se
+     * intercambia la biblioteca (playlists, notas, rankings e historial) con el otro dispositivo.
+     */
     private fun watchSync(backend: SyncBackend, peer: String) {
         syncWatch?.cancel()
         sync.phase = SyncPhase.Syncing
         syncWatch = scope?.launch {
+            var tick = 0
             while (isActive) {
                 val count = runCatching { backend.progress(peer) }.getOrNull()
                 if (count != null) {
@@ -1802,9 +1807,60 @@ class AppState(
                     sync.total = count.total
                     sync.phase = if (count.done >= count.total) SyncPhase.Synced else SyncPhase.Syncing
                 }
+                if (tick % 10 == 0) {
+                    val local = LibraryData(songs.toList(), playlists.toList(), rankings.toList(), playLog.toList())
+                    runCatching { backend.exchange(local) }.getOrNull()?.let { applySync(it) }
+                }
+                tick++
                 delay(2_000)
             }
         }
+    }
+
+    /** Lo que llega del otro dispositivo, ya juntado con lo de aquí (ver LibrarySync). */
+    fun applySync(merged: LibraryData) {
+        if (isDemo) return
+        var changed = false
+        merged.songs.forEach { s ->
+            val i = songs.indexOfFirst { it.id == s.id }
+            if (i < 0) {
+                songs.add(s)
+                store.saveSong(s)
+                if (s.score != null) store.setScore(s.id, s.score)
+                changed = true
+            } else if (songs[i] != s) {
+                val before = songs[i]
+                songs[i] = s
+                store.saveSong(s)
+                if (before.score != s.score) store.setScore(s.id, s.score)
+                changed = true
+            }
+        }
+        val keep = merged.songs.map { it.id }.toSet()
+        songs.filter { it.id !in keep }.forEach { gone ->
+            songs.remove(gone)
+            store.deleteSong(gone.id)
+            changed = true
+        }
+        if (merged.playlists != playlists.toList()) {
+            playlists.filter { p -> merged.playlists.none { it.id == p.id } }.forEach { store.deletePlaylist(it.id) }
+            playlists.clear()
+            playlists.addAll(merged.playlists)
+            playlists.forEachIndexed { i, p -> store.savePlaylist(p, i) }
+        }
+        if (merged.rankings != rankings.toList()) {
+            rankings.filter { r -> merged.rankings.none { it.id == r.id } }.forEach { store.deleteRanking(it.id) }
+            rankings.clear()
+            rankings.addAll(merged.rankings)
+            rankings.forEachIndexed { i, r -> store.saveRanking(r, i) }
+        }
+        val known = playLog.toHashSet()
+        merged.plays.filter { it !in known }.forEach {
+            playLog.add(it)
+            store.addPlay(it)
+            changed = true
+        }
+        if (changed) historyVersion++
     }
 
     fun runToastAction() {
@@ -1872,6 +1928,8 @@ class AppState(
             }
             if (downloads.isNotEmpty() && worker?.isActive != true) worker = launch { work() }
             launch { measureLoudness() }
+            // Ya vinculado con otro dispositivo: se sincroniza solo al abrir la app.
+            if (services.sync != null && store.setting(SYNC_PEER) != null) startSync()
             try {
                 var mark = TimeSource.Monotonic.markNow()
                 while (isActive) {

@@ -1,6 +1,7 @@
 package com.freedomplayer.jvm
 
 import com.freedomplayer.core.SyncIds
+import com.freedomplayer.data.LibraryData
 import com.freedomplayer.data.SyncBackend
 import com.freedomplayer.data.SyncCount
 import kotlinx.coroutines.Dispatchers
@@ -173,6 +174,7 @@ class SyncthingBackend(
     private val lock = Mutex()
     private var process: Process? = null
     private var api: SyncthingApi? = null
+    private var myId: String? = null
 
     override suspend fun start(): String = lock.withLock {
         api?.let { running -> if (running.ping()) return@withLock running.myId() }
@@ -191,7 +193,7 @@ class SyncthingBackend(
         repeat(60) {
             if (candidate.ping()) {
                 api = candidate
-                return@withLock candidate.myId()
+                return@withLock candidate.myId().also { myId = it }
             }
             if (!started.isAlive) throw IOException("Syncthing se ha cerrado al arrancar")
             delay(500)
@@ -213,6 +215,11 @@ class SyncthingBackend(
         if (otherId !in running.connected()) return null
         val p = running.completion(SyncthingApi.MUSIC_FOLDER, otherId)
         return SyncCount(p.done, p.total)
+    }
+
+    override suspend fun exchange(local: LibraryData): LibraryData? {
+        val device = myId ?: return null
+        return withContext(Dispatchers.IO) { SyncExchange(device, library, music, File(home, "sincronizar.json")).exchange(local) }
     }
 
     /** Para Syncthing (al salir de la app). */
