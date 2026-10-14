@@ -9,7 +9,7 @@ plugins {
 
 // Versiones de las librerías que se usan en más de un sitio.
 val newPipeVersion = "v0.26.5"
-val okHttpVersion = "5.5.0"
+val okHttpVersion = "5.4.0"
 val sqlDelightVersion = "2.2.1"
 val coilVersion = "3.3.0"
 
