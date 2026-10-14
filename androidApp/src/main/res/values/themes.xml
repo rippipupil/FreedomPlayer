@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.FreedomPlayer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/night</item>
+    </style>
+    <color name="night">#FF110C1B</color>
+    <color name="ic_launcher_background">#FF120E1C</color>
+</resources>

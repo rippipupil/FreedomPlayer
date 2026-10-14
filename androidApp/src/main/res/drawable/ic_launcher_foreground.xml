@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fantasmita rosa feliz (>‿<) centrado en la zona segura del icono adaptable, con la ✦ rosa. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="22"
+        android:translateY="24">
+        <path
+            android:fillColor="#F4A6CB"
+            android:pathData="M32 6 C18 6 12 17 12 29 L12 33 C8 34 5 37 4 40 C8 40 11 39 12 38 L12 50 C15 54 18 56 21 52 C24 57 28 58 32 53 C36 58 40 57 43 52 C46 56 49 54 52 50 L52 38 C53 39 56 40 60 40 C59 37 56 34 52 33 L52 29 C52 17 46 6 32 6 Z" />
+        <path
+            android:fillAlpha="0.35"
+            android:fillColor="#FFFFFF"
+            android:pathData="M16 16 A7 4 0 1 1 30 16 A7 4 0 1 1 16 16 Z" />
+        <path
+            android:pathData="M20 23 L26 27 L20 31"
+            android:strokeWidth="2.6"
+            android:strokeColor="#C2326F"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M44 23 L38 27 L44 31"
+            android:strokeWidth="2.6"
+            android:strokeColor="#C2326F"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M28 33 Q32 37 36 33"
+            android:strokeWidth="2.6"
+            android:strokeColor="#C2326F"
+            android:strokeLineCap="round" />
+    </group>
+    <path
+        android:fillColor="#FF3FA4"
+        android:pathData="M75 27 L76.2 31.8 L81 33 L76.2 34.2 L75 39 L73.8 34.2 L69 33 L73.8 31.8 Z" />
+</vector>

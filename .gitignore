@@ -1,0 +1,19 @@
+# Gradle y Kotlin
+.gradle/
+build/
+.kotlin/
+local.properties
+
+# Editores
+.idea/
+*.iml
+.vscode/
+.DS_Store
+captures/
+
+# Claves de firma: nunca en el repositorio (es público)
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.properties
