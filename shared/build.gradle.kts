@@ -6,11 +6,20 @@ plugins {
     id("org.jetbrains.compose")
 }
 
+// -Pfp.android=false deja fuera Android (ver settings.gradle.kts). El plugin de Android está
+// siempre en el classpath (build.gradle.kts de la raíz), pero solo se aplica si se compila Android.
 val withAndroid = (project.findProperty("fp.android") as String?)?.toBoolean() ?: true
 if (withAndroid) {
     apply(plugin = "com.android.library")
-    // En un script aparte porque usa clases del plugin de Android, que sin Android no están.
-    apply(from = "android.gradle.kts")
+    configure<com.android.build.gradle.LibraryExtension> {
+        namespace = "com.freedomplayer.shared"
+        compileSdk = 36
+        defaultConfig { minSdk = 26 }
+        compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
 }
 
 kotlin {
@@ -25,10 +34,12 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
+            // runtime y ui son «api» porque App() y AppState los usan en su firma (Modifier,
+            // @Composable): así las apps de Android y de escritorio los ven al compilar.
+            api(compose.runtime)
+            api(compose.ui)
             implementation(compose.foundation)
             implementation(compose.material3)
-            implementation(compose.ui)
             implementation(compose.components.resources)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
         }

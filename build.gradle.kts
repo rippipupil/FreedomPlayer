@@ -1,12 +1,12 @@
 buildscript {
-    // El plugin de Android solo se carga si se compila Android (ver settings.gradle.kts).
-    val withAndroid = (project.findProperty("fp.android") as String?)?.toBoolean() ?: true
+    // El plugin de Android está siempre en el classpath para que shared/build.gradle.kts pueda
+    // usar sus tipos, pero solo se aplica si se compila Android (ver settings.gradle.kts).
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        if (withAndroid) classpath("com.android.tools.build:gradle:8.11.1")
+        classpath("com.android.tools.build:gradle:8.11.1")
     }
 }
 
