@@ -107,7 +107,7 @@ fun ErrorCard(error: ErrorNotice, onRetry: () -> Unit, onDismiss: () -> Unit, mo
         modifier
             .fillMaxWidth()
             .fpClickable(onClickLabel = "Cerrar aviso", pressedScale = 0.98f, onClick = onDismiss)
-            .background(Color(0xF2161024))
+            .background(Fp.Drawer)
             .leftBar(Fp.Neon, 2.dp)
             .padding(14.dp)
             .semantics { liveRegion = LiveRegionMode.Assertive },
@@ -133,7 +133,7 @@ fun OfflineBanner(modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
-            .background(Color(0xEB161024))
+            .background(Fp.Drawer)
             .leftBar(Fp.Bone, 2.dp)
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
