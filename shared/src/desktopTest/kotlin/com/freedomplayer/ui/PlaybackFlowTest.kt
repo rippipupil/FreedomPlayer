@@ -63,6 +63,26 @@ class PlaybackFlowTest {
     }
 
     @Test
+    fun seekButtonsJumpTheChosenSecondsWithinTheSong() {
+        val store = store()
+        val state = app(store)
+        state.playFrom(ids, "s2", "NOCHES")
+        state.play(20)
+        assertEquals(10, state.settings.seekSeconds, "lo normal: 10 s")
+        state.seekBy(forward = true)
+        assertEquals(30_000L, state.positionMs)
+        state.settings.seekSeconds = 5
+        state.seekBy(forward = false)
+        assertEquals(25_000L, state.positionMs)
+        repeat(10) { state.seekBy(forward = false) }
+        assertEquals(0L, state.positionMs, "no pasa del principio")
+        repeat(20) { state.seekBy(forward = true) }
+        assertEquals(59_000L, state.positionMs, "ni del final")
+        assertEquals("s2", state.currentSong?.id, "y no cambia de canción")
+        assertEquals(5, app(store).settings.seekSeconds, "el ajuste se guarda")
+    }
+
+    @Test
     fun shuffleKeepsTheSongAndRepeatOneRepeatsIt() {
         val state = app()
         state.playFrom(ids, "s2", "NOCHES")

@@ -113,7 +113,10 @@ fun OtherListScreen(state: AppState, url: String, modifier: Modifier = Modifier)
                     )
                 }
                 else -> item(key = "loading") {
-                    SkeletonRows(48.dp, 48.dp, gap = 14.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        SearchingNote("ABRIENDO LA LISTA…")
+                        SkeletonRows(48.dp, 48.dp, gap = 14.dp)
+                    }
                 }
             }
         }

@@ -564,3 +564,11 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   tapa el texto, que el sistema pone a la izquierda. De fondo va la propia carátula oscurecida con
   la noche del tema, para que los colores que saca Android sean los de la canción y los del tema.
   El icono pequeño sigue siendo el fantasma.
+- **Saltar segundos:** `AppState.seekBy` mueve dentro de la canción (de 0 al final menos 1 s, sin
+  pasar de canción) los segundos de `Settings.seekSeconds` (5, 10, 15 o 30; 10 por defecto). Los
+  botones (`SeekButton`) llevan el número dentro de la vuelta. No van en la notificación: Android
+  solo enseña dos botones propios y ahí está repetir.
+- **Animaciones:** `Mood.Buscando` (ojos de remolino que giran en sentidos contrarios) con
+  `SearchingGhost` mientras se busca o se abre una lista o un álbum. La barra de avance anima solo
+  al dibujar (una fase de 2,4 s leída en el `Canvas`), así que no recompone nada; parada en pausa y
+  con «reducir movimiento».

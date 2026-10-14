@@ -76,6 +76,9 @@ object FpIcons {
     val PreviousMini = FpIcon(null, "M18 5 L9 12 L18 19 Z M4.4 5 H7 V19 H4.4 Z")
     val Next = FpIcon(null, "M6 5 L15 12 L6 19 Z M16.4 5 H19 V19 H16.4 Z")
     val Previous = FpIcon(null, "M18 5 L9 12 L18 19 Z M5 5 H7.6 V19 H5 Z")
+    /** «⟲» y «⟳»: una vuelta casi entera con su flecha; el número de segundos va dentro (ver SeekButton). */
+    val SeekBack = FpIcon("M7.05 8.05 A7 7 0 1 1 5 13 M7 3.8 V8.05 H11.2", strokeWidth = 1.9f)
+    val SeekForward = FpIcon("M16.95 8.05 A7 7 0 1 0 19 13 M17 3.8 V8.05 H12.8", strokeWidth = 1.9f)
     val Shuffle = FpIcon("M3 7 H7 L15 17 H21 M3 17 H7 L9.5 14 M13 10 L15 7 H21 M18 4 L21 7 L18 10 M18 14 L21 17 L18 20")
     /** Orden de mayor a menor (flecha abajo) y de menor a mayor (flecha arriba). */
     val SortDown = FpIcon("M12 4 V19 M6 13 L12 19 L18 13", strokeWidth = 2f)

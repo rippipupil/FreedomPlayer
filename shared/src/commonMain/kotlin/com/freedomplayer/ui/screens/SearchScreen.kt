@@ -17,7 +17,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,13 +42,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -63,14 +63,14 @@ import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.core.songCount
-import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.data.FailureKind
 import com.freedomplayer.data.explain
+import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.ui.AppState
-import com.freedomplayer.ui.TabResults
 import com.freedomplayer.ui.Screen
 import com.freedomplayer.ui.SearchTab
 import com.freedomplayer.ui.Side
+import com.freedomplayer.ui.TabResults
 import com.freedomplayer.ui.components.AddButton
 import com.freedomplayer.ui.components.AddState
 import com.freedomplayer.ui.components.Chakra
@@ -89,6 +89,7 @@ import com.freedomplayer.ui.components.Nunito
 import com.freedomplayer.ui.components.PrimaryButton
 import com.freedomplayer.ui.components.ScreenHeader
 import com.freedomplayer.ui.components.SearchBox
+import com.freedomplayer.ui.components.SearchingGhost
 import com.freedomplayer.ui.components.SecondaryButton
 import com.freedomplayer.ui.components.SegmentBar
 import com.freedomplayer.ui.components.StackedCover
@@ -215,7 +216,10 @@ private fun <T> TabContent(
         when (mode) {
             1 -> SearchFailed(state, error ?: FailureKind.Unknown, pad)
             2 -> content(results.items)
-            3 -> Box(Modifier.padding(pad)) { skeleton() }
+            3 -> Column(Modifier.padding(pad), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SearchingNote("BUSCANDO «${q.uppercase()}»…")
+                skeleton()
+            }
             else -> NoResults(state, tab, pad)
         }
     }
@@ -651,6 +655,15 @@ private fun SpotifyLink(onClick: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         FpIconView(FpIcons.Link, 18.dp, Fp.JadeLight)
         Chakra("PEGAR PLAYLIST DE SPOTIFY", 12.sp, color = Fp.JadeLight, spacing = 1.5.sp)
+    }
+}
+
+/** El fantasmita de ojos de remolino y qué se está buscando o cargando. */
+@Composable
+internal fun SearchingNote(text: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SearchingGhost(40.dp)
+        Chakra(text, 11.sp, color = Fp.Mist, spacing = 1.5.sp, maxLines = 1)
     }
 }
 

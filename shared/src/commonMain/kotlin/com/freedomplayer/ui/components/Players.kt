@@ -101,6 +101,41 @@ fun PlayPauseButton(playing: Boolean, onClick: () -> Unit, size: Dp, cutSize: Dp
     }
 }
 
+/**
+ * «⟲ 10» / «10 ⟳»: salta hacia atrás o hacia delante los segundos elegidos en Ajustes, sin pasar
+ * de canción. El número va dentro de la vuelta.
+ */
+@Composable
+fun SeekButton(
+    seconds: Int,
+    forward: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    iconSize: Dp = 26.dp,
+    enabled: Boolean = true,
+) {
+    IconButton(
+        if (forward) FpIcons.SeekForward else FpIcons.SeekBack,
+        if (forward) "Adelantar $seconds segundos" else "Atrasar $seconds segundos",
+        onClick,
+        modifier,
+        size = size,
+        iconSize = iconSize,
+        color = Fp.Bone,
+        enabled = enabled,
+    ) {
+        // El centro de la vuelta está un poco por debajo del centro del icono (12, 13 de 24).
+        Chakra(
+            seconds.toString(),
+            (iconSize.value * 0.34f).sp,
+            Modifier.offset(y = iconSize / 24f),
+            color = if (enabled) Fp.Bone else Fp.Bone.copy(alpha = 0.35f),
+            weight = FontWeight.Bold,
+        )
+    }
+}
+
 /** Aleatorio: rosa con un puntito debajo cuando está encendido. */
 @Composable
 fun ShuffleButton(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 44.dp, iconSize: Dp = 20.dp) {
@@ -218,6 +253,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
             modifier = Modifier.offset(y = 64.5.dp).padding(start = 16.dp, end = 22.dp),
             segmentHeight = 3.dp,
             knob = 9.dp,
+            playing = state.nowIsPlaying(),
         )
         Row(
             Modifier.offset(y = 18.dp).fillMaxWidth().height(64.dp).padding(start = 14.dp, end = 8.dp),
@@ -332,10 +368,13 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
             // Centro: controles y progreso.
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    val step = state.settings.seekSeconds
                     ShuffleButton(state.queue.shuffle, { state.toggleShuffle() }, size = 40.dp, iconSize = 18.dp)
+                    SeekButton(step, forward = false, { state.seekBy(forward = false) }, size = 40.dp, iconSize = 24.dp, enabled = now != null)
                     IconButton(FpIcons.Previous, "Anterior", { state.previous() }, size = 40.dp, iconSize = 20.dp, color = Fp.Bone, enabled = now != null)
                     PlayPauseButton(state.nowIsPlaying(), { state.togglePlay() }, size = 46.dp, cutSize = 11.dp, iconSize = 18.dp, enabled = now != null)
                     IconButton(FpIcons.Next, if (now?.isPreview == true) "Cerrar vista previa" else "Siguiente", { state.next() }, size = 40.dp, iconSize = 20.dp, color = Fp.Bone, enabled = now != null)
+                    SeekButton(step, forward = true, { state.seekBy(forward = true) }, size = 40.dp, iconSize = 24.dp, enabled = now != null)
                     RepeatButton(state.queue.repeat, { state.cycleRepeat() }, size = 40.dp, iconSize = 18.dp)
                 }
                 Row(
@@ -354,6 +393,7 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
                                 segmentHeight = 4.dp,
                                 knob = 10.dp,
                                 touchHeight = 28.dp,
+                                playing = state.nowIsPlaying(),
                             )
                         } else {
                             SegmentBar(60, 0f, Modifier.padding(vertical = 12.dp))

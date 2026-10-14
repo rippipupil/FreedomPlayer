@@ -96,6 +96,7 @@ import com.freedomplayer.ui.components.Nunito
 import com.freedomplayer.ui.components.PlayPauseButton
 import com.freedomplayer.ui.components.RepeatButton
 import com.freedomplayer.ui.components.SeekBar
+import com.freedomplayer.ui.components.SeekButton
 import com.freedomplayer.ui.components.ShuffleButton
 import com.freedomplayer.ui.components.StarsInput
 import com.freedomplayer.ui.components.coverModel
@@ -228,8 +229,8 @@ private fun PlayerMobile(state: AppState, song: Song, preview: Boolean, modifier
         AlleyBackground(Modifier.fillMaxSize(), wide = false, flicker = false, tint = Color(song.coverColor))
         BoxWithConstraints(Modifier.fillMaxSize().padding(start = 34.dp, end = 34.dp, top = top + 12.dp, bottom = bottom + 20.dp)) {
             // La carátula mide 268 dp como en el diseño, o menos si la pantalla es baja o estrecha
-            // (lo demás ocupa unos 520 dp contando las ✦ para puntuar y un mínimo para la letra).
-            val coverSize = minOf(268.dp, maxWidth - 20.dp, maxHeight - 520.dp).coerceAtLeast(120.dp)
+            // (lo demás ocupa unos 530 dp contando las ✦ para puntuar, «⟲ ⟳» y un mínimo para la letra).
+            val coverSize = minOf(268.dp, maxWidth - 20.dp, maxHeight - 530.dp).coerceAtLeast(120.dp)
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 PlayerTopBar(state, preview)
                 // El título va 18 px por debajo de la carátula, como en el diseño: el marco rosa
@@ -485,9 +486,16 @@ private fun Progress(state: AppState, segments: Int) {
             segmentHeight = 4.dp,
             knob = 12.dp,
             touchHeight = 44.dp,
+            playing = state.nowIsPlaying(),
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        // Los tiempos y, entre ellos, «⟲ 10» y «10 ⟳» (los segundos se eligen en Ajustes).
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Chakra(formatTime(posSec), 12.sp, color = Fp.Pink, weight = FontWeight.Medium)
+            Row(Modifier.visualHeight(30.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                val step = state.settings.seekSeconds
+                SeekButton(step, forward = false, { state.seekBy(forward = false) })
+                SeekButton(step, forward = true, { state.seekBy(forward = true) })
+            }
             Chakra(formatTime(total), 12.sp, color = Fp.Mist, weight = FontWeight.Medium)
         }
     }

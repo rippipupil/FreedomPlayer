@@ -1,10 +1,16 @@
 package com.freedomplayer.ui.components
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -16,14 +22,21 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * Las 8 caras del fantasmita (tablero Ghost). Las rosas son para lo bueno y las blancas
- * (triste, sorpresa y dormido) para errores, sin resultados y pausa.
+ * Las caras del fantasmita (tablero Ghost). Las rosas son para lo bueno y las blancas (triste,
+ * sorpresa y dormido) para errores, sin resultados y pausa. [Buscando] (@_@, ojos de remolino) es
+ * la de mientras busca: con [SearchingGhost] los remolinos giran.
  */
-enum class Mood { Feliz, Contento, Owo, Uwu, Guino, Sorpresa, Dormido, Triste }
+enum class Mood { Feliz, Contento, Owo, Uwu, Guino, Sorpresa, Dormido, Triste, Buscando }
 
 /** Color del fantasma: el de su cara o forzado a rosa o blanco. */
 enum class GhostTint { Auto, Rosa, Blanco }
@@ -52,6 +65,23 @@ private object GhostArt {
     val catMouthLow by lazy { svgPath("M27 33.5 Q29.5 37.5 32 33.5 Q34.5 37.5 37 33.5") }
     val tongue by lazy { svgPath("M33.5 35.2 Q35 38.5 36.6 35.6") }
 
+    /** Remolino de dos vueltas, centrado en (0, 0) y de radio 5 (se coloca en cada ojo). */
+    val swirl by lazy {
+        Path().apply {
+            val turns = 2.2f
+            val steps = 44
+            for (i in 0..steps) {
+                val t = i / steps.toFloat()
+                val a = t * turns * 2f * PI.toFloat()
+                val r = 0.4f + t * 4.6f
+                val x = r * cos(a)
+                val y = r * sin(a)
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+        }
+    }
+    val smallO by lazy { svgPath("M30 35 A2 2.4 0 1 0 34 35 A2 2.4 0 1 0 30 35 Z") }
+
     // «z z» del dormido
     val zBig by lazy { svgPath("M47 6 H54 L47 13 H54") }
     val zSmall by lazy { svgPath("M55 15 H59 L55 19 H59") }
@@ -66,8 +96,11 @@ private val PinkCheek = Color(0xFFFF6FAE)
 private fun isWhite(mood: Mood, tint: GhostTint): Boolean =
     tint == GhostTint.Blanco || (tint == GhostTint.Auto && (mood == Mood.Triste || mood == Mood.Sorpresa || mood == Mood.Dormido))
 
-/** Dibuja el fantasma ocupando el lienzo (el SVG original mide 64×64). */
-fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto) {
+/**
+ * Dibuja el fantasma ocupando el lienzo (el SVG original mide 64×64). [spin] gira los remolinos
+ * de [Mood.Buscando] (en grados).
+ */
+fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto, spin: Float = 0f) {
     val white = isWhite(mood, tint)
     val body = if (white) WhiteBody else PinkBody
     val ink = if (white) WhiteInk else PinkInk
@@ -120,6 +153,12 @@ fun DrawScope.drawGhost(mood: Mood, tint: GhostTint = GhostTint.Auto) {
                 drawPath(GhostArt.zBig, PinkBody, style = line(2f))
                 drawPath(GhostArt.zSmall, PinkBody, style = line(1.6f))
             }
+            Mood.Buscando -> {
+                // Remolinos que giran en sentidos contrarios (mareado de tanto buscar) y una «o».
+                translate(23f, 27f) { rotate(spin, pivot = Offset.Zero) { drawPath(GhostArt.swirl, ink, style = line(1.8f)) } }
+                translate(41f, 27f) { rotate(-spin, pivot = Offset.Zero) { drawPath(GhostArt.swirl, ink, style = line(1.8f)) } }
+                drawPath(GhostArt.smallO, ink)
+            }
             Mood.Triste -> {
                 rotate(-22f, pivot = Offset(24f, 27f)) { oval(24f, 27f, 4.6f, 2.6f, ink) }
                 rotate(22f, pivot = Offset(40f, 27f)) { oval(40f, 27f, 4.6f, 2.6f, ink) }
@@ -138,6 +177,31 @@ fun Ghost(mood: Mood, size: Dp, modifier: Modifier = Modifier, tint: GhostTint =
     Crossfade(targetState = mood, modifier = modifier.size(size), animationSpec = tween(Motion.STANDARD), label = "ghostMood") { m ->
         Canvas(Modifier.size(size)) { drawGhost(m, tint) }
     }
+}
+
+/**
+ * El fantasmita buscando: ojos de remolino que giran y un vaivén suave, para mientras se busca o
+ * se carga algo. Quieto (con los remolinos parados) si se reduce el movimiento.
+ */
+@Composable
+fun SearchingGhost(size: Dp, modifier: Modifier = Modifier) {
+    if (LocalReduceMotion.current) {
+        Canvas(modifier.size(size)) { drawGhost(Mood.Buscando) }
+        return
+    }
+    val t = rememberInfiniteTransition(label = "searching")
+    val spin by t.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "swirl")
+    val sway by t.animateFloat(-7f, 7f, infiniteRepeatable(tween(900, easing = Motion.EaseInOut), RepeatMode.Reverse), label = "sway")
+    val bob by t.animateFloat(0f, 1f, infiniteRepeatable(tween(700, easing = Motion.EaseInOut), RepeatMode.Reverse), label = "bob")
+    val lift = with(LocalDensity.current) { size.toPx() } * 0.08f
+    Canvas(
+        modifier
+            .size(size)
+            .graphicsLayer {
+                rotationZ = sway
+                translationY = -bob * lift
+            },
+    ) { drawGhost(Mood.Buscando, spin = spin) }
 }
 
 /** El fantasma como Painter: icono de la ventana y de la bandeja en el PC. */

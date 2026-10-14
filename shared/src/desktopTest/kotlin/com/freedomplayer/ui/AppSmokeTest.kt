@@ -235,6 +235,11 @@ class AppSmokeTest {
         settle()
         state.currentSong?.let { state.rate(it.id, 7) }
         settle()
+        // «⟲» y «⟳»
+        state.seekBy(forward = true)
+        settle()
+        state.seekBy(forward = false)
+        settle()
         // La letra a pantalla completa: se abre y «atrás» la cierra sin cerrar el reproductor.
         state.lyricsOpen = true
         settle()

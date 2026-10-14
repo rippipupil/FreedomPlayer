@@ -32,6 +32,7 @@ import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.Crossfade
 import com.freedomplayer.core.EqPreset
 import com.freedomplayer.ui.AppState
+import com.freedomplayer.ui.SEEK_STEPS
 import com.freedomplayer.ui.LocalAppVersion
 import com.freedomplayer.ui.Settings
 import com.freedomplayer.ui.Sheet
@@ -94,6 +95,7 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
             ) {
                 CrossfadeLength(settings)
             }
+            SeekStep(settings)
             SwitchRow("Letra sincronizada", "Resalta la línea que suena. Si lo apagas, la letra se ve entera.", settings.syncedLyrics, { settings.syncedLyrics = it })
             ActionRow(FpIcons.Equalizer, "Ecualizador", EqPreset.matching(settings.eqGains).label + " · 5 bandas") { state.sheet = Sheet.Equalizer }
 
@@ -209,6 +211,20 @@ private fun CrossfadeLength(settings: Settings) {
         Chakra("DURACIÓN", 11.sp, Modifier.padding(end = 4.dp), color = Fp.Mist, spacing = 1.5.sp)
         for (seconds in Crossfade.choices) {
             ChoiceChip("$seconds s", settings.crossfadeSeconds == seconds) { settings.crossfadeSeconds = seconds }
+        }
+    }
+}
+
+/** Cuántos segundos saltan «⟲» y «⟳» en el reproductor y en la barra del PC. */
+@Composable
+private fun SeekStep(settings: Settings) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Nunito("Saltar con ⟲ y ⟳", 14.sp, weight = FontWeight.ExtraBold)
+        Nunito("Atrás o adelante dentro de la canción que suena.", 12.sp, color = Fp.Mist)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (seconds in SEEK_STEPS) {
+                ChoiceChip("$seconds s", settings.seekSeconds == seconds) { settings.seekSeconds = seconds }
+            }
         }
     }
 }

@@ -214,6 +214,12 @@ class OtherListState(val url: String, val hint: PlaylistResult?) {
     val info: PlaylistResult? get() = list?.info ?: hint
 }
 
+/** Segundos que saltan «⟲» y «⟳» si no se ha elegido otra cosa en Ajustes. */
+const val SEEK_STEP_DEFAULT = 10
+
+/** Lo que se puede elegir en Ajustes para «⟲» y «⟳». */
+val SEEK_STEPS = listOf(5, 10, 15, 30)
+
 /** Dos toques en «atrás» del mini-reproductor dentro de este tiempo van a la canción anterior. */
 const val REWIND_DOUBLE_TAP_MS = 600L
 
@@ -310,6 +316,9 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
 
     /** Segundos del fundido entre canciones. */
     var crossfadeSeconds by Whole("crossfadeSeconds", Crossfade.DEFAULT_SECONDS, 1..12)
+
+    /** Segundos que saltan «⟲» y «⟳» (Ajustes › Reproducción: 5, 10, 15 o 30). */
+    var seekSeconds by Whole("seekSeconds", SEEK_STEP_DEFAULT, 5..30)
 
     private val eqState = mutableStateOf(EqBands.parse(read("eq.gains")))
 
@@ -815,6 +824,26 @@ class AppState(
         currentSong ?: return
         positionMs = (currentDurationSec * 1000L * f).toLong()
         engine.seekTo(positionMs)
+    }
+
+    /**
+     * «⟲ 10» / «10 ⟳»: atrás o adelante los segundos de Ajustes. No pasa de canción: se queda
+     * entre el principio y el final de la que suena (también en la vista previa).
+     */
+    fun seekBy(forward: Boolean) {
+        val step = settings.seekSeconds * 1000L * (if (forward) 1 else -1)
+        val p = preview
+        if (p != null) {
+            val total = if (previewDurationMs > 0) previewDurationMs else p.durationSec * 1000L
+            previewPositionMs = (previewPositionMs + step).coerceIn(0L, (total - 1_000).coerceAtLeast(0L))
+            engine.previewSeek(previewPositionMs)
+            return
+        }
+        currentSong ?: return
+        val total = currentDurationSec * 1000L
+        positionMs = (positionMs + step).coerceIn(0L, (total - 1_000).coerceAtLeast(0L))
+        engine.seekTo(positionMs)
+        saveQueue()
     }
 
     fun toggleShuffle() {
