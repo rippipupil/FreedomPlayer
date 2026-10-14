@@ -94,6 +94,8 @@ dependencies {
     // Reproducción: ExoPlayer y la sesión multimedia (notificación, bloqueo, auriculares).
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-session:1.8.0")
+    // FileProvider: pasarle el APK de una versión nueva al instalador de Android.
+    implementation("androidx.core:core-ktx:1.16.0")
     // Leer el QR del PC para vincular (ZXing, sin servicios de Google Play).
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")

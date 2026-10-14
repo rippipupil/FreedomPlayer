@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono pequeño de la notificación: el fantasmita en blanco (Android lo tiñe), con los ojos huecos. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M32 6 C18 6 12 17 12 29 L12 33 C8 34 5 37 4 40 C8 40 11 39 12 38 L12 50 C15 54 18 56 21 52 C24 57 28 58 32 53 C36 58 40 57 43 52 C46 56 49 54 52 50 L52 38 C53 39 56 40 60 40 C59 37 56 34 52 33 L52 29 C52 17 46 6 32 6 Z M19.5 26 a4.5 5 0 1 0 9 0 a4.5 5 0 1 0 -9 0 Z M35.5 26 a4.5 5 0 1 0 9 0 a4.5 5 0 1 0 -9 0 Z" />
+</vector>

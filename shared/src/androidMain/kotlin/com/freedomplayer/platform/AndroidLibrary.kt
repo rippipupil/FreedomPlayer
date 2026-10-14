@@ -7,6 +7,7 @@ import com.freedomplayer.data.Services
 import com.freedomplayer.db.FpDatabase
 import com.freedomplayer.jvm.AppDirs
 import com.freedomplayer.jvm.SyncthingBackend
+import com.freedomplayer.jvm.UpdateInstaller
 import com.freedomplayer.jvm.realServices
 import java.io.File
 
@@ -15,10 +16,10 @@ object AndroidLibrary {
     /** Música, carátulas y descargas a medias, en el almacenamiento privado de la app. */
     fun dirs(context: Context): AppDirs = AppDirs(File(context.applicationContext.filesDir, "biblioteca"))
 
-    fun services(context: Context, engine: AudioEngine): Services {
+    fun services(context: Context, engine: AudioEngine, updater: UpdateInstaller? = null): Services {
         val app = context.applicationContext
         val driver = AndroidSqliteDriver(FpDatabase.Schema, app, DATABASE)
-        return realServices(driver, dirs(app), engine, AndroidLoudness, sync = sync(app))
+        return realServices(driver, dirs(app), engine, AndroidLoudness, updater = updater, sync = sync(app))
     }
 
     /**

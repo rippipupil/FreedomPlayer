@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.AppRelease
 import com.freedomplayer.core.downloadMessage
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.DownloadJob
@@ -127,6 +128,47 @@ fun ErrorCard(error: ErrorNotice, onRetry: () -> Unit, onDismiss: () -> Unit, mo
     }
 }
 
+/**
+ * Versión nueva: «FreedomPlayer 0.5.0» con «ACTUALIZAR» y «LUEGO». Mientras se descarga, la
+ * barra de segmentos; al terminar, se abre el instalador del sistema.
+ */
+@Composable
+fun UpdateCard(
+    release: AppRelease,
+    current: String,
+    progress: Float?,
+    onUpdate: () -> Unit,
+    onLater: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(Fp.Drawer)
+            .leftBar(Fp.Neon, 3.dp)
+            .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Ghost(if (progress == null) Mood.Owo else Mood.Contento, 40.dp, Modifier.fpFloat())
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chakra("VERSIÓN NUEVA", 10.sp, color = Fp.Pink, spacing = 2.sp)
+            Nunito("FreedomPlayer ${release.version}", 15.sp, weight = FontWeight.ExtraBold)
+            if (progress == null) {
+                Nunito("Tienes la $current.", 12.sp, color = Fp.Mist)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PrimaryButton("ACTUALIZAR", onUpdate, height = 36.dp, cutSize = 9.dp, fontSize = 11.sp, spacing = 1.5.sp, horizontalPadding = 14.dp)
+                    TextAction("LUEGO", onLater, color = Fp.Mist, size = 11.sp, spacing = 1.5.sp)
+                }
+            } else {
+                Nunito("Descargando… ${(progress * 100).toInt()} %", 12.sp, color = Fp.Mist)
+                SegmentBar(count = 24, fraction = progress, height = 3.dp)
+            }
+        }
+    }
+}
+
 /** «Sin conexión»: arriba del todo hasta que vuelve la red. */
 @Composable
 fun OfflineBanner(modifier: Modifier = Modifier) {
@@ -171,6 +213,23 @@ fun NoticeStack(state: AppState, modifier: Modifier = Modifier) {
     val enter = riseIn()
     val exit = sinkOut()
     Column(modifier) {
+        AnimatedContent(
+            targetState = state.update?.takeIf { state.showUpdateNotice },
+            transitionSpec = { (enter togetherWith exit) using SizeTransform(clip = false) },
+            contentKey = { it?.version },
+            label = "update",
+        ) { r ->
+            if (r != null) {
+                UpdateCard(
+                    r, state.appVersion, state.updateProgress,
+                    onUpdate = { state.installUpdate() },
+                    onLater = { state.dismissUpdate() },
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } else {
+                Spacer(Modifier.fillMaxWidth())
+            }
+        }
         AnimatedContent(
             targetState = state.error,
             transitionSpec = { (enter togetherWith exit) using SizeTransform(clip = false) },

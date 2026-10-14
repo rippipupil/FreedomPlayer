@@ -7,15 +7,18 @@ import android.content.Intent
 import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
+import com.freedomplayer.android.R
 import com.google.common.util.concurrent.ListenableFuture
 
 /**
- * Reproducción en segundo plano: la notificación con los controles, la pantalla de bloqueo, los
- * botones de los auriculares y el foco de audio. Envuelve el reproductor de [Players] en una
+ * Reproducción en segundo plano: la notificación con los controles (con el tema de la app: ver
+ * [ThemedArtwork]), la pantalla de bloqueo, los botones de los auriculares y el foco de audio. Envuelve el reproductor de [Players] en una
  * sesión de Media3; mientras suena, el servicio sigue vivo aunque se cierre la app.
  */
 @OptIn(UnstableApi::class)
@@ -27,8 +30,17 @@ class PlaybackService : MediaSessionService() {
         val open = packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
             PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
+        // Notificación con el tema: el fantasma como icono pequeño y el canal en español.
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelName(R.string.playback_channel)
+                .build()
+                .apply { setSmallIcon(R.drawable.ic_stat_ghost) },
+        )
         session = MediaSession.Builder(this, Players.main(this))
             .setCallback(Callback)
+            // Las carátulas llegan al sistema montadas en el tema (ver ThemedArtwork).
+            .setBitmapLoader(ThemedBitmapLoader(DataSourceBitmapLoader(this)))
             .apply { if (open != null) setSessionActivity(open) }
             .build()
     }

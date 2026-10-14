@@ -73,6 +73,7 @@ object FpIcons {
     val Play = FpIcon(null, "M7 4 L20 12 L7 20 Z")
     val Pause = FpIcon(null, "M6 5 H10 V19 H6 Z M14 5 H18 V19 H14 Z")
     val NextMini = FpIcon(null, "M6 5 L15 12 L6 19 Z M17 5 H19.6 V19 H17 Z")
+    val PreviousMini = FpIcon(null, "M18 5 L9 12 L18 19 Z M4.4 5 H7 V19 H4.4 Z")
     val Next = FpIcon(null, "M6 5 L15 12 L6 19 Z M16.4 5 H19 V19 H16.4 Z")
     val Previous = FpIcon(null, "M18 5 L9 12 L18 19 Z M5 5 H7.6 V19 H5 Z")
     val Shuffle = FpIcon("M3 7 H7 L15 17 H21 M3 17 H7 L9.5 14 M13 10 L15 7 H21 M18 4 L21 7 L18 10 M18 14 L21 17 L18 20")
@@ -92,6 +93,8 @@ object FpIcons {
     val Plus = FpIcon("M12 5 V19 M5 12 H19", strokeWidth = 2.4f)
     val Check = FpIcon("M5 12.5 L10 17 L19 7", strokeWidth = 2.6f)
     val Close = FpIcon("M6 6 L18 18 M18 6 L6 18", strokeWidth = 2f)
+    /** Versión nueva: dos flechas en ángulo, como el resto. */
+    val Update = FpIcon("M20 8 A8 8 0 0 0 5 7 M4 4 V8 H8 M4 16 A8 8 0 0 0 19 17 M20 20 V16 H16")
     val Download = FpIcon("M12 4 V15 M7 10 L12 15 L17 10 M5 20 H19", strokeWidth = 2f)
     val Folder = FpIcon("M3 5.5 H9.5 L11.5 8 H21 V19 H3 Z M3 11 H21")
     val Link = FpIcon(

@@ -10,6 +10,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.AppRelease
+import com.freedomplayer.core.AppVersions
 import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CoverPalette
 import com.freedomplayer.core.Crossfade
@@ -188,6 +190,11 @@ data class TabResults<T>(
 
 enum class ImportPhase { Paste, Matching, Done }
 
+/** Dos toques en «atrás» del mini-reproductor dentro de este tiempo van a la canción anterior. */
+const val REWIND_DOUBLE_TAP_MS = 600L
+
+/** Cada cuánto se mira si hay versión nueva mientras la app está abierta (6 h). */
+private const val UPDATE_CHECK_EVERY_MS = 6L * 60 * 60 * 1000
 private const val SYNC_PEER = "sync.peer"
 
 private const val SPOTIFY_EDITORIAL = "Esa playlist la hace Spotify y no se puede importar. Prueba con una tuya."
@@ -712,6 +719,38 @@ class AppState(
             positionMs = 0
             durationMs = 0
             resetCount()
+        }
+        reaction++
+        saveQueue()
+    }
+
+    private var lastRewindAt = Long.MIN_VALUE / 2
+
+    /**
+     * Botón «atrás» del mini-reproductor: un toque vuelve al principio de la canción; otro toque
+     * enseguida ([REWIND_DOUBLE_TAP_MS]) pasa a la anterior, y cada toque rápido más sigue hacia
+     * atrás. Si no hay anterior, vuelve a empezar la misma.
+     */
+    fun rewind(atMillis: Long = nowMillis()) {
+        val quick = atMillis - lastRewindAt in 0..REWIND_DOUBLE_TAP_MS
+        lastRewindAt = atMillis
+        if (preview != null) {
+            engine.previewSeek(0)
+            previewPositionMs = 0
+            reaction++
+            return
+        }
+        if (queue.isEmpty) return
+        val back = if (quick) queue.previous() else queue
+        if (back.index != queue.index) {
+            queue = back
+            engine.skipTo(back.index)
+            positionMs = 0
+            durationMs = 0
+            resetCount()
+        } else {
+            engine.seekTo(0)
+            positionMs = 0
         }
         reaction++
         saveQueue()
@@ -1719,6 +1758,99 @@ class AppState(
         }
     }
 
+    // ---------- Actualizaciones ----------
+
+    /** Versión de esta app («0.4.0»; «dev» al compilarla en el ordenador). La pone cada plataforma. */
+    var appVersion by mutableStateOf("dev")
+
+    /** Versión publicada más nueva que la instalada, si la hay. */
+    var update by mutableStateOf<AppRelease?>(null)
+        private set
+
+    /** Progreso de la descarga de [update] (0–1), o null si no se está descargando. */
+    var updateProgress by mutableStateOf<Float?>(null)
+        private set
+
+    var checkingUpdates by mutableStateOf(false)
+        private set
+
+    /** «LUEGO»: esa versión ya no vuelve a salir sola (sí al buscar a mano en Ajustes). */
+    private var dismissedUpdate by mutableStateOf(store.setting("update.dismissed"))
+
+    /** El aviso de versión nueva abajo: la hay, no se ha dejado para luego, o se está descargando. */
+    val showUpdateNotice: Boolean
+        get() = updateProgress != null || update.let { it != null && it.version != dismissedUpdate }
+
+    val canUpdate: Boolean get() = services.updates != null && !isDemo
+
+    /** Busca una versión nueva. [manual] = desde Ajustes: dice el resultado aunque no haya nada. */
+    fun checkForUpdates(manual: Boolean = true) {
+        val s = scope ?: return
+        s.launch { findUpdate(manual) }
+    }
+
+    internal suspend fun findUpdate(manual: Boolean) {
+        val updates = services.updates ?: return
+        if (isDemo || checkingUpdates) return
+        checkingUpdates = true
+        try {
+            val latest = updates.latest()
+            val newer = latest?.takeIf { AppVersions.isNewer(it.version, appVersion) }
+            update = newer
+            if (manual) {
+                if (newer != null) dismissedUpdate = null
+                else toast("Ya tienes la última versión (${appVersion}).", Mood.Uwu, Tone.Jade)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (manual) showError("No se pudo buscar si hay versión nueva", e.failureKind().explain()) { checkForUpdates() }
+        } finally {
+            checkingUpdates = false
+        }
+    }
+
+    /** Al abrir la app y cada pocas horas, si hay red. */
+    private suspend fun watchUpdates() {
+        if (services.updates == null || isDemo) return
+        delay(4_000)
+        while (true) {
+            while (!online) delay(1_000)
+            findUpdate(manual = false)
+            delay(UPDATE_CHECK_EVERY_MS)
+        }
+    }
+
+    fun dismissUpdate() {
+        val v = update?.version ?: return
+        dismissedUpdate = v
+        store.setSetting("update.dismissed", v)
+    }
+
+    /** «ACTUALIZAR»: descarga el instalador y lo abre (en Android pide confirmación al sistema). */
+    fun installUpdate() {
+        val release = update ?: return
+        val updates = services.updates ?: return
+        val s = scope ?: return
+        if (updateProgress != null) return
+        updateProgress = 0f
+        s.launch {
+            val path = try {
+                updates.download(release) { p -> updateProgress = p.coerceIn(0f, 1f) }
+            } catch (e: CancellationException) {
+                updateProgress = null
+                throw e
+            } catch (e: Throwable) {
+                updateProgress = null
+                showError("No se pudo descargar la versión ${release.version}", e.failureKind().explain()) { installUpdate() }
+                return@launch
+            }
+            updateProgress = null
+            val problem = updates.install(path)
+            if (problem != null) showError("No se pudo instalar la versión ${release.version}", problem) { installUpdate() }
+        }
+    }
+
     // ---------- Avisos ----------
 
     var toast by mutableStateOf<Toast?>(null)
@@ -2014,6 +2146,7 @@ class AppState(
             }
             if (downloads.isNotEmpty() && worker?.isActive != true) worker = launch { work() }
             launch { measureLoudness() }
+            launch { watchUpdates() }
             // Ya vinculado con otro dispositivo: se sincroniza solo al abrir la app.
             if (services.sync != null && store.setting(SYNC_PEER) != null) startSync()
             try {

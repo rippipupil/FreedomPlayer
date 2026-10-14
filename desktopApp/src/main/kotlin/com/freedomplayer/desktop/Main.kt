@@ -62,6 +62,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.freedomplayer.platform.DesktopAudioImporter
 import com.freedomplayer.platform.DesktopEngine
 import com.freedomplayer.platform.DesktopLibrary
+import com.freedomplayer.platform.DesktopUpdateInstaller
 import com.freedomplayer.platform.FolderPicker
 import com.freedomplayer.platform.MediaKey
 import com.freedomplayer.platform.MediaKeys
@@ -99,7 +100,13 @@ import javax.swing.SwingUtilities
  * mini-reproductor flotante.
  */
 fun main() = application {
-    val state = remember { AppState(System.currentTimeMillis(), DesktopLibrary.services(DesktopEngine())) }
+    val updater = remember { DesktopUpdateInstaller() }
+    val state = remember {
+        AppState(System.currentTimeMillis(), DesktopLibrary.services(DesktopEngine(), updater))
+            .also { it.appVersion = DesktopSystem.appVersion() }
+    }
+    // Abierto el instalador de la versión nueva, la app se cierra para que pueda reemplazarla.
+    updater.onLaunched = { SwingUtilities.invokeLater { exitApplication() } }
     var mainVisible by remember { mutableStateOf(true) }
     var miniOpen by remember { mutableStateOf(false) }
     var trayNoticeShown by remember { mutableStateOf(false) }

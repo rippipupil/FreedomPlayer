@@ -260,14 +260,25 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                     }
                 }
             }
-            PlayPauseButton(state.nowIsPlaying(), { state.togglePlay() }, size = 44.dp, cutSize = 10.dp, iconSize = 16.dp)
-            IconButton(
-                FpIcons.NextMini,
-                if (now.isPreview) "Cerrar vista previa" else "Siguiente",
-                onClick = { state.next() },
-                iconSize = 18.dp,
-                color = Fp.Bone,
-            )
+            // Los mandos juntos, para dejarle sitio al título.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                // Un toque: al principio de la canción; dos seguidos: la anterior (ver AppState.rewind).
+                IconButton(
+                    FpIcons.PreviousMini,
+                    "Atrás: un toque vuelve a empezar, dos van a la anterior",
+                    onClick = { state.rewind() },
+                    iconSize = 18.dp,
+                    color = Fp.Bone,
+                )
+                PlayPauseButton(state.nowIsPlaying(), { state.togglePlay() }, size = 44.dp, cutSize = 10.dp, iconSize = 16.dp)
+                IconButton(
+                    FpIcons.NextMini,
+                    if (now.isPreview) "Cerrar vista previa" else "Siguiente",
+                    onClick = { state.next() },
+                    iconSize = 18.dp,
+                    color = Fp.Bone,
+                )
+            }
         }
         Ghost(Mood.Contento, 28.dp, Modifier.offset(x = 32.dp).fpFloat().fpHop(state.reaction))
     }

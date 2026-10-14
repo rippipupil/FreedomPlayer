@@ -464,7 +464,8 @@ class AndroidEngine(context: Context) : AudioEngine {
                     .setTitle(title)
                     .setArtist(artist)
                     .setAlbumTitle(album)
-                    .setArtworkUri(artworkUri?.let(::uriOf))
+                    // Siempre una imagen: sin carátula, la del tema (ThemedBitmapLoader la pinta).
+                    .setArtworkUri(artworkUri?.let(::uriOf) ?: ThemedArtwork.PLACEHOLDER)
                     .build(),
             )
             .build()

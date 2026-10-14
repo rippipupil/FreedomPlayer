@@ -1,6 +1,7 @@
 package com.freedomplayer.data
 
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.AppRelease
 import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
@@ -28,6 +29,8 @@ class Services(
     val loudness: LoudnessAnalyzer? = null,
     /** Lee las playlists públicas de Spotify (para importarlas); sin él, no se puede importar. */
     val spotify: SpotifyReader? = null,
+    /** Versiones nuevas de la app (GitHub Releases); sin él, no se buscan. */
+    val updates: UpdateService? = null,
     /** Sincronizar con el otro dispositivo (Syncthing); sin él, no se puede vincular. */
     val sync: SyncBackend? = null,
 ) {
@@ -313,4 +316,24 @@ interface AudioEngine {
     fun tick(elapsedMs: Long) {}
 
     fun release() {}
+}
+
+// ---------- Actualizaciones ----------
+
+/**
+ * Versiones nuevas de la app: las busca en GitHub Releases, descarga el instalador de esta
+ * plataforma y lo abre. Puede lanzar [SourceException] (sin red, GitHub no responde…).
+ */
+interface UpdateService {
+    /** La versión publicada más reciente que trae instalador para esta plataforma, o null. */
+    suspend fun latest(): AppRelease?
+
+    /** Descarga el instalador de [release]; devuelve dónde ha quedado. [progress] va de 0 a 1. */
+    suspend fun download(release: AppRelease, progress: (Float) -> Unit): String
+
+    /**
+     * Abre el instalador descargado. Devuelve null si se ha abierto, o por qué no (para el aviso):
+     * falta el permiso de instalar apps, está firmado con otra clave…
+     */
+    fun install(path: String): String?
 }
