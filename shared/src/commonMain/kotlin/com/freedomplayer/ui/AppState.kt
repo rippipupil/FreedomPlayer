@@ -100,6 +100,9 @@ sealed interface Prompt {
 
     /** Ranking nuevo que empieza con una canción (desde «⋯» del reproductor). */
     data class NewRankingWith(val songId: String) : Prompt
+
+    /** Corregir el título y el artista de una canción (los de un vídeo, por ejemplo). */
+    data class EditSong(val songId: String) : Prompt
 }
 
 /** Aviso positivo: sale abajo y se va solo. Puede llevar una acción («DESHACER»). */
@@ -1145,8 +1148,22 @@ class AppState(
                 openRankingId = id
                 toast(if (first != null) "Ranking «$name» creado, con «${song(first)?.title}»." else "Ranking «$name» creado.", Mood.Feliz)
             }
-            null -> Unit
+            is Prompt.EditSong, null -> Unit
         }
+    }
+
+    /** Guarda el título y el artista corregidos de una canción. */
+    fun editSong(songId: String, title: String, artist: String) {
+        val t = title.trim()
+        val a = artist.trim()
+        if (t.isEmpty()) return
+        prompt = null
+        val before = song(songId) ?: return
+        if (before.title == t && before.artist == a.ifEmpty { before.artist }) return
+        val after = before.copy(title = t, artist = a.ifEmpty { before.artist })
+        replaceSong(songId) { after }
+        store.saveSong(after)
+        toast("Guardado: «${after.title}» de ${after.artist}.", Mood.Feliz)
     }
 
     // ---------- Ranking ----------

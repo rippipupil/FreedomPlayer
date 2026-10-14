@@ -4,9 +4,12 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 1.** La interfaz está completa en Android y en Windows, pero funciona con
-> canciones de ejemplo: todavía no busca, descarga ni reproduce audio de verdad (la reproducción
-> se simula). Ver [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño.
+> **Estado: hito 2.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
+> biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
+> con FFmpeg dentro de la app. Falta importar de Spotify de verdad (hito 3). Ver
+> [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
+> [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
 ## Descargar
 
@@ -25,7 +28,7 @@ tus propios rankings.
 En Android hay que permitir instalar apps de origen desconocido. Windows puede avisar con
 SmartScreen porque el instalador no está firmado: «Más información» › «Ejecutar de todas formas».
 
-Las compilaciones de prueba se numeran `0.1.<n.º de ejecución>`. Si en Windows instalaste una con
+Las compilaciones de prueba se numeran `0.2.<n.º de ejecución>`. Si en Windows instalaste una con
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
 
@@ -73,29 +76,48 @@ Hace falta JDK 17 o posterior. Para Android, también el SDK de Android (compile
 ./gradlew :shared:desktopTest                   # pruebas de la lógica y de la interfaz
 ./gradlew -Pfp.android=false :desktopApp:run    # sin el SDK de Android
 ./gradlew :desktopApp:packageMsi                # instalador de Windows (en Windows)
+./gradlew -Pfp.android=false :shared:networkSmoke   # YouTube y LRCLIB de verdad (necesita internet)
 ```
+
+NewPipe Extractor se descarga de JitPack; el resto, de Maven Central y Google Maven.
 
 En el PC, la variable `FP_REDUCE_MOTION=1` quita las animaciones aunque el sistema no lo pida.
 
 Las pruebas incluyen una prueba de humo de la interfaz (`AppSmokeTest`) que pinta la app sin
-ventana, con tamaño de móvil y de PC, y recorre todas las pantallas. En cada compilación, además,
-el APK se instala en un emulador de Android 14, se abre y se gira la pantalla para comprobar que
-la app no se cierra.
+ventana, con tamaño de móvil y de PC, y recorre todas las pantallas. También prueban la base de
+datos y sus consultas del historial, las descargas y LRCLIB contra un servidor local, y el audio
+del PC con FFmpeg de verdad. En cada compilación, además, el APK se instala en un emulador de
+Android 14, se abre y se gira la pantalla para comprobar que la app no se cierra.
+
+Las pruebas no usan internet: YouTube a veces bloquea los servidores de GitHub. Aparte, el job
+«YouTube y LRCLIB (solo aviso)» busca, saca el audio y pide una letra de verdad; si falla, solo
+deja un aviso en la ejecución.
 
 ### Estructura
 
 - `shared/`: todo lo común.
-  - `core/`: la lógica sin interfaz (biblioteca, cola, ranking, estadísticas, búsqueda, letras,
-    limpieza de títulos, importación de Spotify) y los datos de ejemplo. Tiene pruebas en
-    `commonTest`.
+  - `core/`: la lógica sin interfaz (biblioteca, cola, ranking, estadísticas, búsqueda, letras
+    LRC, limpieza de títulos, elección del audio, importación de Spotify) y los datos de ejemplo.
+    Tiene pruebas en `commonTest`.
+  - `data/`: lo que la app necesita de fuera (`Services`: biblioteca, buscador, descargas, letras
+    y audio), la biblioteca en SQLite (`SqlLibraryStore`, con el esquema en
+    `commonMain/sqldelight`) y las versiones de ejemplo para las pruebas.
+  - `jvmShared/`: lo que comparten Android y el PC: YouTube con NewPipe Extractor, descargas con
+    OkHttp y letras de LRCLIB.
+  - `desktopMain/platform/`: el audio del PC (FFmpeg) y dónde guarda la biblioteca.
   - `ui/`: el estado de la app (`AppState`), el tema, los componentes (fantasmas, paneles,
     pestañas, avisos, reproductores…) y las pantallas.
-- `androidApp/`: la actividad de Android.
+- `androidApp/`: la actividad de Android, la reproducción con Media3 (`playback/`) y la
+  importación de archivos propios.
 - `desktopApp/`: la ventana de Windows (barra de título propia, bandeja del sistema y
   mini-reproductor).
 - `docs/`: decisiones de diseño, notas de cada versión y licencias de las tipografías.
 
-## Licencias de las tipografías
+## Licencias
 
 La app incluye las tipografías [Chakra Petch](docs/OFL-ChakraPetch.txt) y
 [Nunito](docs/OFL-Nunito.txt), con licencia SIL Open Font License 1.1.
+
+También lleva [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor) (GPL-3.0) y,
+en el PC, FFmpeg (LGPL) a través de [JavaCV](https://github.com/bytedeco/javacv). Las letras
+vienen de [LRCLIB](https://lrclib.net).

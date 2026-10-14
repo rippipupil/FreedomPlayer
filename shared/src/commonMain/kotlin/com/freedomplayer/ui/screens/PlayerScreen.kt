@@ -68,6 +68,7 @@ import com.freedomplayer.core.LyricLine
 import com.freedomplayer.core.Song
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.ui.AppState
+import com.freedomplayer.ui.Prompt
 import com.freedomplayer.ui.Sheet
 import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Chakra
@@ -466,16 +467,17 @@ private fun ColumnScope.NoLyrics(instrumental: Boolean, online: Boolean) {
     }
 }
 
-private class Tool(val icon: FpIcon, val label: String, val soon: String)
+/** Una herramienta del reproductor. Con [soon], todavía no existe y solo avisa de que llega. */
+private class Tool(val icon: FpIcon, val label: String, val soon: String? = null)
 
 private val ToolList = listOf(
     Tool(FpIcons.Equalizer, "Ecualizador", "El ecualizador"),
     Tool(FpIcons.Moon, "Temporizador de apagado", "El temporizador de apagado"),
-    Tool(FpIcons.Pencil, "Editar datos de la canción", "Editar los datos"),
+    Tool(FpIcons.Pencil, "Editar datos de la canción"),
     Tool(FpIcons.Queue, "Cola", "La cola"),
 )
 
-/** Ecualizador, temporizador, editar datos y cola (llegan en próximas versiones). */
+/** Ecualizador, temporizador, editar datos y cola (el ecualizador, el temporizador y la cola llegan más adelante). */
 @Composable
 private fun Tools(state: AppState) {
     Row(
@@ -486,7 +488,15 @@ private fun Tools(state: AppState) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         for (tool in ToolList) {
-            IconButton(tool.icon, tool.label, { state.soon(tool.soon) })
+            IconButton(tool.icon, tool.label, { useTool(state, tool) })
         }
+    }
+}
+
+private fun useTool(state: AppState, tool: Tool) {
+    val song = state.currentSong
+    when {
+        tool.soon != null -> state.soon(tool.soon)
+        song != null -> state.prompt = Prompt.EditSong(song.id)
     }
 }

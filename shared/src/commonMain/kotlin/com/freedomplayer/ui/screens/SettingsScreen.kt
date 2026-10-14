@@ -55,8 +55,9 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
             fun next(): String = (++n).toString().padStart(2, '0')
 
             SectionHeader(next(), "REPRODUCCIÓN")
-            SwitchRow("Volumen igualado", "Todas las canciones suenan igual de fuerte.", settings.normalizeVolume, { settings.normalizeVolume = it })
-            SwitchRow("Fundido entre canciones", "Una canción entra mientras la otra se apaga (crossfade).", settings.crossfade, { settings.crossfade = it })
+            // TODO: igualar el volumen y el fundido llegan más adelante; el ajuste ya se guarda.
+            SwitchRow("Volumen igualado", "Todas las canciones igual de fuertes. Llega en una próxima versión.", settings.normalizeVolume, { settings.normalizeVolume = it })
+            SwitchRow("Fundido entre canciones", "Una entra mientras la otra se apaga. Llega en una próxima versión.", settings.crossfade, { settings.crossfade = it })
             SwitchRow("Letra sincronizada", "Resalta la línea que suena. Si lo apagas, la letra se ve entera.", settings.syncedLyrics, { settings.syncedLyrics = it })
             ActionRow(FpIcons.Equalizer, "Ecualizador", "Llega en una próxima versión.") { state.soon("El ecualizador") }
 

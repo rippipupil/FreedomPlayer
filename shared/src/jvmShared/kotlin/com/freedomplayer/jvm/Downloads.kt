@@ -152,7 +152,11 @@ class YouTubeDownloader(
     private val now: () -> Long = { System.currentTimeMillis() },
 ) : MediaDownloader {
 
-    override suspend fun download(request: DownloadRequest, progress: (Float) -> Unit): DownloadedSong {
+    override suspend fun download(request: DownloadRequest, progress: (Float) -> Unit): DownloadedSong =
+        withContext(Dispatchers.IO) { downloadNow(request, progress) }
+
+    /** Todo fuera del hilo principal: red, archivos y carátula. */
+    private suspend fun downloadNow(request: DownloadRequest, progress: (Float) -> Unit): DownloadedSong {
         val result = request.result
         progress(0f)
         val audio = resolver.resolve(result)

@@ -139,6 +139,19 @@ class PlaybackFlowTest {
     }
 
     @Test
+    fun aVideoTitleCanBeCorrectedLater() {
+        val store = store()
+        val state = app(store)
+        state.prompt = Prompt.EditSong("s3")
+        state.editSong("s3", "  Luz de farola ", "Ghostline")
+        assertNull(state.prompt)
+        assertEquals("Luz de farola" to "Ghostline", state.song("s3")?.let { it.title to it.artist })
+        assertEquals("Luz de farola", store.load().songs.first { it.id == "s3" }.title, "queda guardado")
+        state.editSong("s3", "   ", "Nadie")
+        assertEquals("Luz de farola", state.song("s3")?.title, "sin título no se cambia")
+    }
+
+    @Test
     fun songsWithoutAudioAreSkippedWhenPlayingAList() {
         val store = MemoryStore(
             LibrarySnapshot(songs().map { if (it.id == "s2") it.copy(audioPath = null) else it }, emptyList(), emptyList(), emptyList()),

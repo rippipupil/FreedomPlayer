@@ -109,6 +109,7 @@ fun SheetHost(state: AppState, modifier: Modifier = Modifier) {
                 is Sheet.Add -> SheetSurface { AddSheet(state, current.target) }
                 is Sheet.More -> SheetSurface { MoreSheet(state) }
                 is Sheet.AddToRanking -> SheetSurface { RankingPicker(state, current.songId) }
+                is Prompt.EditSong -> SheetSurface { EditSongPrompt(state, current.songId) }
                 is Prompt -> SheetSurface { NamePrompt(state, current) }
                 else -> Box(Modifier.size(0.dp))
             }
@@ -266,8 +267,11 @@ private fun ColumnScope.MoreSheet(state: AppState) {
         OptionRow(FpIcons.Ranking, "Añadir a un ranking tuyo", "«Top gym», «Para noches tristes»…") {
             state.sheet = Sheet.AddToRanking(song.id)
         }
+        OptionRow(FpIcons.Pencil, "Editar datos de la canción", "Título y artista.") {
+            state.sheet = null
+            state.prompt = Prompt.EditSong(song.id)
+        }
     }
-    OptionRow(FpIcons.Pencil, "Editar datos de la canción", "Llega en una próxima versión.") { state.soon("Editar los datos") }
     OptionRow(FpIcons.Queue, "Ver la cola", "Llega en una próxima versión.") { state.soon("La cola") }
     SecondaryButton("CERRAR", { state.sheet = null }, Modifier.fillMaxWidth(), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
 }
@@ -306,6 +310,40 @@ private fun ColumnScope.RankingPicker(state: AppState, songId: String) {
         state.prompt = Prompt.NewRankingWith(songId)
     }
     SecondaryButton("CANCELAR", { state.sheet = null }, Modifier.fillMaxWidth(), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
+}
+
+/** Corregir el título y el artista de una canción. */
+@Composable
+private fun ColumnScope.EditSongPrompt(state: AppState, songId: String) {
+    val song = state.song(songId)
+    var title by remember(songId) { mutableStateOf(song?.title ?: "") }
+    var artist by remember(songId) { mutableStateOf(song?.artist ?: "") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(songId) {
+        runCatching { focus.requestFocus() }
+    }
+    SheetHeader("EDITAR DATOS", song?.title ?: "")
+    UnderlineField(
+        value = title,
+        onValueChange = { title = it },
+        placeholder = "Título",
+        label = "Título de la canción",
+        modifier = Modifier.focusRequester(focus),
+        leadingIcon = FpIcons.Pencil,
+    )
+    UnderlineField(
+        value = artist,
+        onValueChange = { artist = it },
+        placeholder = "Artista",
+        label = "Artista",
+        leadingIcon = FpIcons.Pencil,
+        imeAction = ImeAction.Done,
+        onSubmit = { state.editSong(songId, title, artist) },
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        SecondaryButton("CANCELAR", { state.prompt = null }, Modifier.weight(1f), color = Fp.Mist, lineColor = Fp.Pink.copy(alpha = 0.25f))
+        PrimaryButton("GUARDAR", { state.editSong(songId, title, artist) }, Modifier.weight(1f), fill = true, enabled = title.isNotBlank())
+    }
 }
 
 /** Nombre de una playlist o un ranking nuevo. */
