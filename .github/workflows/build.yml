@@ -140,6 +140,9 @@ jobs:
             echo "No hay KEYSTORE_BASE64: se firma con la clave de depuración estándar."
           fi
 
+      - name: Syncthing (binarios oficiales, con su suma SHA-256)
+        run: bash .github/scripts/syncthing.sh android
+
       - name: Compilar el APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -303,6 +306,9 @@ jobs:
           fi
           echo "FP_VERSION=$version" >> "$GITHUB_ENV"
           echo "Versión: $version"
+
+      - name: Syncthing (binario oficial, con su suma SHA-256)
+        run: bash .github/scripts/syncthing.sh windows
 
       - name: Compilar el instalador (.msi) y la versión portable
         run: ./gradlew -Pfp.android=false :desktopApp:packageMsi :desktopApp:createDistributable 2>&1 | tee build.log

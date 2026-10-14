@@ -17,3 +17,7 @@ captures/
 *.p12
 *.pem
 keystore.properties
+
+# Syncthing: se descarga en CI (con su suma SHA-256); nunca en el repositorio
+androidApp/src/main/jniLibs/
+desktopApp/resources/windows/syncthing.exe
