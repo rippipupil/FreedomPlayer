@@ -143,7 +143,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :androidApp:assembleRelease 2>&1 | tee build.log
+        run: ./gradlew :androidApp:assembleRelease :androidApp:assembleReleaseAndroidTest 2>&1 | tee build.log
 
       - name: Errores
         if: failure()
@@ -169,8 +169,16 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
+      # Las pruebas del emulador (no se publican: solo sirven para el job «emulator»).
+      - uses: actions/upload-artifact@v6
+        with:
+          name: pruebas-android
+          path: androidApp/build/outputs/apk/androidTest/release/*.apk
+          if-no-files-found: error
+
   # Instala el APK en un emulador de Android, abre la app y comprueba que no se cierra (ni al
-  # abrirla ni al girar la pantalla) y que el logcat no tiene errores fatales.
+  # abrirla ni al girar la pantalla) y que el logcat no tiene errores fatales. Después, las
+  # pruebas de androidTest: el audio de verdad, la sesión de Media3 y la notificación.
   emulator:
     name: Android (abrir en un emulador)
     needs: android
@@ -189,6 +197,11 @@ jobs:
           name: FreedomPlayer-android
           path: apk
 
+      - uses: actions/download-artifact@v5
+        with:
+          name: pruebas-android
+          path: pruebas
+
       - name: Activar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -202,7 +215,9 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: false
-          script: bash .github/scripts/probar-apk.sh "$(ls apk/*.apk | head -n 1)"
+          script: |
+            bash .github/scripts/probar-apk.sh "$(ls apk/*.apk | head -n 1)"
+            bash .github/scripts/pruebas-android.sh "$(ls pruebas/*.apk | head -n 1)"
 
       - uses: actions/upload-artifact@v6
         if: always()
@@ -211,6 +226,8 @@ jobs:
           path: |
             captura-emulador.png
             logcat.txt
+            pruebas-android.txt
+            logcat-pruebas.txt
           if-no-files-found: ignore
 
   windows:

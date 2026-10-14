@@ -37,40 +37,40 @@ class AndroidEngine(context: Context) : AudioEngine {
     private var preview: ExoPlayer? = null
     private var previewError: String? = null
 
+    private val listener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // Cambiar la cola entera ya cuenta en load().
+            if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) transitions++
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            when (playbackState) {
+                Player.STATE_READY -> failedInARow = 0
+                Player.STATE_ENDED -> {
+                    // Fin de la cola sin repetir: se para al principio de la última.
+                    ended = true
+                    player.playWhenReady = false
+                    player.seekTo(player.currentMediaItemIndex, 0)
+                }
+                else -> Unit
+            }
+        }
+
+        override fun onPlayerError(e: PlaybackException) {
+            val title = player.currentMediaItem?.mediaMetadata?.title ?: "la canción"
+            error = "No se pudo reproducir «$title»: ${describe(e)}."
+            errorSerial++
+            failedInARow++
+            // Si una falla (un archivo borrado…), se sigue con la siguiente.
+            if (player.hasNextMediaItem() && failedInARow < player.mediaItemCount) {
+                player.seekToNextMediaItem()
+                player.prepare()
+            }
+        }
+    }
+
     init {
-        player.addListener(
-            object : Player.Listener {
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    // Cambiar la cola entera ya cuenta en load().
-                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) transitions++
-                }
-
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    when (playbackState) {
-                        Player.STATE_READY -> failedInARow = 0
-                        Player.STATE_ENDED -> {
-                            // Fin de la cola sin repetir: se para al principio de la última.
-                            ended = true
-                            player.playWhenReady = false
-                            player.seekTo(player.currentMediaItemIndex, 0)
-                        }
-                        else -> Unit
-                    }
-                }
-
-                override fun onPlayerError(e: PlaybackException) {
-                    val title = player.currentMediaItem?.mediaMetadata?.title ?: "la canción"
-                    error = "No se pudo reproducir «$title»: ${describe(e)}."
-                    errorSerial++
-                    failedInARow++
-                    // Si una falla (un archivo borrado…), se sigue con la siguiente.
-                    if (player.hasNextMediaItem() && failedInARow < player.mediaItemCount) {
-                        player.seekToNextMediaItem()
-                        player.prepare()
-                    }
-                }
-            },
-        )
+        player.addListener(listener)
     }
 
     override fun load(tracks: List<Track>, index: Int, positionMs: Long, play: Boolean) {
@@ -213,8 +213,10 @@ class AndroidEngine(context: Context) : AudioEngine {
         )
     }
 
+    /** El reproductor es del proceso (lo comparte la sesión): aquí solo se deja de escucharlo. */
     override fun release() {
         stopPreview()
+        player.removeListener(listener)
     }
 
     companion object {

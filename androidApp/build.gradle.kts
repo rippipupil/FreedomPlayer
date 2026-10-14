@@ -41,7 +41,12 @@ android {
         targetSdk = 36
         versionCode = buildNumber
         versionName = appVersion
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    // Las pruebas del emulador (src/androidTest) van contra la misma variante que se publica, y
+    // su APK se firma con la misma clave que la app (si no, Android no deja instrumentarla).
+    testBuildType = "release"
 
     signingConfigs {
         if (signWithReleaseKey) {
@@ -87,4 +92,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-session:1.8.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
+
+    // Pruebas en el emulador: el audio de verdad (ExoPlayer), la sesión y la notificación.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("junit:junit:4.13.2")
 }
