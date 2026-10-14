@@ -50,6 +50,7 @@ import com.freedomplayer.ui.components.SheetHost
 import com.freedomplayer.ui.components.SideTabs
 import com.freedomplayer.ui.components.nowPlaying
 import com.freedomplayer.ui.components.statusBarHeight
+import com.freedomplayer.ui.screens.AlbumScreen
 import com.freedomplayer.ui.screens.HomeScreen
 import com.freedomplayer.ui.screens.PlayerScreen
 import com.freedomplayer.ui.screens.OtherListScreen
@@ -132,6 +133,7 @@ private fun ScreenHost(state: AppState, modifier: Modifier = Modifier) {
             Screen.Settings -> SettingsScreen(state)
             is Screen.PlaylistDetail -> PlaylistScreen(state, screen.id)
             is Screen.OtherListDetail -> OtherListScreen(state, screen.url)
+            is Screen.AlbumDetail -> AlbumScreen(state, screen.key)
             Screen.SpotifyImport -> SpotifyScreen(state)
             Screen.Sync -> SyncScreen(state)
         }

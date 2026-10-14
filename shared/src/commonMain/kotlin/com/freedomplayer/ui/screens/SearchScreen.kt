@@ -462,70 +462,93 @@ private fun EqCanvas(level: (Int) -> Float) {
     }
 }
 
-/** Fila de álbum: carátulas apiladas, título, «ARTISTA · AÑO · N CANCIONES» y «+ ÁLBUM ENTERO». */
+/**
+ * Fila de álbum: carátulas apiladas, título, «ARTISTA · AÑO · N CANCIONES» y «+ ÁLBUM ENTERO».
+ * Tocar la carátula o el nombre abre el álbum para ver sus canciones una a una.
+ */
 @Composable
 private fun AlbumRow(state: AppState, album: AlbumResult, modifier: Modifier = Modifier) {
     LaunchedEffect(album.key) { state.loadAlbumTracks(album) }
     val results = state.albumTracks[album.key]
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        StackedCover(
+            album.coverColor,
+            front = 76.dp,
+            back = 74.dp,
+            backX = 8.dp,
+            frontY = 9.dp,
+            image = album.cover,
+            modifier = Modifier.fpClickable(onClickLabel = "Ver las canciones de ${album.title}", pressedScale = 0.97f) { state.openAlbum(album) },
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                Modifier.fpClickable(onClickLabel = "Ver las canciones de ${album.title}", pressedScale = 0.98f) { state.openAlbum(album) },
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Nunito(album.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 1)
+                Chakra(
+                    listOfNotNull(album.artist.uppercase().ifBlank { null }, album.year, results?.let { songCount(it.size) } ?: "ÁLBUM").joinToString(" · ") + "  ›",
+                    11.sp,
+                    color = Fp.Mist,
+                    spacing = 1.sp,
+                    weight = FontWeight.Medium,
+                )
+            }
+            AlbumAction(state, album)
+        }
+    }
+}
+
+/** «+ ÁLBUM ENTERO», cómo va su descarga o «ÁLBUM EN TU BIBLIO» (en Buscar y dentro del álbum). */
+@Composable
+internal fun AlbumAction(state: AppState, album: AlbumResult) {
+    val results = state.albumTracks[album.key]
     val have = results?.count { state.librarySongFor(it) != null } ?: 0
     val job = state.albumJob(album)
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        StackedCover(album.coverColor, front = 76.dp, back = 74.dp, backX = 8.dp, frontY = 9.dp, image = album.cover)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Nunito(album.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 1)
-            Chakra(
-                listOfNotNull(album.artist.uppercase().ifBlank { null }, album.year, results?.let { songCount(it.size) } ?: "ÁLBUM").joinToString(" · "),
-                11.sp,
-                color = Fp.Mist,
-                spacing = 1.sp,
-                weight = FontWeight.Medium,
-            )
-            Crossfade(
-                targetState = when {
-                    job != null -> 1
-                    results != null && have == results.size && results.isNotEmpty() -> 2
-                    else -> 0
-                },
-                animationSpec = tween(Motion.STANDARD),
-                label = "albumAction",
-            ) { mode ->
-                when (mode) {
-                    1 -> {
-                        val j = state.albumJob(album)
-                        Column(Modifier.heightIn(min = 44.dp), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
-                            Chakra(
-                                when {
-                                    j == null -> "LISTO"
-                                    j.resolving -> "BUSCANDO CANCIONES…"
-                                    else -> "DESCARGANDO ${minOf(j.done + 1, j.total)} DE ${j.total}"
-                                },
-                                11.sp,
-                                color = Fp.JadeLight,
-                                spacing = 1.5.sp,
-                            )
-                            SegmentBar(
-                                count = (j?.total ?: 12).coerceIn(4, 24),
-                                fraction = j?.fraction ?: 1f,
-                                modifier = Modifier.widthIn(max = 180.dp),
-                                color = Fp.Jade,
-                                height = 3.dp,
-                            )
-                        }
-                    }
-                    2 -> Box(Modifier.heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
-                        InLibraryBadge(text = "ÁLBUM EN TU BIBLIO")
-                    }
-                    else -> PrimaryButton(
-                        "+ ÁLBUM ENTERO",
-                        { state.requestAdd(AddTarget.Album(album)) },
-                        height = 36.dp,
-                        cutSize = 9.dp,
-                        fontSize = 11.sp,
+    Crossfade(
+        targetState = when {
+            job != null -> 1
+            results != null && have == results.size && results.isNotEmpty() -> 2
+            else -> 0
+        },
+        animationSpec = tween(Motion.STANDARD),
+        label = "albumAction",
+    ) { mode ->
+        when (mode) {
+            1 -> {
+                val j = state.albumJob(album)
+                Column(Modifier.heightIn(min = 44.dp), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
+                    Chakra(
+                        when {
+                            j == null -> "LISTO"
+                            j.resolving -> "BUSCANDO CANCIONES…"
+                            else -> "DESCARGANDO ${minOf(j.done + 1, j.total)} DE ${j.total}"
+                        },
+                        11.sp,
+                        color = Fp.JadeLight,
                         spacing = 1.5.sp,
-                        horizontalPadding = 14.dp,
+                    )
+                    SegmentBar(
+                        count = (j?.total ?: 12).coerceIn(4, 24),
+                        fraction = j?.fraction ?: 1f,
+                        modifier = Modifier.widthIn(max = 180.dp),
+                        color = Fp.Jade,
+                        height = 3.dp,
                     )
                 }
             }
+            2 -> Box(Modifier.heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
+                InLibraryBadge(text = "ÁLBUM EN TU BIBLIO")
+            }
+            else -> PrimaryButton(
+                "+ ÁLBUM ENTERO",
+                { state.requestAdd(AddTarget.Album(album)) },
+                height = 36.dp,
+                cutSize = 9.dp,
+                fontSize = 11.sp,
+                spacing = 1.5.sp,
+                horizontalPadding = 14.dp,
+            )
         }
     }
 }

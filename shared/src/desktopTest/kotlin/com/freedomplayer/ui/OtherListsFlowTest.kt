@@ -104,6 +104,21 @@ class OtherListsFlowTest {
     }
 
     @Test
+    fun anAlbumOpensAndOneSongCanBeAddedAlone() {
+        val state = app()
+        val album = SampleData.albums.first { it.title == "Rosa" }
+        state.running({ openAlbum(album) }) { albumTracks[album.key] != null }
+        assertEquals(Screen.AlbumDetail(album.key), state.screen)
+        assertEquals(album, state.openedAlbum)
+        assertEquals(album.songIds, state.albumTracks[album.key]?.map { it.id }, "sus canciones, en orden")
+        val pick = state.albumTracks[album.key]!!.first { it.id == "c5" }
+        state.running({ confirmAdd(AddTarget.Result(pick), "p") }) { song("c5") != null && downloads.isEmpty() }
+        assertEquals(listOf("s5", "c5"), state.playlist("p")?.songIds)
+        assertNull(state.song("c3"), "las demás del álbum, no")
+        assertNull(state.albumJob(album), "no se baja el álbum entero")
+    }
+
+    @Test
     fun aListThatCannotBeOpenedSaysWhyAndRetries() {
         val state = app()
         val missing = "https://www.youtube.com/playlist?list=PLnoexiste"

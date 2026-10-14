@@ -83,6 +83,9 @@ sealed interface Screen {
 
     /** Una lista de otra persona (YouTube Music o YouTube), para añadir canciones sueltas. */
     data class OtherListDetail(val url: String) : Screen
+
+    /** Un álbum del buscador: sus canciones una a una, para escucharlas o añadir las que quieras. */
+    data class AlbumDetail(val key: String) : Screen
     data object SpotifyImport : Screen
     data object Sync : Screen
 
@@ -1294,10 +1297,14 @@ class AppState(
     private val albumAsked = mutableSetOf<String>()
     private val albumPermits = Semaphore(3)
 
+    /** Álbumes cuyas canciones no se han podido pedir, y por qué (para el aviso dentro del álbum). */
+    val albumFailed = mutableStateMapOf<String, FailureKind>()
+
     /** Pide (una vez) las canciones de un álbum que se ve en la lista. */
     fun loadAlbumTracks(album: AlbumResult) {
         if (album.key in albumTracks || album.key in albumAsked || !online) return
         albumAsked += album.key
+        albumFailed -= album.key
         scope?.launch {
             try {
                 val list = albumPermits.withPermit { services.source.albumTracks(album) }
@@ -1305,10 +1312,27 @@ class AppState(
             } catch (e: CancellationException) {
                 albumAsked -= album.key
                 throw e
-            } catch (_: Throwable) {
+            } catch (e: Throwable) {
                 albumAsked -= album.key
+                albumFailed[album.key] = e.failureKind()
             }
         }
+    }
+
+    /** El álbum abierto (o el último que se abrió). */
+    var openedAlbum by mutableStateOf<AlbumResult?>(null)
+        private set
+
+    /** Tocar un álbum en Buscar: se abre con sus canciones, para elegir una a una. */
+    fun openAlbum(album: AlbumResult) {
+        openedAlbum = album
+        loadAlbumTracks(album)
+        go(Screen.AlbumDetail(album.key))
+    }
+
+    /** «REINTENTAR» dentro de un álbum que no se pudo abrir. */
+    fun retryAlbum() {
+        openedAlbum?.let(::loadAlbumTracks)
     }
 
     private suspend fun tracksOf(album: AlbumResult): List<SearchResult> =

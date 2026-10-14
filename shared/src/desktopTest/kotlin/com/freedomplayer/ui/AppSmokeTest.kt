@@ -142,6 +142,11 @@ class AppSmokeTest {
         val album = SampleData.albums.first()
         state.searchTab = SearchTab.Albums
         settle()
+        // Entrar en el álbum y volver
+        state.openAlbum(album)
+        settle(1_000)
+        state.back()
+        settle()
         state.requestAdd(AddTarget.Album(album))
         settle()
         state.confirmAdd(AddTarget.Album(album), state.playlists.first().id)

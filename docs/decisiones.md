@@ -530,3 +530,7 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - **Añadir:** cada canción usa el «+» de siempre (biblioteca o playlist). «+ AÑADIR TODAS» es
   como un álbum: lo que ya tienes va directo a la playlist elegida y lo demás se descarga en un
   solo trabajo (`albumKey = "list:<dirección>"`, para su barra y para no repetirlo).
+- **Álbumes por dentro (0.8):** tocar un álbum en Buscar abre `AlbumScreen`, con las canciones
+  que ya pide la fila (`albumTracks`, la misma caché), cada una con el `ResultRow` de Buscar. El
+  botón del álbum entero es el mismo en la fila y dentro (`AlbumAction`). Si no se pueden pedir
+  sus canciones, se guarda por qué (`albumFailed`) para el aviso con «REINTENTAR».
