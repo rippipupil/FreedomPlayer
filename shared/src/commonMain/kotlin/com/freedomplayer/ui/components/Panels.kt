@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -222,7 +221,7 @@ private fun PanelFrame(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val top = if (wide) 22.dp else WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp
+    val top = if (wide) 22.dp else statusBarHeight() + 16.dp
     val bottom = if (wide) 22.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp
     Box(modifier.fillMaxHeight().width(width + 48.dp)) {
         val panelAlign = if (left) Alignment.TopStart else Alignment.TopEnd

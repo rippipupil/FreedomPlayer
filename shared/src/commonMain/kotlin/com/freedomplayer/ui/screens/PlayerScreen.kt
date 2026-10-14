@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -63,8 +62,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.freedomplayer.core.Lyrics
 import com.freedomplayer.core.LyricLine
+import com.freedomplayer.core.Lyrics
 import com.freedomplayer.core.Song
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.ui.AppState
@@ -72,6 +71,7 @@ import com.freedomplayer.ui.Prompt
 import com.freedomplayer.ui.Sheet
 import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Chakra
+import com.freedomplayer.ui.components.CoverImage
 import com.freedomplayer.ui.components.FpIcon
 import com.freedomplayer.ui.components.FpIcons
 import com.freedomplayer.ui.components.Ghost
@@ -85,13 +85,13 @@ import com.freedomplayer.ui.components.PlayPauseButton
 import com.freedomplayer.ui.components.RepeatButton
 import com.freedomplayer.ui.components.SeekBar
 import com.freedomplayer.ui.components.ShuffleButton
-import com.freedomplayer.ui.components.CoverImage
-import com.freedomplayer.ui.components.coverModel
 import com.freedomplayer.ui.components.StarsView
+import com.freedomplayer.ui.components.coverModel
 import com.freedomplayer.ui.components.cut
 import com.freedomplayer.ui.components.fpFloat
 import com.freedomplayer.ui.components.fpHop
 import com.freedomplayer.ui.components.fpTween
+import com.freedomplayer.ui.components.statusBarHeight
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
 
@@ -141,7 +141,7 @@ private fun PlayerTopBar(state: AppState, modifier: Modifier = Modifier) {
 
 @Composable
 private fun PlayerMobile(state: AppState, song: Song, modifier: Modifier) {
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val top = statusBarHeight()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(modifier.fillMaxSize().background(Fp.Night)) {
         AlleyBackground(Modifier.fillMaxSize(), wide = false, flicker = false, tint = Color(song.coverColor))
@@ -151,8 +151,12 @@ private fun PlayerMobile(state: AppState, song: Song, modifier: Modifier) {
             val coverSize = minOf(268.dp, maxWidth - 20.dp, maxHeight - 480.dp).coerceAtLeast(120.dp)
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 PlayerTopBar(state)
-                BigCover(state, song, coverSize, Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
-                SongInfo(song, Modifier.padding(top = 6.dp))
+                // El título va 18 px por debajo de la carátula, como en el diseño: el marco rosa
+                // desplazado se sale por debajo sin ocupar sitio.
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    BigCover(state, song, coverSize, Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
+                    SongInfo(song)
+                }
                 Progress(state, song, segments = 48)
                 Controls(state, big = true)
                 LyricsBox(state, song, visibleLines = 4, modifier = Modifier.weight(1f).fillMaxWidth())
@@ -180,7 +184,7 @@ private fun PlayerWide(state: AppState, song: Song, modifier: Modifier) {
                     Modifier.width(coverSize + 12.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    BigCover(state, song, coverSize, Modifier.padding(top = 22.dp))
+                    BigCover(state, song, coverSize, Modifier.padding(top = 22.dp, bottom = 10.dp))
                     SongInfo(song, Modifier.padding(top = 8.dp))
                     Tools(state)
                 }
@@ -200,7 +204,8 @@ private fun PlayerWide(state: AppState, song: Song, modifier: Modifier) {
 private fun BigCover(state: AppState, song: Song, size: Dp, modifier: Modifier = Modifier) {
     val reduce = LocalReduceMotion.current
     val k = size / 268.dp
-    Box(modifier.size(size + 10.dp * k, size + 10.dp * k)) {
+    // Mide lo que la carátula: el marco desplazado (10 dp) se dibuja fuera, sin ocupar sitio.
+    Box(modifier.size(size)) {
         Box(
             Modifier
                 .offset(x = 10.dp * k, y = 10.dp * k)

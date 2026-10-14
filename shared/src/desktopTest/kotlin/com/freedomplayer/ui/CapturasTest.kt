@@ -71,7 +71,8 @@ class CapturasTest {
         val height = if (wide) 800 else 844
         val bar = if (wide) titleBar else null
         val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
-            App(state, wide = wide, version = "0.3", titleBar = bar, runLoop = false)
+            // En el móvil, con la barra de estado de 24 que deja el diseño arriba.
+            App(state, wide = wide, version = "0.3", titleBar = bar, runLoop = false, statusBar = if (wide) null else 24.dp)
         }
         try {
             val clock = Clock(scene)

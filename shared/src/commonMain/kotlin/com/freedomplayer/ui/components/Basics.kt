@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +31,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
@@ -49,7 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -57,6 +59,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onPlaced
@@ -95,6 +98,16 @@ fun cut(size: Dp): Shape = CutCornerShape(topStart = size, bottomEnd = size)
 data class ScreenInsets(val top: Dp, val bottom: Dp, val wideSide: Dp = 96.dp)
 
 val LocalScreenInsets = staticCompositionLocalOf { ScreenInsets(top = 44.dp, bottom = 28.dp) }
+
+/**
+ * Alto fijo de la barra de estado del móvil, si se da: lo usan las capturas, que se pintan sin un
+ * sistema debajo. Si no, manda el de verdad.
+ */
+val LocalStatusBar = staticCompositionLocalOf<Dp?> { null }
+
+/** Alto de la barra de estado del móvil (el fijo de [LocalStatusBar] o el del sistema). */
+@Composable
+fun statusBarHeight(): Dp = LocalStatusBar.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
 // ---------- Texto ----------
 

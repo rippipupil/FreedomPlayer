@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -31,6 +30,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Centered
@@ -38,6 +38,7 @@ import com.freedomplayer.ui.components.DesktopPanels
 import com.freedomplayer.ui.components.EdgeZone
 import com.freedomplayer.ui.components.LocalReduceMotion
 import com.freedomplayer.ui.components.LocalScreenInsets
+import com.freedomplayer.ui.components.LocalStatusBar
 import com.freedomplayer.ui.components.MiniPlayer
 import com.freedomplayer.ui.components.MobilePanels
 import com.freedomplayer.ui.components.Motion
@@ -48,6 +49,7 @@ import com.freedomplayer.ui.components.ScreenInsets
 import com.freedomplayer.ui.components.SheetHost
 import com.freedomplayer.ui.components.SideTabs
 import com.freedomplayer.ui.components.nowPlaying
+import com.freedomplayer.ui.components.statusBarHeight
 import com.freedomplayer.ui.screens.HomeScreen
 import com.freedomplayer.ui.screens.PlayerScreen
 import com.freedomplayer.ui.screens.PlaylistScreen
@@ -76,11 +78,14 @@ fun App(
     titleBar: (@Composable () -> Unit)? = null,
     /** En Android el bucle vive en el proceso (sigue con la pantalla apagada); aquí, con la ventana. */
     runLoop: Boolean = true,
+    /** Alto fijo de la barra de estado del móvil (para las capturas); si no, el del sistema. */
+    statusBar: Dp? = null,
 ) {
     FreedomTheme(wide) {
         CompositionLocalProvider(
             LocalReduceMotion provides state.reduceMotion,
             LocalAppVersion provides version,
+            LocalStatusBar provides statusBar,
         ) {
             if (runLoop) LaunchedEffect(state) { state.run() }
             Box(modifier.fillMaxSize().background(Fp.Night)) {
@@ -138,7 +143,7 @@ private fun ScreenHost(state: AppState, modifier: Modifier = Modifier) {
 @Composable
 private fun MobileShell(state: AppState) {
     val reduce = LocalReduceMotion.current
-    val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val status = statusBarHeight()
     val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val showMini = state.nowPlaying() != null
     val playerVisible = state.playerOpen && state.currentSong != null
