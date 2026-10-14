@@ -58,8 +58,8 @@ class PlaybackFlowTest {
         state.play(60)
         assertEquals("s5", state.currentSong?.id)
         state.play(60)
-        assertEquals("s5", state.currentSong?.id, "sin repetir, se queda en la última")
-        assertTrue(!state.isPlaying, "y se para")
+        assertEquals("s1", state.currentSong?.id, "al acabar la lista, vuelve a empezar")
+        assertTrue(state.isPlaying, "y no se para")
     }
 
     @Test
@@ -74,7 +74,7 @@ class PlaybackFlowTest {
         assertEquals(ids, state.queue.items, "quitar aleatorio vuelve al orden de la lista")
         assertEquals("s2", state.currentSong?.id)
 
-        state.cycleRepeat()
+        assertEquals(RepeatMode.All, state.queue.repeat, "lo normal: seguir con la lista")
         state.cycleRepeat()
         assertEquals(RepeatMode.One, state.queue.repeat)
         state.play(50)
@@ -135,7 +135,7 @@ class PlaybackFlowTest {
         val again = app(store)
         assertEquals("s4", again.currentSong?.id)
         assertEquals(ids, again.queue.items)
-        assertEquals(RepeatMode.All, again.queue.repeat)
+        assertEquals(RepeatMode.One, again.queue.repeat)
         assertEquals("NOCHES", again.queueSource)
         assertTrue(again.positionMs in 11_000..13_000, "sigue por donde iba (${again.positionMs})")
         assertTrue(!again.isPlaying, "pero en pausa")
@@ -195,7 +195,6 @@ class PlaybackFlowTest {
     fun theSleepTimerPausesAfterTheChosenMinutes() {
         val state = app()
         state.playFrom(ids, "s1", "NOCHES")
-        state.cycleRepeat()
         state.startSleepTimer(15)
         assertEquals(15 * 60_000L, state.sleepTimer?.remainingMs)
         state.play(14 * 60)

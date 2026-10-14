@@ -96,15 +96,52 @@ class PlaylistOrderFlowTest {
         val engine = Notification()
         val state = app(engine = engine)
         state.playFrom(ids, "s1", "NOCHES")
-        assertEquals(RepeatMode.Off, state.queue.repeat)
+        assertEquals(RepeatMode.All, state.queue.repeat)
+        assertEquals(RepeatMode.All, engine.mode, "lo normal: seguir con la lista")
 
-        engine.mode = RepeatMode.All
+        engine.mode = RepeatMode.One
+        state.step(100)
+        assertEquals(RepeatMode.One, state.queue.repeat)
+
+        state.cycleRepeat()
+        assertEquals(RepeatMode.All, engine.mode, "y lo de la app llega al reproductor")
         state.step(100)
         assertEquals(RepeatMode.All, state.queue.repeat)
 
-        state.cycleRepeat()
-        assertEquals(RepeatMode.One, engine.mode, "y lo de la app llega al reproductor")
+        // Si el reproductor se queda en «no repetir» (de antes), la app le vuelve a poner el suyo.
+        engine.mode = RepeatMode.Off
         state.step(100)
-        assertEquals(RepeatMode.One, state.queue.repeat)
+        assertEquals(RepeatMode.All, engine.mode)
+        assertEquals(RepeatMode.All, state.queue.repeat)
+    }
+
+    @Test
+    fun aShuffledPlaylistNeverStopsAndIsShuffledAgain() {
+        val many = (1..8).map { "s$it" }
+        val songs = many.map { Song(it, it, "Artista", durationSec = 60, coverColor = 0, audioPath = "/musica/$it.webm") }
+        val state = app(MemoryStore(LibrarySnapshot(songs, listOf(Playlist("p", "Noches", many, 0)), emptyList(), emptyList())))
+        state.playPlaylist("p", shuffle = true)
+        val firstRound = state.queue.items
+        val heard = mutableListOf(state.currentSong!!.id)
+        repeat(many.size * 2 - 1) {
+            repeat(61) { state.step(1_000) }
+            heard += state.currentSong!!.id
+        }
+        assertTrue(state.isPlaying, "no se para al acabar")
+        assertEquals(many.toSet(), heard.take(many.size).toSet(), "primera vuelta: todas una vez")
+        assertEquals(many.toSet(), heard.drop(many.size - 1).take(many.size).toSet(), "la vuelta siguiente: todas otra vez")
+        // La última de la primera vuelta abre la segunda; las otras siete van en otro orden.
+        assertTrue(heard.subList(many.size, many.size * 2 - 1) != firstRound.dropLast(1), "con otro orden")
+    }
+
+    @Test
+    fun aPlaylistInOrderStartsAgainAtTheEnd() {
+        val state = app()
+        state.flipPlaylistOrder() // las más antiguas primero: s1, s2, s3, s4
+        state.playPlaylist("p", shuffle = false)
+        assertEquals("s1", state.currentSong?.id)
+        repeat(4) { repeat(61) { state.step(1_000) } }
+        assertEquals("s1", state.currentSong?.id, "después de la última, la primera")
+        assertTrue(state.isPlaying)
     }
 }

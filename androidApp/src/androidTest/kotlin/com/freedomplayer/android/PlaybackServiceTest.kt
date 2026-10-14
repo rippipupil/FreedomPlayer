@@ -104,7 +104,7 @@ class PlaybackServiceTest {
         val controller = future.get(20, TimeUnit.SECONDS)
         try {
             onMain {
-                engine.setRepeat(RepeatMode.Off)
+                engine.setRepeat(RepeatMode.All)
                 engine.load(tracks, 0, 0, play = false)
             }
             val repeat = SessionCommand(PlaybackService.REPEAT_ACTION, Bundle.EMPTY)
@@ -113,7 +113,8 @@ class PlaybackServiceTest {
             }) { PlaybackService.REPEAT_ACTION in it }
             assertTrue(onMain { controller.isSessionCommandAvailable(repeat) })
 
-            for (expected in listOf(RepeatMode.All, RepeatMode.One, RepeatMode.Off)) {
+            // Seguir ⇄ repetir una (la cola nunca se para).
+            for (expected in listOf(RepeatMode.One, RepeatMode.All, RepeatMode.One)) {
                 onMain { controller.sendCustomCommand(repeat, Bundle.EMPTY) }.get(10, TimeUnit.SECONDS)
                 waitFor("repetir: $expected") { it.repeat == expected }
             }

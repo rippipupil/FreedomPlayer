@@ -733,19 +733,12 @@ class AppState(
             return
         }
         if (queue.isEmpty) return
-        val n = queue.next()
-        if (n == null) {
-            // Al final de la cola sin repetir: se para y vuelve al principio de la última.
-            engine.pause()
-            engine.seekTo(0)
-            isPlaying = false
-            positionMs = 0
-        } else {
-            queue = n
-            engine.skipTo(n.index)
-            positionMs = 0
-            durationMs = 0
-        }
+        // Después de la última viene la primera: la cola nunca se para.
+        val n = queue.next() ?: return
+        queue = n
+        engine.skipTo(n.index)
+        positionMs = 0
+        durationMs = 0
         resetCount()
         reaction++
         saveQueue()
@@ -789,7 +782,8 @@ class AppState(
             return
         }
         if (queue.isEmpty) return
-        val back = if (quick) queue.previous() else queue
+        // En la primera no hay anterior: vuelve a empezar la misma (no salta a la última).
+        val back = if (quick && queue.index > 0) queue.previous() else queue
         if (back.index != queue.index) {
             queue = back
             engine.skipTo(back.index)
@@ -975,9 +969,12 @@ class AppState(
             if (isPlaying && preview == null) isPlaying = false
             return
         }
-        // «Repetir» cambiado desde fuera de la app (el botón de la notificación).
+        // «Repetir» cambiado desde fuera de la app (el botón de la notificación). «No repetir» ya
+        // no existe: si el reproductor lo tiene, se le vuelve a poner el de la app.
         val repeat = snap.repeat
-        if (repeat != null && repeat != queue.repeat) {
+        if (repeat == RepeatMode.Off) {
+            engine.setRepeat(queue.repeat)
+        } else if (repeat != null && repeat != queue.repeat) {
             queue = queue.copy(repeat = repeat)
             saveQueue()
         }
@@ -985,6 +982,12 @@ class AppState(
             queue = queue.jumpTo(snap.index)
             durationMs = 0
             reaction++
+            saveQueue()
+        }
+        // Aleatorio y sonando la última: se mezcla la vuelta siguiente sin cortar la que suena.
+        if (queue.needsReshuffle) {
+            queue = queue.reshuffled()
+            engine.reorder(tracks(queue.items), queue.index)
             saveQueue()
         }
         if (snap.transitions != lastTransitions) {
@@ -1065,13 +1068,13 @@ class AppState(
                     items = items,
                     index = if (index >= 0) index else 0,
                     shuffle = store.setting("queue.shuffle") == "true",
-                    repeat = RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.Off,
+                    repeat = (RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.All).effective,
                     original = ids("queue.original").ifEmpty { items },
                 )
                 queueSource = store.setting("queue.source").orEmpty()
                 positionMs = if (index >= 0) store.setting("queue.position")?.toLongOrNull() ?: 0L else 0L
             } else {
-                queue = PlayQueue(repeat = RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.Off)
+                queue = PlayQueue(repeat = (RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.All).effective)
             }
         }
         engine.setRepeat(queue.repeat)

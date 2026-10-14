@@ -28,8 +28,8 @@ if (releaseKeystore != null && !signWithReleaseKey) {
 
 val buildNumber = env("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
-// En una etiqueta vX.Y.Z el workflow pone FP_VERSION=X.Y.Z; si no, «0.8.<n.º de compilación>».
-val appVersion = env("FP_VERSION") ?: "0.8.$buildNumber"
+// En una etiqueta vX.Y.Z el workflow pone FP_VERSION=X.Y.Z; si no, «0.9.<n.º de compilación>».
+val appVersion = env("FP_VERSION") ?: "0.9.$buildNumber"
 
 android {
     namespace = "com.freedomplayer.android"

@@ -534,3 +534,17 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   que ya pide la fila (`albumTracks`, la misma caché), cada una con el `ResultRow` de Buscar. El
   botón del álbum entero es el mismo en la fila y dentro (`AlbumAction`). Si no se pueden pedir
   sus canciones, se guarda por qué (`albumFailed`) para el aviso con «REINTENTAR».
+
+## La cola nunca se para (0.9)
+
+- Al acabar la última, la cola vuelve a empezar: «repetir» queda en seguir (`RepeatMode.All`) ⇄
+  repetir una. `RepeatMode.Off` se queda en el enum para leer lo guardado por versiones de antes y
+  para los motores, pero la app lo trata como `All` (`effective`); si el reproductor llega a estar
+  en «no repetir», la app le vuelve a poner el suyo.
+- Sin aleatorio, el reproductor da la vuelta solo (`REPEAT_MODE_ALL` en Android, lo mismo en el PC),
+  sin huecos.
+- Con aleatorio, al empezar a sonar la última se mezcla la vuelta siguiente: la que suena pasa a
+  ser la primera y las demás se barajan (`PlayQueue.reshuffled`), y el motor solo reordena la cola
+  sin cortar (`reorder`). Así cada canción suena una vez por vuelta y cada vuelta lleva otro orden.
+- «Atrás» del mini-reproductor en la primera canción sigue volviendo a empezar la misma (como se
+  pidió en la 0.5); el «anterior» del reproductor grande sí salta a la última.

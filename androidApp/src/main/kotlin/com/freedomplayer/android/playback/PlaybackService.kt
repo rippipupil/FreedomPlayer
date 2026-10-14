@@ -53,7 +53,7 @@ class PlaybackService : MediaSessionService() {
         player.addListener(repeatListener)
         session = MediaSession.Builder(this, player)
             .setCallback(Callback)
-            // Repetir (nada → todo → una), al lado de los mandos de siempre.
+            // Repetir (seguir ⇄ una), al lado de los mandos de siempre.
             .setMediaButtonPreferences(listOf(repeatButton(player.repeatMode)))
             // Las carátulas llegan al sistema montadas en el tema (ver ThemedArtwork).
             .setBitmapLoader(ThemedBitmapLoader(DataSourceBitmapLoader(this)))
@@ -116,19 +116,17 @@ class PlaybackService : MediaSessionService() {
         const val REPEAT_ACTION = "com.freedomplayer.REPEAT"
         private val REPEAT = SessionCommand(REPEAT_ACTION, Bundle.EMPTY)
 
-        /** El mismo orden que el botón de la app (RepeatMode.next): nada → todo → una → nada. */
-        fun nextRepeat(mode: Int): Int = when (mode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
-        }
+        /**
+         * El mismo orden que el botón de la app (RepeatMode.next): seguir ⇄ repetir una. La cola
+         * nunca se para, así que «no repetir» pasa a «seguir».
+         */
+        fun nextRepeat(mode: Int): Int = if (mode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_ONE
 
         /** El botón de repetir con el icono del modo actual y lo que hace al tocarlo. */
         private fun repeatButton(mode: Int): CommandButton {
             val (icon, name) = when (mode) {
-                Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL to "Repetir todo (toca para repetir una)"
-                Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE to "Repetir una (toca para no repetir)"
-                else -> CommandButton.ICON_REPEAT_OFF to "Sin repetir (toca para repetir todo)"
+                Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE to "Repetir esta canción (toca para seguir con la lista)"
+                else -> CommandButton.ICON_REPEAT_ALL to "Seguir con la lista (toca para repetir esta canción)"
             }
             return CommandButton.Builder(icon)
                 .setDisplayName(name)

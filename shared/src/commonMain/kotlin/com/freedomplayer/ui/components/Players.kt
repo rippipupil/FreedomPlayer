@@ -117,23 +117,21 @@ fun ShuffleButton(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifie
     )
 }
 
-/** Repetir: no, todo, una. Un puntito marca que está activo y un «1» que repite una sola. */
+/** Repetir: seguir con la lista o repetir una (en rosa, con un puntito y un «1»). */
 @Composable
 fun RepeatButton(mode: Repeat, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 44.dp, iconSize: Dp = 20.dp) {
+    // La cola nunca se para: lo normal es «seguir» (sin resaltar); en rosa, «repetir una».
+    val one = mode.effective == Repeat.One
     ModeButton(
         icon = FpIcons.Repeat,
-        active = mode != Repeat.Off,
+        active = one,
         label = "Repetir",
-        state = when (mode) {
-            Repeat.Off -> "No"
-            Repeat.All -> "Toda la cola"
-            Repeat.One -> "Solo esta canción"
-        },
+        state = if (one) "Solo esta canción" else "Seguir: al acabar, vuelve a empezar",
         onClick = onClick,
         modifier = modifier,
         size = size,
         iconSize = iconSize,
-        badge = if (mode == Repeat.One) "1" else null,
+        badge = if (one) "1" else null,
     )
 }
 
