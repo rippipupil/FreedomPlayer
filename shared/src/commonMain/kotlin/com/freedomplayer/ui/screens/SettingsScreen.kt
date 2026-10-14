@@ -16,6 +16,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -49,10 +53,14 @@ import com.freedomplayer.ui.theme.LocalWide
  * Ajustes (sencilla): reproducción, descargas, el PC, sincronización, pruebas de estados
  * y «Acerca de». Lo que aún no existe avisa de que llega en una próxima versión.
  */
+/** Toques en «Acerca de» que enseñan «PROBAR ESTADOS». */
+private const val TEST_TOOLS_TAPS = 5
+
 @Composable
 fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
     val wide = LocalWide.current
     val settings = state.settings
+    var aboutTaps by remember { mutableStateOf(0) }
     Column(
         modifier
             .fillMaxSize()
@@ -105,23 +113,30 @@ fun SettingsScreen(state: AppState, modifier: Modifier = Modifier) {
                 state.soon("Vincular con un QR")
             }
 
-            SectionHeader(next(), "PROBAR ESTADOS", Modifier.padding(top = 18.dp))
-            SwitchRow(
-                "Simular sin conexión",
-                "Enseña el aviso «Sin conexión» y pausa buscar y descargar, como si no hubiera red.",
-                settings.demoOffline,
-                { settings.demoOffline = it },
-            )
-            SwitchRow(
-                "Simular biblioteca vacía",
-                "Enseña las pantallas como el primer día, sin canciones.",
-                settings.demoEmpty,
-                { state.setDemoEmpty(it) },
-            )
+            // Herramientas para probar los avisos: solo en el modo de ejemplo o tras tocar 5 veces
+            // «Acerca de» (como las opciones de desarrollador de Android). No se guardan.
+            if (state.isDemo || aboutTaps >= TEST_TOOLS_TAPS) {
+                SectionHeader(next(), "PROBAR ESTADOS", Modifier.padding(top = 18.dp))
+                SwitchRow(
+                    "Simular sin conexión",
+                    "Enseña el aviso «Sin conexión» y pausa buscar y descargar, como si no hubiera red.",
+                    settings.demoOffline,
+                    { settings.demoOffline = it },
+                )
+                SwitchRow(
+                    "Simular biblioteca vacía",
+                    "Enseña las pantallas como el primer día, sin canciones.",
+                    settings.demoEmpty,
+                    { state.setDemoEmpty(it) },
+                )
+            }
 
             SectionHeader(next(), "ACERCA DE", Modifier.padding(top = 18.dp))
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .fpClickable(onClickLabel = "Acerca de FreedomPlayer", role = null, pressedScale = 0.99f) { aboutTaps++ }
+                    .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
