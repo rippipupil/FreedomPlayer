@@ -34,6 +34,8 @@ compose.desktop {
     application {
         mainClass = "com.freedomplayer.desktop.MainKt"
         nativeDistributions {
+            // resources/windows/syncthing.exe (lo descarga y comprueba el workflow) va en el paquete.
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "FreedomPlayer"
             packageVersion = appVersion

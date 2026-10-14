@@ -5,6 +5,7 @@ import com.freedomplayer.data.AudioEngine
 import com.freedomplayer.data.LoudnessAnalyzer
 import com.freedomplayer.data.Services
 import com.freedomplayer.data.SqlLibraryStore
+import com.freedomplayer.data.SyncBackend
 import com.freedomplayer.jvm.youtube.YouTubeSource
 import java.util.Locale
 
@@ -21,6 +22,7 @@ fun realServices(
     locale: Locale = Locale.getDefault(),
     /** Cómo se instala una versión nueva en esta plataforma; sin él, no se buscan versiones. */
     updater: UpdateInstaller? = null,
+    sync: SyncBackend? = null,
 ): Services {
     val youtube = YouTubeSource(locale)
     val lyrics = Lrclib()
@@ -33,5 +35,6 @@ fun realServices(
         loudness = loudness,
         spotify = SpotifyPages(),
         updates = updater?.let { GitHubUpdates(it) },
+        sync = sync,
     )
 }

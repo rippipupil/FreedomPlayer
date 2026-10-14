@@ -31,9 +31,55 @@ class Services(
     val spotify: SpotifyReader? = null,
     /** Versiones nuevas de la app (GitHub Releases); sin él, no se buscan. */
     val updates: UpdateService? = null,
+    /** Sincronizar con el otro dispositivo (Syncthing); sin él, no se puede vincular. */
+    val sync: SyncBackend? = null,
 ) {
     companion object
 }
+
+/** Cuánto lleva sincronizado: «12 de 20». */
+data class SyncCount(val done: Long, val total: Long)
+
+/**
+ * Sincronizar con Syncthing: arrancarlo (con una clave generada en el dispositivo), vincular el
+ * otro dispositivo con su id (el del QR) y saber cuánto lleva.
+ */
+interface SyncBackend {
+    /** El PC enseña su QR; el móvil lo escanea. */
+    val showsQr: Boolean
+
+    /** Arranca Syncthing si no lo está y devuelve el id de este dispositivo. */
+    suspend fun start(): String
+
+    /** El QR de [text] en cuadros (true = negro), sin margen. */
+    fun qr(text: String): List<BooleanArray>
+
+    /** Vincula el otro dispositivo y comparte con él la música y la biblioteca. */
+    suspend fun pair(otherId: String, otherName: String)
+
+    /** En el PC, con su QR a la vista: el móvil que lo acaba de escanear y pide vincularse (su id). */
+    suspend fun pendingDevice(): String?
+
+    /** Lo que lleva sincronizado con [otherId], o null si ahora no están conectados. */
+    suspend fun progress(otherId: String): SyncCount?
+
+    /**
+     * Escribe la biblioteca de aquí en la carpeta compartida, lee la de los demás y devuelve el
+     * resultado de juntarlas, o null si todavía no ha llegado nada de otro dispositivo.
+     */
+    suspend fun exchange(local: LibraryData): LibraryData?
+}
+
+/** Esta instalación no trae Syncthing (falta su binario), así que aquí no se puede sincronizar. */
+class SyncUnavailableException(message: String) : Exception(message)
+
+/** La biblioteca para sincronizar: canciones (con su nota), playlists, rankings y escuchas. */
+data class LibraryData(
+    val songs: List<Song>,
+    val playlists: List<Playlist>,
+    val rankings: List<CustomRanking>,
+    val plays: List<PlayEvent>,
+)
 
 /** Por qué ha fallado algo de YouTube, para decirlo claro en el aviso. */
 enum class FailureKind { Network, Blocked, Unavailable, Changed, Storage, Unknown }

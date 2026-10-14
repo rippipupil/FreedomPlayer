@@ -130,7 +130,7 @@ private fun HomeHeader(state: AppState, modifier: Modifier = Modifier) {
         ScreenHeader(greeting(), "Inicio", sparkle = !wide)
         SyncBadge(
             if (wide) "SYNC · MÓVIL" else "SYNC · PC",
-            onClick = { state.soon("Sincronizar con " + if (wide) "el móvil" else "el PC") },
+            onClick = { state.openSync() },
             // En el PC va abajo del todo de la cabecera (en el diseño, la caja del título es más alta).
             modifier = if (wide) Modifier.offset(y = 12.dp) else Modifier.padding(top = 6.dp),
         )
@@ -152,7 +152,7 @@ internal fun EmptyLibrary(state: AppState, modifier: Modifier = Modifier) {
         },
     ) {
         PrimaryButton("BUSCAR", { state.go(Screen.Search) }, Modifier.width(200.dp), fill = true)
-        SecondaryButton("VINCULAR PC", { state.soon("Vincular con un QR") }, Modifier.width(200.dp))
+        SecondaryButton("VINCULAR PC", { state.openSync() }, Modifier.width(200.dp))
     }
 }
 

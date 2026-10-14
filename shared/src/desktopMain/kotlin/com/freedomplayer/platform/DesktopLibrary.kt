@@ -5,6 +5,7 @@ import com.freedomplayer.data.AudioEngine
 import com.freedomplayer.data.Services
 import com.freedomplayer.db.FpDatabase
 import com.freedomplayer.jvm.AppDirs
+import com.freedomplayer.jvm.SyncthingBackend
 import com.freedomplayer.jvm.UpdateInstaller
 import com.freedomplayer.jvm.realServices
 import java.io.File
@@ -29,10 +30,26 @@ object DesktopLibrary {
 
     fun dirs(): AppDirs = AppDirs(dataDir())
 
+    /**
+     * Syncthing del PC: el que va en el paquete (resources/windows/syncthing.exe, que el workflow
+     * descarga y comprueba) o, al probar desde el código, el de desktopApp/resources.
+     */
+    fun sync(dirs: AppDirs): SyncthingBackend = SyncthingBackend(
+        executable = {
+            val packaged = System.getProperty("compose.application.resources.dir")?.let { File(it, "syncthing.exe") }
+            listOfNotNull(packaged, File("desktopApp/resources/windows/syncthing.exe"), File("resources/windows/syncthing.exe")).firstOrNull { it.isFile }
+        },
+        home = File(dirs.root, "syncthing"),
+        music = dirs.music,
+        library = File(dirs.root, "sincronizar"),
+        showsQr = true,
+        qrCode = QrCodes::matrix,
+    )
+
     fun services(engine: AudioEngine, updater: UpdateInstaller? = null): Services {
         val dirs = dirs()
         dirs.root.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${dirs.database.absolutePath}", Properties(), FpDatabase.Schema)
-        return realServices(driver, dirs, engine, FfmpegLoudness, updater = updater)
+        return realServices(driver, dirs, engine, FfmpegLoudness, updater = updater, sync = sync(dirs))
     }
 }

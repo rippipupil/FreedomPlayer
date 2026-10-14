@@ -75,6 +75,9 @@ android {
     }
 
     packaging {
+        // Syncthing va como biblioteca nativa (libsyncthing.so) y se ejecuta desde la carpeta de
+        // bibliotecas: tiene que salir del APK al instalar.
+        jniLibs.useLegacyPackaging = true
         resources.excludes += listOf(
             "/META-INF/{AL2.0,LGPL2.1}",
             "/META-INF/DEPENDENCIES",
@@ -93,10 +96,13 @@ dependencies {
     implementation("androidx.media3:media3-session:1.8.0")
     // FileProvider: pasarle el APK de una versión nueva al instalador de Android.
     implementation("androidx.core:core-ktx:1.16.0")
+    // Leer el QR del PC para vincular (ZXing, sin servicios de Google Play).
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     // Pruebas en el emulador: el audio de verdad (ExoPlayer), la sesión y la notificación.
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
