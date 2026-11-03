@@ -36,7 +36,7 @@ class SyncthingApiTest {
                     200 to """{"$pc":{"time":"2026-10-14T05:00:00Z","name":"Pixel","address":"192.168.1.20:22000"},"no-es-un-id":{}}"""
                 ex.requestMethod == "GET" && ex.requestURI.path == "/rest/config/folders/freedomplayer-musica" && alreadySharedWith != null ->
                     200 to """{"id":"freedomplayer-musica","devices":[{"deviceID":"$alreadySharedWith"},{"deviceID":"$pc"}]}"""
-                ex.requestMethod == "PUT" -> 200 to """
+                ex.requestMethod == "PUT" -> 200 to ""
                 else -> 404 to "no"
             }
             val bytes = text.toByteArray()
