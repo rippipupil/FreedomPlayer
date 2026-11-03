@@ -15,6 +15,10 @@ import kotlin.test.assertTrue
 class SyncthingApiTest {
     private val pc = "MFZWI3D-BONSGYC-YLTMRWG-C43ENR5-QXGZDMM-FZWI3DP-BONSGYY-LTMRWAD"
     private val requests = mutableListOf<String>()
+
+    /** Un dispositivo con el que la carpeta de música ya se comparte (null: la carpeta aún no existe). */
+    @Volatile
+    private var alreadySharedWith: String? = null
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
         createContext("/") { ex ->
             val key = ex.requestHeaders.getFirst("X-API-Key")
@@ -30,7 +34,9 @@ class SyncthingApiTest {
                     200 to (if ("device=" in ex.requestURI.query.orEmpty()) """{"completion":85,"globalItems":20,"needItems":3}""" else """{"completion":75,"globalItems":20,"needItems":5}""")
                 ex.requestURI.path == "/rest/cluster/pending/devices" ->
                     200 to """{"$pc":{"time":"2026-10-14T05:00:00Z","name":"Pixel","address":"192.168.1.20:22000"},"no-es-un-id":{}}"""
-                ex.requestMethod == "PUT" -> 200 to ""
+                ex.requestMethod == "GET" && ex.requestURI.path == "/rest/config/folders/freedomplayer-musica" && alreadySharedWith != null ->
+                    200 to """{"id":"freedomplayer-musica","devices":[{"deviceID":"$alreadySharedWith"},{"deviceID":"$pc"}]}"""
+                ex.requestMethod == "PUT" -> 200 to """
                 else -> 404 to "no"
             }
             val bytes = text.toByteArray()
@@ -74,6 +80,21 @@ class SyncthingApiTest {
             assertTrue(puts[2].startsWith("PUT /rest/config/folders/freedomplayer-biblioteca "), puts[2])
             assertEquals(SyncProgress(12, 20), pairing.progress(pc))
             assertFailsWith<IllegalArgumentException> { pairing.pair("hola", "x") }
+        }
+    }
+
+    @Test
+    fun pairingAnotherDeviceKeepsTheOnesAlreadyPaired() {
+        runBlocking {
+            // El móvil ya comparte la música con el PC y ahora se vincula con FreedomClient.
+            val client = "AAAAAAA-BBBBBBB-CCCCCCC-DDDDDDD-EEEEEEE-FFFFFFF-GGGGGGG-HHHHHHH"
+            alreadySharedWith = client
+            SyncthingPairing(SyncthingApi(base, "clave-secreta"), File("/datos/musica"), File("/datos/biblioteca")).pair(pc, "PC")
+            val puts = synchronized(requests) { requests.filter { it.startsWith("PUT /rest/config/folders/") } }
+            assertEquals(2, puts.size)
+            // La música, con los dos (y sin repetir el PC); la biblioteca, que aún no existía, con el nuevo.
+            assertTrue("\"deviceID\":\"$client\"" in puts[0] && puts[0].split("\"deviceID\":\"$pc\"").size == 2, puts[0])
+            assertTrue(puts[1].startsWith("PUT /rest/config/folders/freedomplayer-biblioteca ") && client !in puts[1] && pc in puts[1], puts[1])
         }
     }
 

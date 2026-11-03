@@ -214,6 +214,9 @@ class SyncState {
     var myId by mutableStateOf<String?>(null)
     var qr by mutableStateOf<List<BooleanArray>?>(null)
     var peer by mutableStateOf<String?>(null)
+
+    /** Todos los vinculados (el primero es [peer]): el PC y FreedomClient, por ejemplo. */
+    var peers by mutableStateOf<List<String>>(emptyList())
     var done by mutableStateOf(0L)
     var total by mutableStateOf(0L)
     var error by mutableStateOf<String?>(null)
@@ -1768,10 +1771,11 @@ class AppState(
                 val id = backend.start()
                 sync.myId = id
                 if (backend.showsQr) sync.qr = backend.qr(id)
-                val peer = store.setting(SYNC_PEER)
-                sync.peer = peer
-                if (peer != null) {
-                    watchSync(backend, peer)
+                val peers = storedPeers()
+                sync.peers = peers
+                sync.peer = peers.firstOrNull()
+                if (peers.isNotEmpty()) {
+                    watchSync(backend, peers)
                 } else {
                     sync.phase = SyncPhase.Waiting
                     if (backend.showsQr) awaitPeer(backend)
@@ -1817,20 +1821,25 @@ class AppState(
         when {
             id == null -> sync.error = "Ese código no es el de FreedomPlayer en el PC. Escanea el QR de «Vincular con el móvil»."
             id == sync.myId -> sync.error = "Ese es el código de este mismo dispositivo."
+            id in sync.peers -> sync.error = "Ese dispositivo ya está vinculado."
             else -> pairDevice(backend, id)
         }
     }
 
     private fun pairDevice(backend: SyncBackend, id: String) {
         val s = scope ?: return
+        // Si ya estaba vinculado con otro, se para su seguimiento mientras se vincula este.
+        syncWatch?.cancel()
         sync.error = null
         sync.phase = SyncPhase.Pairing
         s.launch {
             try {
                 backend.pair(id, if (backend.showsQr) "Móvil" else "PC")
-                store.setSetting(SYNC_PEER, id)
-                sync.peer = id
-                watchSync(backend, id)
+                val peers = (storedPeers() + id).distinct()
+                store.setSetting(SYNC_PEER, peers.joinToString(","))
+                sync.peers = peers
+                sync.peer = peers.first()
+                watchSync(backend, peers)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1858,11 +1867,16 @@ class AppState(
         }
     }
 
+    /** Los vinculados que se guardaron (separados por comas; antes solo había uno). */
+    private fun storedPeers(): List<String> =
+        store.setting(SYNC_PEER).orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
     /**
      * Cada 2 s, cuánto lleva («12 de 20»), mientras la app esté abierta; y cada 20 s se
-     * intercambia la biblioteca (playlists, notas, rankings e historial) con el otro dispositivo.
+     * intercambia la biblioteca (playlists, notas, rankings e historial) con los otros
+     * dispositivos. Cuenta el primero de los vinculados que esté conectado.
      */
-    private fun watchSync(backend: SyncBackend, peer: String) {
+    private fun watchSync(backend: SyncBackend, peers: List<String>) {
         syncWatch?.cancel()
         sync.phase = SyncPhase.Syncing
         sync.connected = false
@@ -1871,7 +1885,7 @@ class AppState(
             var tick = 0
             var lastSeen = TimeSource.Monotonic.markNow()
             while (isActive) {
-                val count = runCatching { backend.progress(peer) }.getOrNull()
+                val count = peers.firstNotNullOfOrNull { peer -> runCatching { backend.progress(peer) }.getOrNull() }
                 if (count != null) {
                     lastSeen = TimeSource.Monotonic.markNow()
                     sync.connected = true

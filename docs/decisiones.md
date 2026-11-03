@@ -414,6 +414,14 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   versión 0.5.0 publicada no lleva la sincronización: sus notas solo cuentan la calidad y la
   carpeta de las descargas, y todo lo de Syncthing está en las de la 0.6.0.
 
+- **Vincular con más de uno:** el móvil puede estar vinculado con el PC y con FreedomClient
+  (el cliente de Minecraft, que también enseña su QR) a la vez. Al vincular otro, las dos
+  carpetas se siguen compartiendo con los que ya estaban (se leen sus dispositivos de la
+  configuración y se añade el nuevo) y se guardan todos los vinculados (`sync.peer`, separados
+  por comas). Ya vinculado, el móvil enseña «VINCULAR OTRO PC O FREEDOMCLIENT». La biblioteca ya
+  se juntaba con la de todos los que hay en la carpeta; «12 de 20» cuenta el primero que esté
+  conectado.
+
 ### Lo que todavía no
 
 - Probarlo entre un móvil y un PC de verdad. En la CI, los dos Syncthing están en el mismo
