@@ -91,6 +91,19 @@ class SyncthingApi(
         })
     }
 
+    /**
+     * Con qué dispositivos se comparte ya [folderId] (vacío si la carpeta todavía no existe). Al
+     * vincular otro se añade a estos: el móvil puede estar con el PC y con FreedomClient a la vez.
+     */
+    suspend fun folderDevices(folderId: String): List<String> {
+        val folder = try {
+            get("/rest/config/folders/$folderId")
+        } catch (e: IOException) {
+            return emptyList()
+        }
+        return (folder["devices"] as? JsonArray).orEmpty().mapNotNull { ((it as? JsonObject)?.get("deviceID") as? JsonPrimitive)?.content }
+    }
+
     /** Qué dispositivos están conectados ahora. */
     suspend fun connected(): Set<String> {
         val all = get("/rest/system/connections")["connections"] as? JsonObject ?: return emptySet()
@@ -140,14 +153,15 @@ class SyncthingApi(
 
 /**
  * Vincular este dispositivo con otro (el id que se lee del QR): se añade el dispositivo y se
- * comparten con él la carpeta de la música y la de la biblioteca (los JSON de cada uno).
+ * comparten con él la carpeta de la música y la de la biblioteca (los JSON de cada uno). Los que
+ * ya estaban vinculados siguen compartiendo las dos carpetas.
  */
 class SyncthingPairing(private val api: SyncthingApi, private val music: File, private val library: File) {
     suspend fun pair(otherId: String, otherName: String) {
         val id = SyncthingIds.device(otherId) ?: throw IllegalArgumentException("Ese código no es de un dispositivo")
         api.addDevice(id, otherName)
-        api.shareFolder(SyncthingApi.MUSIC_FOLDER, "FreedomPlayer · música", music.absolutePath, listOf(id))
-        api.shareFolder(SyncthingApi.LIBRARY_FOLDER, "FreedomPlayer · biblioteca", library.absolutePath, listOf(id))
+        api.shareFolder(SyncthingApi.MUSIC_FOLDER, "FreedomPlayer · música", music.absolutePath, (api.folderDevices(SyncthingApi.MUSIC_FOLDER) + id).distinct())
+        api.shareFolder(SyncthingApi.LIBRARY_FOLDER, "FreedomPlayer · biblioteca", library.absolutePath, (api.folderDevices(SyncthingApi.LIBRARY_FOLDER) + id).distinct())
     }
 
     /**

@@ -160,6 +160,29 @@ class SyncFlowTest {
     }
 
     @Test
+    fun thePhoneCanPairWithThePcAndFreedomClientAtOnce() {
+        val clientId = "IIIIIII-JJJJJJJ-KKKKKKK-LLLLLLL-MMMMMMM-NNNNNNN-OOOOOOO-PPPPPPP"
+        val phone = FakeSync(showsQr = false, id = phoneId)
+        val store = MemoryStore()
+        val phoneApp = app(phone, store)
+        phoneApp.live {
+            pairWith(pcId)
+            waitFor("vinculado con el PC") { sync.phase == SyncPhase.Syncing && sync.peers == listOf(pcId) }
+            // Ya vinculado, escanea el QR de FreedomClient: se añade sin quitar el PC.
+            pairWith(clientId.lowercase())
+            waitFor("vinculado con los dos") { sync.peers == listOf(pcId, clientId) && sync.phase == SyncPhase.Syncing }
+            assertEquals(pcId, sync.peer)
+            pairWith(pcId)
+            assertTrue(sync.error.orEmpty().contains("ya está vinculado"), sync.error)
+        }
+        assertEquals(listOf(pcId to "PC", clientId to "PC"), phone.paired)
+
+        // Al volver a abrir la app sigue con los dos.
+        val again = app(phone, store)
+        again.live { waitFor("los dos al abrir") { sync.peers == listOf(pcId, clientId) && sync.phase == SyncPhase.Syncing } }
+    }
+
+    @Test
     fun whatComesFromTheOtherDeviceIsApplied() {
         val phone = FakeSync(showsQr = false, id = phoneId)
         val store = MemoryStore()

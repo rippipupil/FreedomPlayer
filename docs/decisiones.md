@@ -599,3 +599,17 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
   un `HorizontalPager` y cada una se graba en una `GraphicsLayer`, de la que sale la imagen al
   tocar «COMPARTIR» (Android: PNG en la caché, compartido por el FileProvider) o «GUARDAR IMAGEN»
   (PC: PNG en Imágenes › FreedomPlayer).
+
+## Vincular con varios dispositivos (0.12)
+
+- El móvil puede estar vinculado con el PC y con FreedomClient (el cliente de Minecraft, que
+  también enseña su QR y descarga el Syncthing oficial con su suma SHA-256) a la vez. Antes, al
+  vincular otro, las dos carpetas se compartían solo con el nuevo y el PC dejaba de sincronizar.
+- Al vincular otro, se leen de la configuración de Syncthing los dispositivos con los que ya se
+  comparte cada carpeta (`/rest/config/folders/<id>`) y se añade el nuevo. Los vinculados se
+  guardan todos en `sync.peer`, separados por comas (lo que había, uno solo, se sigue leyendo).
+- Ya vinculado, el móvil enseña «VINCULAR OTRO PC O FREEDOMCLIENT», que abre el escáner. Un código
+  que ya está vinculado se explica sin volver a vincular.
+- La biblioteca ya se juntaba con la de todos los que hay en la carpeta compartida
+  («biblioteca-<dispositivo>.json»); «12 de 20» cuenta el primero que esté conectado. El móvil
+  hace de centro: lo del PC llega a FreedomClient a través de él, y al revés.
