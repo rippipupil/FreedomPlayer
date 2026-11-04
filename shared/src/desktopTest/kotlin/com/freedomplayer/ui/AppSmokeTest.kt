@@ -7,7 +7,9 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
+import com.freedomplayer.core.GhostSkin
 import com.freedomplayer.core.MatchKind
+import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SampleData
 import com.freedomplayer.core.YearMonth
@@ -15,6 +17,7 @@ import com.freedomplayer.ui.components.Mood
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -109,8 +112,16 @@ class AppSmokeTest {
         state.togglePreview(song)
         settle()
         assertNotNull(state.preview)
+        // La vista previa también se abre en el reproductor, y se cierra con él.
+        state.playerOpen = true
+        settle()
+        state.togglePlay()
+        settle()
+        state.seekTo(0.3f)
+        settle()
         state.stopPreview()
         settle()
+        assertFalse(state.playerOpen)
         state.requestAdd(AddTarget.Result(song))
         settle()
         assertNotNull(state.sheet)
@@ -132,10 +143,36 @@ class AppSmokeTest {
         val album = SampleData.albums.first()
         state.searchTab = SearchTab.Albums
         settle()
+        // Entrar en el álbum y volver
+        state.openAlbum(album)
+        settle(1_000)
+        state.back()
+        settle()
         state.requestAdd(AddTarget.Album(album))
         settle()
         state.confirmAdd(AddTarget.Album(album), state.playlists.first().id)
         settle(2_000)
+
+        // Listas de otros: buscarlas, abrir una, «+ AÑADIR TODAS» y un enlace pegado
+        state.searchTab = SearchTab.Playlists
+        state.query = "luz"
+        settle(1_000)
+        val other = SampleData.otherLists.first()
+        state.openOtherList(other.url, other)
+        settle(1_000)
+        state.otherList?.list?.let { list ->
+            state.requestAdd(AddTarget.WholeList(list))
+            settle()
+            state.sheet = null
+            settle()
+        }
+        state.back()
+        settle()
+        state.query = other.url
+        settle()
+        assertNotNull(state.linkedList)
+        state.query = ""
+        settle()
 
         // Nueva playlist y nuevo ranking
         state.prompt = Prompt.NewPlaylist()
@@ -181,16 +218,48 @@ class AppSmokeTest {
         state.statsTab = StatsTab.Recent
         settle()
 
+        // Wrapped (un mes y un año) y la colección de fantasmas
+        state.openWrapped()
+        settle()
+        assertEquals(Screen.Wrapped, state.screen)
+        state.wrappedPeriod = state.wrappedPeriods().firstOrNull { it.month == null }
+        settle()
+        state.go(Screen.Ghosts)
+        settle()
+        state.settings.ghostSkin = GhostSkin.Buho
+        settle()
+        state.settings.ghostSkin = GhostSkin.Clasico
+
         // Detalle de playlist
         val playlist = state.playlists.first()
         state.go(Screen.PlaylistDetail(playlist.id))
         settle()
+        state.sortPlaylistsBy(PlaylistSort.Score)
+        settle()
+        state.flipPlaylistOrder()
+        settle()
+        state.sortPlaylistsBy(PlaylistSort.Added)
+        settle()
         state.playPlaylist(playlist.id, shuffle = true)
         settle()
 
-        // Reproductor
+        // Reproductor (y puntuar la que suena)
         state.playerOpen = true
         settle()
+        state.currentSong?.let { state.rate(it.id, 7) }
+        settle()
+        // «⟲» y «⟳»
+        state.seekBy(forward = true)
+        settle()
+        state.seekBy(forward = false)
+        settle()
+        // La letra a pantalla completa: se abre y «atrás» la cierra sin cerrar el reproductor.
+        state.lyricsOpen = true
+        settle()
+        state.back()
+        settle()
+        assertFalse(state.lyricsOpen)
+        assertTrue(state.playerOpen)
         if (!state.isPlaying) state.togglePlay()
         settle(1_500)
         state.next()

@@ -3,8 +3,10 @@ package com.freedomplayer.data
 import com.freedomplayer.core.AlbumResult
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.LyricsData
+import com.freedomplayer.core.OtherList
 import com.freedomplayer.core.PlayEvent
 import com.freedomplayer.core.Playlist
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SampleData
@@ -135,6 +137,28 @@ class SampleSource(private val latencyMs: Long = 150) : MusicSource {
         delay(latencyMs)
         return album.songIds.mapNotNull { id -> SampleData.catalog.firstOrNull { it.id == id } }
     }
+
+    /** Las listas de ejemplo con alguna palabra de la búsqueda en su nombre o en sus canciones. */
+    override suspend fun searchPlaylists(query: String): List<PlaylistResult> {
+        delay(latencyMs)
+        val words = Search.normalize(query).split(' ').filter { it.length >= 3 }
+        if (words.isEmpty()) return emptyList()
+        return SampleData.otherLists.filter { list ->
+            val text = (listOf(list.title, list.owner) + tracksOf(list).flatMap { listOf(it.title, it.artist) })
+                .joinToString(" ") { Search.normalize(it) }
+            words.any { it in text }
+        }
+    }
+
+    override suspend fun otherList(url: String): OtherList {
+        delay(latencyMs)
+        val list = SampleData.otherLists.firstOrNull { it.url == url }
+            ?: throw SourceException(FailureKind.Unavailable, "Lista de ejemplo que no existe: $url")
+        return OtherList(list, tracksOf(list))
+    }
+
+    private fun tracksOf(list: PlaylistResult): List<SearchResult> =
+        list.songIds.mapNotNull { id -> SampleData.catalog.firstOrNull { it.id == id } }
 
     override suspend fun stream(result: SearchResult): StreamSource {
         delay(latencyMs)

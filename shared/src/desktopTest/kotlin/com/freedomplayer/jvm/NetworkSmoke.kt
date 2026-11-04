@@ -2,6 +2,7 @@ package com.freedomplayer.jvm
 
 import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.SpotifyPlaylist
+import com.freedomplayer.core.YouTubeLinks
 import com.freedomplayer.jvm.youtube.YouTubeSource
 import kotlinx.coroutines.runBlocking
 import okhttp3.Request
@@ -9,8 +10,8 @@ import java.util.Locale
 import kotlin.system.exitProcess
 
 /**
- * Prueba de red con YouTube, LRCLIB y Spotify de verdad: buscar canciones, vídeos y álbumes,
- * sacar el audio y bajar un trozo, pedir una letra y leer una playlist pública de Spotify y
+ * Prueba de red con YouTube, LRCLIB y Spotify de verdad: buscar canciones, vídeos, álbumes y
+ * listas de otra gente (también por enlace), sacar el audio y bajar un trozo, pedir una letra y leer una playlist pública de Spotify y
  * emparejar sus canciones con YouTube Music. No es una prueba obligatoria (YouTube a veces
  * bloquea los servidores de GitHub): el workflow la lanza aparte y solo avisa si falla.
  *
@@ -51,6 +52,26 @@ fun main() {
         val tracks = youtube.albumTracks(albums.first())
         check(tracks.isNotEmpty()) { "álbum sin canciones" }
         "«${albums.first().title}» de ${albums.first().artist}: ${tracks.size} canciones"
+    }
+    var otherUrl: String? = null
+    step("Listas de otra gente y sus canciones (YouTube Music)") {
+        val lists = youtube.searchPlaylists("reggaeton 2026")
+        check(lists.isNotEmpty()) { "sin resultados" }
+        val first = lists.first()
+        val list = youtube.otherList(first.url)
+        check(list.tracks.isNotEmpty()) { "lista sin canciones" }
+        otherUrl = first.url
+        "${lists.size} listas; «${list.info.title}» de ${list.info.owner}: ${list.tracks.size} canciones; " +
+            list.tracks.take(2).joinToString(" | ") { "${it.title} — ${it.artist} (${it.durationSec} s)" }
+    }
+    step("Lista de YouTube pegada como enlace") {
+        val music = checkNotNull(otherUrl) { "no hay lista" }
+        val id = music.substringAfter("list=").substringBefore('&')
+        val pasted = "https://youtube.com/playlist?list=$id&si=compartido"
+        val url = checkNotNull(YouTubeLinks.playlistUrl(pasted)) { "el enlace no se reconoce" }
+        val list = youtube.otherList(url)
+        check(list.tracks.isNotEmpty()) { "lista sin vídeos" }
+        "$url: «${list.info.title}», ${list.tracks.size} vídeos; " + list.tracks.take(2).joinToString(" | ") { it.title }
     }
     step("Audio de una canción (y sus primeros 64 KB)") {
         val song = checkNotNull(firstSong) { "no hay canción" }

@@ -101,6 +101,41 @@ fun PlayPauseButton(playing: Boolean, onClick: () -> Unit, size: Dp, cutSize: Dp
     }
 }
 
+/**
+ * «⟲ 10» / «10 ⟳»: salta hacia atrás o hacia delante los segundos elegidos en Ajustes, sin pasar
+ * de canción. El número va dentro de la vuelta.
+ */
+@Composable
+fun SeekButton(
+    seconds: Int,
+    forward: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    iconSize: Dp = 26.dp,
+    enabled: Boolean = true,
+) {
+    IconButton(
+        if (forward) FpIcons.SeekForward else FpIcons.SeekBack,
+        if (forward) "Adelantar $seconds segundos" else "Atrasar $seconds segundos",
+        onClick,
+        modifier,
+        size = size,
+        iconSize = iconSize,
+        color = Fp.Bone,
+        enabled = enabled,
+    ) {
+        // El centro de la vuelta está un poco por debajo del centro del icono (12, 13 de 24).
+        Chakra(
+            seconds.toString(),
+            (iconSize.value * 0.34f).sp,
+            Modifier.offset(y = iconSize / 24f),
+            color = if (enabled) Fp.Bone else Fp.Bone.copy(alpha = 0.35f),
+            weight = FontWeight.Bold,
+        )
+    }
+}
+
 /** Aleatorio: rosa con un puntito debajo cuando está encendido. */
 @Composable
 fun ShuffleButton(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 44.dp, iconSize: Dp = 20.dp) {
@@ -117,23 +152,21 @@ fun ShuffleButton(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifie
     )
 }
 
-/** Repetir: no, todo, una. Un puntito marca que está activo y un «1» que repite una sola. */
+/** Repetir: seguir con la lista o repetir una (en rosa, con un puntito y un «1»). */
 @Composable
 fun RepeatButton(mode: Repeat, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 44.dp, iconSize: Dp = 20.dp) {
+    // La cola nunca se para: lo normal es «seguir» (sin resaltar); en rosa, «repetir una».
+    val one = mode.effective == Repeat.One
     ModeButton(
         icon = FpIcons.Repeat,
-        active = mode != Repeat.Off,
+        active = one,
         label = "Repetir",
-        state = when (mode) {
-            Repeat.Off -> "No"
-            Repeat.All -> "Toda la cola"
-            Repeat.One -> "Solo esta canción"
-        },
+        state = if (one) "Solo esta canción" else "Seguir: al acabar, vuelve a empezar",
         onClick = onClick,
         modifier = modifier,
         size = size,
         iconSize = iconSize,
-        badge = if (mode == Repeat.One) "1" else null,
+        badge = if (one) "1" else null,
     )
 }
 
@@ -220,6 +253,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
             modifier = Modifier.offset(y = 64.5.dp).padding(start = 16.dp, end = 22.dp),
             segmentHeight = 3.dp,
             knob = 9.dp,
+            playing = state.nowIsPlaying(),
         )
         Row(
             Modifier.offset(y = 18.dp).fillMaxWidth().height(64.dp).padding(start = 14.dp, end = 8.dp),
@@ -230,7 +264,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                 now.coverColor,
                 46.dp,
                 Modifier
-                    .fpClickable(enabled = !now.isPreview, onClick = onOpen)
+                    .fpClickable(onClick = onOpen)
                     .semantics { contentDescription = "Abrir reproductor" },
                 image = now.cover,
             )
@@ -238,7 +272,7 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                 Modifier
                     .weight(1f)
                     .padding(start = 14.dp)
-                    .fpClickable(enabled = !now.isPreview, pressedScale = 0.98f, onClickLabel = "Abrir reproductor", onClick = onOpen),
+                    .fpClickable(pressedScale = 0.98f, onClickLabel = "Abrir reproductor", onClick = onOpen),
             ) {
                 AnimatedContent(
                     targetState = now,
@@ -260,14 +294,25 @@ fun MiniPlayer(state: AppState, modifier: Modifier = Modifier, onOpen: () -> Uni
                     }
                 }
             }
-            PlayPauseButton(state.nowIsPlaying(), { state.togglePlay() }, size = 44.dp, cutSize = 10.dp, iconSize = 16.dp)
-            IconButton(
-                FpIcons.NextMini,
-                if (now.isPreview) "Cerrar vista previa" else "Siguiente",
-                onClick = { state.next() },
-                iconSize = 18.dp,
-                color = Fp.Bone,
-            )
+            // Los mandos juntos, para dejarle sitio al título.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                // Un toque: al principio de la canción; dos seguidos: la anterior (ver AppState.rewind).
+                IconButton(
+                    FpIcons.PreviousMini,
+                    "Atrás: un toque vuelve a empezar, dos van a la anterior",
+                    onClick = { state.rewind() },
+                    iconSize = 18.dp,
+                    color = Fp.Bone,
+                )
+                PlayPauseButton(state.nowIsPlaying(), { state.togglePlay() }, size = 44.dp, cutSize = 10.dp, iconSize = 16.dp)
+                IconButton(
+                    FpIcons.NextMini,
+                    if (now.isPreview) "Cerrar vista previa" else "Siguiente",
+                    onClick = { state.next() },
+                    iconSize = 18.dp,
+                    color = Fp.Bone,
+                )
+            }
         }
         Ghost(Mood.Contento, 28.dp, Modifier.offset(x = 32.dp).fpFloat().fpHop(state.reaction))
     }
@@ -292,7 +337,7 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxSize().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
             // Izquierda: lo que suena.
             Row(
-                Modifier.width(side).fpClickable(enabled = now != null && !now.isPreview, pressedScale = 0.98f, onClickLabel = "Abrir reproductor") {
+                Modifier.width(side).fpClickable(enabled = now != null, pressedScale = 0.98f, onClickLabel = "Abrir reproductor") {
                     state.playerOpen = !state.playerOpen
                 },
                 verticalAlignment = Alignment.CenterVertically,
@@ -323,10 +368,13 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
             // Centro: controles y progreso.
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    val step = state.settings.seekSeconds
                     ShuffleButton(state.queue.shuffle, { state.toggleShuffle() }, size = 40.dp, iconSize = 18.dp)
+                    SeekButton(step, forward = false, { state.seekBy(forward = false) }, size = 40.dp, iconSize = 24.dp, enabled = now != null)
                     IconButton(FpIcons.Previous, "Anterior", { state.previous() }, size = 40.dp, iconSize = 20.dp, color = Fp.Bone, enabled = now != null)
                     PlayPauseButton(state.nowIsPlaying(), { state.togglePlay() }, size = 46.dp, cutSize = 11.dp, iconSize = 18.dp, enabled = now != null)
                     IconButton(FpIcons.Next, if (now?.isPreview == true) "Cerrar vista previa" else "Siguiente", { state.next() }, size = 40.dp, iconSize = 20.dp, color = Fp.Bone, enabled = now != null)
+                    SeekButton(step, forward = true, { state.seekBy(forward = true) }, size = 40.dp, iconSize = 24.dp, enabled = now != null)
                     RepeatButton(state.queue.repeat, { state.cycleRepeat() }, size = 40.dp, iconSize = 18.dp)
                 }
                 Row(
@@ -345,6 +393,7 @@ fun PlayerBar(state: AppState, modifier: Modifier = Modifier) {
                                 segmentHeight = 4.dp,
                                 knob = 10.dp,
                                 touchHeight = 28.dp,
+                                playing = state.nowIsPlaying(),
                             )
                         } else {
                             SegmentBar(60, 0f, Modifier.padding(vertical = 12.dp))

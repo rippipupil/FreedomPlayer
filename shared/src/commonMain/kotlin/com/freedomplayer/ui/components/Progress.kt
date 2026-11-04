@@ -1,6 +1,11 @@
 package com.freedomplayer.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -9,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +29,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -36,12 +43,18 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.freedomplayer.ui.theme.Fp
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.sin
 import kotlinx.coroutines.launch
 
 /**
  * Barra de progreso de segmentos con el rombo claro como tirador (36 segmentos en el
  * mini-reproductor, 48 en el reproductor y 60 en el PC). Se toca o se arrastra para saltar.
+ *
+ * Mientras suena ([playing]) está viva: los segmentos junto al rombo laten como un ecualizador,
+ * un brillo recorre lo ya escuchado y el halo del rombo respira. Al arrastrar, el rombo crece.
+ * Todo quieto si se reduce el movimiento.
  *
  * La posición se lee con [fraction] al dibujar, así que avanzar no recompone nada.
  * [lineY] es dónde va la línea dentro de la zona táctil (por defecto, en medio).
@@ -58,11 +71,24 @@ fun SeekBar(
     touchHeight: Dp = 44.dp,
     lineY: Dp? = null,
     label: String = "Posición de la canción",
+    playing: Boolean = false,
 ) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val seek by rememberUpdatedState(onSeek)
     val read by rememberUpdatedState(fraction)
     val reduce = LocalReduceMotion.current
+    // Fase de la animación (0–1, cada 2,4 s); null si no suena o se reduce el movimiento.
+    val phase: State<Float>? = if (playing && !reduce) {
+        rememberInfiniteTransition(label = "seekBar").animateFloat(
+            0f,
+            1f,
+            infiniteRepeatable(tween(2400, easing = LinearEasing)),
+            label = "seekBarPhase",
+        )
+    } else {
+        null
+    }
+    val grab by animateFloatAsState(if (dragging != null && !reduce) 1.4f else 1f, fpTween(Motion.QUICK), label = "seekKnob")
     // Los saltos grandes (otra canción, la vista previa, «anterior») se deslizan en 220 ms
     // en vez de saltar; el avance normal y el arrastre van tal cual.
     val blend = remember { Animatable(1f) }
@@ -126,30 +152,50 @@ fun SeekBar(
         val b = blend.value
         val f = if (held != null || b >= 1f) actual else from + (actual - from) * b
         val cy = lineY?.toPx() ?: (this.size.height / 2f)
-        drawSegments(f, segments, segmentHeight.toPx(), cy)
-        drawKnob(f * this.size.width, cy, knob.toPx())
+        val p = phase?.value
+        drawSegments(f, segments, segmentHeight.toPx(), cy, p)
+        drawKnob(f * this.size.width, cy, knob.toPx() * grab, p)
     }
 }
 
-private fun DrawScope.drawSegments(f: Float, count: Int, height: Float, cy: Float) {
+/**
+ * Los segmentos. Con [phase] (sonando): los 6 de antes del rombo laten como un ecualizador
+ * (más los más cercanos) y un brillo claro recorre lo ya escuchado de principio a fin.
+ */
+private fun DrawScope.drawSegments(f: Float, count: Int, height: Float, cy: Float, phase: Float?) {
     val gap = 2.dp.toPx()
     val w = (this.size.width - gap * (count - 1)) / count
+    val head = (f * count - 0.5f).toInt()
+    val shine = if (phase != null) phase * (head + 3) - 1.5f else Float.NaN
     for (i in 0 until count) {
         val on = (i + 0.5f) / count <= f
+        var h = height
+        var color = if (on) Fp.Neon else Fp.Track
+        if (on && phase != null) {
+            val d = head - i
+            if (d in 0..5) {
+                val wave = (sin(phase * 2f * PI.toFloat() * 3f - d * 0.9f) + 1f) / 2f
+                h = height * (1f + 0.9f * wave * (1f - d / 6f))
+            }
+            val near = 1f - abs(i - shine) / 1.6f
+            if (near > 0f) color = lerp(Fp.Neon, Fp.Lamp, near * 0.85f)
+        }
         drawRect(
-            if (on) Fp.Neon else Fp.Track,
-            topLeft = Offset(i * (w + gap), cy - height / 2f),
-            size = Size(w, height),
+            color,
+            topLeft = Offset(i * (w + gap), cy - h / 2f),
+            size = Size(w, h),
         )
     }
 }
 
-/** Rombo claro con brillo rosa. */
-private fun DrawScope.drawKnob(x: Float, cy: Float, side: Float) {
+/** Rombo claro con brillo rosa; sonando ([phase]), el brillo respira. */
+private fun DrawScope.drawKnob(x: Float, cy: Float, side: Float, phase: Float? = null) {
     val c = Offset(x, cy)
+    val breath = if (phase != null) 1f + 0.22f * sin(phase * 2f * PI.toFloat() * 2f) else 1f
+    val glow = side * 1.15f * breath
     drawCircle(
-        brush = Brush.radialGradient(listOf(Fp.Neon.copy(alpha = 0.55f), Color.Transparent), center = c, radius = side * 1.15f),
-        radius = side * 1.15f,
+        brush = Brush.radialGradient(listOf(Fp.Neon.copy(alpha = 0.55f), Color.Transparent), center = c, radius = glow),
+        radius = glow,
         center = c,
     )
     rotate(45f, pivot = c) {

@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freedomplayer.core.GhostSkin
 import com.freedomplayer.core.Highlight
 import com.freedomplayer.core.LibraryStats
 import com.freedomplayer.core.Song
@@ -55,6 +57,7 @@ import com.freedomplayer.core.Stats
 import com.freedomplayer.core.YearMonth
 import com.freedomplayer.core.timesText
 import com.freedomplayer.ui.AppState
+import com.freedomplayer.ui.Screen
 import com.freedomplayer.ui.StatsTab
 import com.freedomplayer.ui.components.Chakra
 import com.freedomplayer.ui.components.Cover
@@ -118,6 +121,11 @@ fun StatsScreen(state: AppState, modifier: Modifier = Modifier) {
                 StatsTab.AllTime -> "TU MÚSICA · SIEMPRE"
             }
             ScreenHeader(label, "Estadísticas")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val owned by remember(state) { derivedStateOf { state.ownedGhosts().size } }
+                ShortcutCard("TU WRAPPED ›", "Tus meses en tarjetas", Fp.Neon, Modifier.weight(1f)) { state.openWrapped() }
+                ShortcutCard("FANTASMAS ›", "$owned de ${GhostSkin.entries.size} ganados", Fp.JadeLight, Modifier.weight(1f)) { state.go(Screen.Ghosts) }
+            }
             FpTabs(
                 labels = listOf("30 DÍAS", "POR MES", "SIEMPRE"),
                 selected = state.statsTab.ordinal,
@@ -337,6 +345,27 @@ private fun StatsBody(state: AppState, view: StatsView, bottom: Dp, sides: Modif
                     if (id != null) state.playFrom(listOf(id), id, "ESTADÍSTICAS")
                 }
             }
+        }
+    }
+}
+
+/** Acceso a Wrapped o a la colección de fantasmas: título en color y una línea debajo. */
+@Composable
+private fun ShortcutCard(title: String, detail: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
+    val shape = cut(10.dp)
+    Row(
+        modifier
+            .fpClickable(onClickLabel = "Abrir", pressedScale = 0.97f, onClick = onClick)
+            .background(color.copy(alpha = 0.08f), shape)
+            .border(1.dp, color.copy(alpha = 0.45f), shape)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Ghost(Mood.Owo, 26.dp)
+        Column(Modifier.weight(1f)) {
+            Chakra(title, 12.sp, color = color, weight = FontWeight.Bold, spacing = 1.5.sp)
+            SubText(detail, size = 11.sp)
         }
     }
 }

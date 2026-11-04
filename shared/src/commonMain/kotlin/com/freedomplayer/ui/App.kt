@@ -36,6 +36,7 @@ import com.freedomplayer.ui.components.AlleyBackground
 import com.freedomplayer.ui.components.Centered
 import com.freedomplayer.ui.components.DesktopPanels
 import com.freedomplayer.ui.components.EdgeZone
+import com.freedomplayer.ui.components.LocalGhostSkin
 import com.freedomplayer.ui.components.LocalReduceMotion
 import com.freedomplayer.ui.components.LocalScreenInsets
 import com.freedomplayer.ui.components.LocalStatusBar
@@ -50,8 +51,11 @@ import com.freedomplayer.ui.components.SheetHost
 import com.freedomplayer.ui.components.SideTabs
 import com.freedomplayer.ui.components.nowPlaying
 import com.freedomplayer.ui.components.statusBarHeight
+import com.freedomplayer.ui.screens.AlbumScreen
+import com.freedomplayer.ui.screens.GhostsScreen
 import com.freedomplayer.ui.screens.HomeScreen
 import com.freedomplayer.ui.screens.PlayerScreen
+import com.freedomplayer.ui.screens.OtherListScreen
 import com.freedomplayer.ui.screens.PlaylistScreen
 import com.freedomplayer.ui.screens.RankingScreen
 import com.freedomplayer.ui.screens.SearchScreen
@@ -59,6 +63,7 @@ import com.freedomplayer.ui.screens.SettingsScreen
 import com.freedomplayer.ui.screens.SpotifyScreen
 import com.freedomplayer.ui.screens.StatsScreen
 import com.freedomplayer.ui.screens.SyncScreen
+import com.freedomplayer.ui.screens.WrappedScreen
 import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.FreedomTheme
 
@@ -87,6 +92,7 @@ fun App(
             LocalReduceMotion provides state.reduceMotion,
             LocalAppVersion provides version,
             LocalStatusBar provides statusBar,
+            LocalGhostSkin provides state.settings.ghostSkin,
         ) {
             if (runLoop) LaunchedEffect(state) { state.run() }
             Box(modifier.fillMaxSize().background(Fp.Night)) {
@@ -97,7 +103,7 @@ fun App(
 }
 
 /** Para que una capa de encima (el reproductor) no deje pasar los toques a lo de debajo. */
-private fun Modifier.blockTouchesBelow(): Modifier = this.pointerInput(Unit) {
+internal fun Modifier.blockTouchesBelow(): Modifier = this.pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
             awaitPointerEvent()
@@ -130,8 +136,12 @@ private fun ScreenHost(state: AppState, modifier: Modifier = Modifier) {
             Screen.Stats -> StatsScreen(state)
             Screen.Settings -> SettingsScreen(state)
             is Screen.PlaylistDetail -> PlaylistScreen(state, screen.id)
+            is Screen.OtherListDetail -> OtherListScreen(state, screen.url)
+            is Screen.AlbumDetail -> AlbumScreen(state, screen.key)
             Screen.SpotifyImport -> SpotifyScreen(state)
             Screen.Sync -> SyncScreen(state)
+            Screen.Wrapped -> WrappedScreen(state)
+            Screen.Ghosts -> GhostsScreen(state)
         }
     }
 }
@@ -148,7 +158,7 @@ private fun MobileShell(state: AppState) {
     val status = statusBarHeight()
     val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val showMini = state.nowPlaying() != null
-    val playerVisible = state.playerOpen && state.currentSong != null
+    val playerVisible = state.playerOpen && (state.currentSong != null || state.preview != null)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         AlleyBackground(Modifier.fillMaxSize(), wide = false, flicker = state.screen == Screen.Home && !playerVisible)
         Column(Modifier.fillMaxSize()) {
@@ -201,7 +211,7 @@ private fun MobileShell(state: AppState) {
 @Composable
 private fun DesktopShell(state: AppState, titleBar: (@Composable () -> Unit)?) {
     val reduce = LocalReduceMotion.current
-    val playerVisible = state.playerOpen && state.currentSong != null
+    val playerVisible = state.playerOpen && (state.currentSong != null || state.preview != null)
     Box(Modifier.fillMaxSize()) {
         // El callejón ocupa toda la ventana: la barra de título (translúcida) y la del reproductor van encima.
         AlleyBackground(Modifier.fillMaxSize(), wide = true, flicker = state.screen == Screen.Home && !playerVisible)

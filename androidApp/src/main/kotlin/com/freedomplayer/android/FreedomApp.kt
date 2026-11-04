@@ -3,6 +3,7 @@ package com.freedomplayer.android
 import android.app.Application
 import androidx.compose.runtime.snapshotFlow
 import com.freedomplayer.android.playback.AndroidEngine
+import com.freedomplayer.android.update.AndroidUpdateInstaller
 import com.freedomplayer.platform.AndroidLibrary
 import com.freedomplayer.ui.AppState
 import com.freedomplayer.ui.needsForeground
@@ -19,7 +20,8 @@ class FreedomApp : Application() {
 
     val state: AppState by lazy {
         val engine = AndroidEngine(this)
-        AppState(System.currentTimeMillis(), AndroidLibrary.services(this, engine)).also { s ->
+        AppState(System.currentTimeMillis(), AndroidLibrary.services(this, engine, AndroidUpdateInstaller(this))).also { s ->
+            s.appVersion = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "dev"
             scope.launch { s.run() }
             // Syncthing sigue mientras se sincroniza, aunque se cierre la pantalla: en primer plano
             // solo mientras hace falta (arrancar, vincular, pasar canciones).

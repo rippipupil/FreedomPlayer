@@ -113,6 +113,7 @@ fun SheetHost(state: AppState, modifier: Modifier = Modifier) {
                 is Sheet.Queue -> SheetSurface { QueueSheet(state) }
                 is Sheet.SleepTimer -> SheetSurface { SleepTimerSheet(state) }
                 is Sheet.Equalizer -> SheetSurface { EqualizerSheet(state) }
+                is Sheet.Speed -> SheetSurface { SpeedSheet(state) }
                 is Prompt.EditSong -> SheetSurface { EditSongPrompt(state, current.songId) }
                 is Prompt -> SheetSurface { NamePrompt(state, current) }
                 else -> Box(Modifier.size(0.dp))
@@ -203,11 +204,13 @@ private fun ColumnScope.AddSheet(state: AppState, target: AddTarget) {
     val heading = when (target) {
         is AddTarget.Result -> if (isVideo) "AÑADIR VÍDEO COMO CANCIÓN" else "AÑADIR CANCIÓN"
         is AddTarget.Album -> "AÑADIR ÁLBUM ENTERO"
+        is AddTarget.WholeList -> "AÑADIR TODA LA LISTA"
         is AddTarget.LibrarySong -> "AÑADIR A UNA PLAYLIST"
     }
     val name = when (target) {
         is AddTarget.Result -> clean?.title ?: target.result.title
         is AddTarget.Album -> target.album.title
+        is AddTarget.WholeList -> target.list.info.title
         is AddTarget.LibrarySong -> state.song(target.songId)?.title ?: ""
     }
     SheetHeader(heading, name)
@@ -224,6 +227,11 @@ private fun ColumnScope.AddSheet(state: AppState, target: AddTarget) {
         } else {
             SubText("${target.album.artist} · se descargan todas sus canciones, con carátula y letra.")
         }
+    }
+    if (target is AddTarget.WholeList) {
+        val tracks = target.list.tracks
+        val have = tracks.count { state.librarySongFor(it) != null }
+        SubText("${songCount(tracks.size).lowercase()} · $have ya en tu biblioteca · se descargan las demás, con carátula y letra.")
     }
     if (result != null && !isVideo) {
         SubText(listOfNotNull(result.artist.ifBlank { null }, result.album, formatTime(result.durationSec)).joinToString(" · "))

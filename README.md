@@ -4,7 +4,7 @@ Reproductor de música personal para Android y Windows, hecho con Kotlin y Compo
 Buscas en YouTube Music, guardas las canciones en tu biblioteca, las puntúas del 1 al 10 y armas
 tus propios rankings.
 
-> **Estado: hito 6.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
+> **Estado: 0.11.** Busca en YouTube Music y YouTube (con NewPipe Extractor), escucha antes de
 > añadir, descarga el mejor audio con su carátula y su letra sincronizada (LRCLIB), guarda la
 > biblioteca y suena de verdad: en Android con notificación y pantalla de bloqueo, y en Windows
 > con FFmpeg dentro de la app. Tiene ecualizador, volumen igualado, fundido entre canciones, cola,
@@ -12,7 +12,12 @@ tus propios rankings.
 > PC responde a las teclas multimedia y añade tus propios archivos de audio. En Ajustes se elige
 > la calidad de las descargas y, en el PC, su carpeta. El móvil y el PC se vinculan con un código
 > QR y se sincronizan con Syncthing, que va dentro de la app (canciones, notas, playlists,
-> rankings e historial). Ver
+> rankings e historial). Las playlists se ordenan por fecha o por nota, se puntúa desde el
+> reproductor y la notificación tiene botón de repetir. De las listas de otra gente en YouTube
+> Music o YouTube (buscadas o con su enlace) y de los álbumes se añaden solo las canciones que
+> quieras. Se cambia la velocidad y el tono de lo que suena, hay un Wrapped de cada mes y de cada
+> año en tarjetas para compartir y fantasmas coleccionables que se ganan escuchando. Avisa de las versiones nuevas y se actualiza desde la propia app sin perder la
+> biblioteca. Ver
 > [docs/decisiones.md](docs/decisiones.md) para las decisiones de diseño y técnicas, y
 > [docs/versiones/](docs/versiones/) para las notas de cada versión.
 
@@ -37,6 +42,13 @@ Las compilaciones de prueba se numeran `0.6.<n.º de ejecución>`. Si en Windows
 un número mayor que la versión publicada que quieres instalar, desinstálala antes (el instalador
 no deja volver a una versión menor).
 
+## Actualizaciones
+
+La app avisa sola de las versiones nuevas publicadas en Releases (al abrirse y cada pocas horas):
+«ACTUALIZAR» descarga el APK o el `.msi` y abre el instalador. En «Ajustes › Buscar
+actualizaciones» se comprueba a mano. Las compilaciones de prueba de Actions no se avisan: solo
+las versiones publicadas.
+
 ## Firma del APK
 
 El workflow firma el APK así:
@@ -47,6 +59,10 @@ El workflow firma el APK así:
   caché de Actions para que todas las compilaciones lleven la misma y se instalen unas encima de
   otras. Si la caché caduca (7 días sin compilar), la siguiente compilación lleva otra clave y hay
   que desinstalar la app antes de instalarla.
+
+Las versiones publicadas (etiqueta `v*` o «Run workflow» con versión) **exigen** la clave de
+publicación: sin los secretos, o si el APK sale con la de depuración, el workflow falla. La clave de
+depuración es pública y Play Protect avisa de las apps firmadas con ella.
 
 Al pasar de la clave de depuración a la de publicación también hay que desinstalar la versión
 anterior una vez. Para crear la clave de publicación (en tu equipo, nunca en el repositorio):

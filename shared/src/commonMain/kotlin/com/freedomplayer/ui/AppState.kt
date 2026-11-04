@@ -9,18 +9,28 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.ImageBitmap
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.AppRelease
+import com.freedomplayer.core.AppVersions
 import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CoverPalette
 import com.freedomplayer.core.Crossfade
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
+import com.freedomplayer.core.GhostCollection
+import com.freedomplayer.core.GhostFacts
+import com.freedomplayer.core.GhostSkin
 import com.freedomplayer.core.Loudness
 import com.freedomplayer.core.LyricsData
+import com.freedomplayer.core.OtherList
 import com.freedomplayer.core.MatchKind
 import com.freedomplayer.core.PlayEvent
 import com.freedomplayer.core.PlayQueue
 import com.freedomplayer.core.Playlist
+import com.freedomplayer.core.PlaylistOrder
+import com.freedomplayer.core.PlaylistResult
+import com.freedomplayer.core.PlaylistSort
 import com.freedomplayer.core.Ranking
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.ResultKind
@@ -31,9 +41,14 @@ import com.freedomplayer.core.Song
 import com.freedomplayer.core.Spotify
 import com.freedomplayer.core.SpotifyLink
 import com.freedomplayer.core.Stats
+import com.freedomplayer.core.Tempo
 import com.freedomplayer.core.SyncIds
 import com.freedomplayer.core.TrackMatch
+import com.freedomplayer.core.Wrapped
+import com.freedomplayer.core.WrappedPeriod
+import com.freedomplayer.core.WrappedReport
 import com.freedomplayer.core.YearMonth
+import com.freedomplayer.core.YouTubeLinks
 import com.freedomplayer.core.folderName
 import com.freedomplayer.core.minutesText
 import com.freedomplayer.core.starsText
@@ -73,15 +88,27 @@ sealed interface Screen {
     data object Stats : Screen
     data object Settings : Screen
     data class PlaylistDetail(val id: String) : Screen
+
+    /** Una lista de otra persona (YouTube Music o YouTube), para añadir canciones sueltas. */
+    data class OtherListDetail(val url: String) : Screen
+
+    /** Un álbum del buscador: sus canciones una a una, para escucharlas o añadir las que quieras. */
+    data class AlbumDetail(val key: String) : Screen
     data object SpotifyImport : Screen
     data object Sync : Screen
+
+    /** El resumen de un mes o un año en tarjetas, para guardarlas o compartirlas. */
+    data object Wrapped : Screen
+
+    /** Los fantasmas coleccionables: los ganados (para ponérselos) y lo que falta para los demás. */
+    data object Ghosts : Screen
 
     val inMenu: Boolean get() = this == Home || this == Search || this == Rank || this == Stats || this == Settings
 }
 
 enum class Side { Left, Right }
 
-enum class SearchTab { Songs, Albums, Videos }
+enum class SearchTab { Songs, Albums, Videos, Playlists }
 
 enum class RankTab { General, Mine, Unrated }
 
@@ -92,6 +119,9 @@ enum class Tone { Pink, Jade, Neon, Bone }
 sealed interface AddTarget {
     data class Result(val result: SearchResult) : AddTarget
     data class Album(val album: AlbumResult) : AddTarget
+
+    /** «+ AÑADIR TODAS» de una lista de otra persona. */
+    data class WholeList(val list: OtherList) : AddTarget
     /** Una canción que ya está en la biblioteca (desde el reproductor): solo se elige playlist. */
     data class LibrarySong(val songId: String) : AddTarget
 }
@@ -111,6 +141,9 @@ sealed interface Sheet {
 
     /** Temporizador de apagado. */
     data object SleepTimer : Sheet
+
+    /** Velocidad y tono. */
+    data object Speed : Sheet
 
     /** Ecualizador de 5 bandas. */
     data object Equalizer : Sheet
@@ -188,6 +221,27 @@ data class TabResults<T>(
 
 enum class ImportPhase { Paste, Matching, Done }
 
+/** Una lista de otra persona abierta: cargando, con su error o con sus canciones. */
+class OtherListState(val url: String, val hint: PlaylistResult?) {
+    var list by mutableStateOf<OtherList?>(null)
+    var loading by mutableStateOf(true)
+    var error by mutableStateOf<FailureKind?>(null)
+
+    /** Lo que se sabe de la lista: lo cargado o, mientras tanto, lo que enseñaba el buscador. */
+    val info: PlaylistResult? get() = list?.info ?: hint
+}
+
+/** Segundos que saltan «⟲» y «⟳» si no se ha elegido otra cosa en Ajustes. */
+const val SEEK_STEP_DEFAULT = 10
+
+/** Lo que se puede elegir en Ajustes para «⟲» y «⟳». */
+val SEEK_STEPS = listOf(5, 10, 15, 30)
+
+/** Dos toques en «atrás» del mini-reproductor dentro de este tiempo van a la canción anterior. */
+const val REWIND_DOUBLE_TAP_MS = 600L
+
+/** Cada cuánto se mira si hay versión nueva mientras la app está abierta (6 h). */
+private const val UPDATE_CHECK_EVERY_MS = 6L * 60 * 60 * 1000
 private const val SYNC_PEER = "sync.peer"
 
 private const val SPOTIFY_EDITORIAL = "Esa playlist la hace Spotify y no se puede importar. Prueba con una tuya."
@@ -283,6 +337,22 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
     /** Segundos del fundido entre canciones. */
     var crossfadeSeconds by Whole("crossfadeSeconds", Crossfade.DEFAULT_SECONDS, 1..12)
 
+    private var speedPercent by Whole("tempo.speed", 100, 50..200)
+    private var pitchSemitones by Whole("tempo.semitones", 0, -6..6)
+    private var pitchWithSpeed by Flag("tempo.pitchWithSpeed", false)
+
+    /** Velocidad y tono de lo que suena (el panel «Velocidad» del reproductor). Se recuerda. */
+    var tempo: Tempo
+        get() = Tempo(speedPercent, pitchSemitones, pitchWithSpeed)
+        set(value) {
+            speedPercent = value.speedPercent
+            pitchSemitones = value.semitones
+            pitchWithSpeed = value.pitchWithSpeed
+        }
+
+    /** Segundos que saltan «⟲» y «⟳» (Ajustes › Reproducción: 5, 10, 15 o 30). */
+    var seekSeconds by Whole("seekSeconds", SEEK_STEP_DEFAULT, 5..30)
+
     private val eqState = mutableStateOf(EqBands.parse(read("eq.gains")))
 
     /** Ecualizador: dB de cada banda (todo a 0, «Plano», es no tocar el sonido). */
@@ -321,6 +391,47 @@ class Settings(private val read: (String) -> String? = { null }, private val wri
             folderState.value = v
             write("download.folder", v)
         }
+
+    private val orderState = mutableStateOf(PlaylistOrder.decode(read("playlist.order")))
+
+    /** Orden de las canciones dentro de las playlists (por fecha o por nota; de mayor a menor o al revés). */
+    var playlistOrder: PlaylistOrder
+        get() = orderState.value
+        set(value) {
+            if (value == orderState.value) return
+            orderState.value = value
+            write("playlist.order", value.encode())
+        }
+
+    private val skinState = mutableStateOf(GhostSkin.entries.firstOrNull { it.name == read("ghost.skin") } ?: GhostSkin.Clasico)
+
+    /** El fantasma coleccionable que se lleva puesto. */
+    var ghostSkin: GhostSkin
+        get() = skinState.value
+        set(value) {
+            if (value == skinState.value) return
+            skinState.value = value
+            write("ghost.skin", value.name)
+        }
+
+    private val announcedState = mutableStateOf(
+        read("ghost.announced")?.split(',')?.mapNotNull { n -> GhostSkin.entries.firstOrNull { it.name == n } }?.toSet(),
+    )
+
+    /**
+     * Los fantasmas ganados de los que ya se ha avisado (null: nunca se ha mirado, y entonces los
+     * que ya estén ganados se apuntan sin avisar, para no soltar diez avisos al actualizar).
+     */
+    var ghostsAnnounced: Set<GhostSkin>?
+        get() = announcedState.value
+        set(value) {
+            if (value == announcedState.value) return
+            announcedState.value = value
+            write("ghost.announced", value?.joinToString(",") { it.name })
+        }
+
+    /** Si ya se ha abierto el Wrapped alguna vez (gana el fantasma «Fiesta»). */
+    var wrappedSeen by Flag("wrapped.seen", false)
 
     /** Para probar los estados sin red y con la biblioteca vacía (no se guardan). */
     var demoOffline by mutableStateOf(false)
@@ -361,6 +472,19 @@ class AppState(
     fun song(id: String?): Song? = if (id == null) null else songs.firstOrNull { it.id == id }
 
     fun playlist(id: String?): Playlist? = if (id == null) null else playlists.firstOrNull { it.id == id }
+
+    /** Las canciones de una playlist en el orden elegido (Ajustes › orden de las playlists). */
+    fun playlistSongs(p: Playlist): List<Song> = settings.playlistOrder.sort(p, p.songIds.mapNotNull { song(it) })
+
+    /** FECHA / NOTA en una playlist: tocar el elegido le da la vuelta. */
+    fun sortPlaylistsBy(sort: PlaylistSort) {
+        settings.playlistOrder = settings.playlistOrder.tap(sort)
+    }
+
+    /** El botón de la flecha: de mayor a menor o de menor a mayor. */
+    fun flipPlaylistOrder() {
+        settings.playlistOrder = settings.playlistOrder.flipped()
+    }
 
     /** Las carátulas de las primeras canciones de una playlist (para sus carátulas apiladas). */
     fun coversOf(p: Playlist): List<String> = p.songIds.asSequence().mapNotNull { song(it)?.cover }.take(2).toList()
@@ -408,6 +532,28 @@ class AppState(
     val canImportFiles: Boolean get() = fileImporter != null
 
     /**
+     * Guarda o comparte una imagen (las tarjetas del Wrapped) con este nombre de archivo: el PC la
+     * guarda en Imágenes y devuelve dónde; el móvil abre «Compartir» y devuelve null. Si falla, lanza.
+     */
+    var imageSharer: ((ImageBitmap, String) -> String?)? by mutableStateOf(null)
+
+    val canShareImages: Boolean get() = imageSharer != null
+
+    fun shareImage(image: ImageBitmap, fileName: String) {
+        val share = imageSharer ?: return
+        try {
+            val where = share(image, fileName)
+            if (where != null) toast("Imagen guardada en $where", Mood.Feliz, Tone.Jade, millis = 4_000)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            toast("No se pudo guardar la imagen.", Mood.Triste, Tone.Bone)
+        }
+    }
+
+    /** El tono se puede cambiar aparte de la velocidad (en el PC va con ella). */
+    val separatePitch: Boolean get() = engine.separatePitch
+
+    /**
      * Abre el selector de carpetas del sistema para las descargas. Solo lo pone el PC: en Android
      * la música se queda en la carpeta de la app (la sincronización necesita una ruta fija).
      */
@@ -444,6 +590,9 @@ class AppState(
         private set
     var panel by mutableStateOf<Side?>(null)
     var playerOpen by mutableStateOf(false)
+
+    /** La letra a pantalla completa, encima del reproductor. */
+    var lyricsOpen by mutableStateOf(false)
     var sheet by mutableStateOf<Sheet?>(null)
     var prompt by mutableStateOf<Prompt?>(null)
 
@@ -454,6 +603,7 @@ class AppState(
         panel = null
         sheet = null
         playerOpen = false
+        lyricsOpen = false
         val from = screen
         if (target == from) return
         navForward = target != Screen.Home
@@ -473,6 +623,7 @@ class AppState(
             prompt != null -> prompt = null
             sheet != null -> sheet = null
             panel != null -> panel = null
+            lyricsOpen -> lyricsOpen = false
             playerOpen -> playerOpen = false
             history.size > 1 -> {
                 val from = history.removeAt(history.lastIndex)
@@ -563,6 +714,8 @@ class AppState(
             eqGains = settings.eqGains,
             normalize = settings.normalizeVolume,
             crossfadeMs = if (settings.crossfade) settings.crossfadeSeconds * 1000L else 0L,
+            speed = settings.tempo.speed,
+            pitch = if (engine.separatePitch) settings.tempo.pitch else settings.tempo.speed,
         )
         if (s == appliedSound) return
         appliedSound = s
@@ -642,7 +795,7 @@ class AppState(
     /** REPRODUCIR / ALEATORIO de una playlist. */
     fun playPlaylist(id: String, shuffle: Boolean) {
         val p = playlist(id) ?: return
-        val ids = p.songIds.filter { sid -> song(sid)?.let(::canPlay) == true }
+        val ids = playlistSongs(p).filter(::canPlay).map { it.id }
         if (ids.isEmpty()) return
         dropPreview()
         queue = PlayQueue.of(ids, if (shuffle) ids.random() else ids.first(), shuffle = shuffle, repeat = queue.repeat)
@@ -681,19 +834,12 @@ class AppState(
             return
         }
         if (queue.isEmpty) return
-        val n = queue.next()
-        if (n == null) {
-            // Al final de la cola sin repetir: se para y vuelve al principio de la última.
-            engine.pause()
-            engine.seekTo(0)
-            isPlaying = false
-            positionMs = 0
-        } else {
-            queue = n
-            engine.skipTo(n.index)
-            positionMs = 0
-            durationMs = 0
-        }
+        // Después de la última viene la primera: la cola nunca se para.
+        val n = queue.next() ?: return
+        queue = n
+        engine.skipTo(n.index)
+        positionMs = 0
+        durationMs = 0
         resetCount()
         reaction++
         saveQueue()
@@ -720,6 +866,39 @@ class AppState(
         saveQueue()
     }
 
+    private var lastRewindAt = Long.MIN_VALUE / 2
+
+    /**
+     * Botón «atrás» del mini-reproductor: un toque vuelve al principio de la canción; otro toque
+     * enseguida ([REWIND_DOUBLE_TAP_MS]) pasa a la anterior, y cada toque rápido más sigue hacia
+     * atrás. Si no hay anterior, vuelve a empezar la misma.
+     */
+    fun rewind(atMillis: Long = nowMillis()) {
+        val quick = atMillis - lastRewindAt in 0..REWIND_DOUBLE_TAP_MS
+        lastRewindAt = atMillis
+        if (preview != null) {
+            engine.previewSeek(0)
+            previewPositionMs = 0
+            reaction++
+            return
+        }
+        if (queue.isEmpty) return
+        // En la primera no hay anterior: vuelve a empezar la misma (no salta a la última).
+        val back = if (quick && queue.index > 0) queue.previous() else queue
+        if (back.index != queue.index) {
+            queue = back
+            engine.skipTo(back.index)
+            positionMs = 0
+            durationMs = 0
+            resetCount()
+        } else {
+            engine.seekTo(0)
+            positionMs = 0
+        }
+        reaction++
+        saveQueue()
+    }
+
     fun seekTo(fraction: Float) {
         val f = fraction.coerceIn(0f, 1f)
         val p = preview
@@ -732,6 +911,26 @@ class AppState(
         currentSong ?: return
         positionMs = (currentDurationSec * 1000L * f).toLong()
         engine.seekTo(positionMs)
+    }
+
+    /**
+     * «⟲ 10» / «10 ⟳»: atrás o adelante los segundos de Ajustes. No pasa de canción: se queda
+     * entre el principio y el final de la que suena (también en la vista previa).
+     */
+    fun seekBy(forward: Boolean) {
+        val step = settings.seekSeconds * 1000L * (if (forward) 1 else -1)
+        val p = preview
+        if (p != null) {
+            val total = if (previewDurationMs > 0) previewDurationMs else p.durationSec * 1000L
+            previewPositionMs = (previewPositionMs + step).coerceIn(0L, (total - 1_000).coerceAtLeast(0L))
+            engine.previewSeek(previewPositionMs)
+            return
+        }
+        currentSong ?: return
+        val total = currentDurationSec * 1000L
+        positionMs = (positionMs + step).coerceIn(0L, (total - 1_000).coerceAtLeast(0L))
+        engine.seekTo(positionMs)
+        saveQueue()
     }
 
     fun toggleShuffle() {
@@ -891,10 +1090,25 @@ class AppState(
             if (isPlaying && preview == null) isPlaying = false
             return
         }
+        // «Repetir» cambiado desde fuera de la app (el botón de la notificación). «No repetir» ya
+        // no existe: si el reproductor lo tiene, se le vuelve a poner el de la app.
+        val repeat = snap.repeat
+        if (repeat == RepeatMode.Off) {
+            engine.setRepeat(queue.repeat)
+        } else if (repeat != null && repeat != queue.repeat) {
+            queue = queue.copy(repeat = repeat)
+            saveQueue()
+        }
         if (snap.index != queue.index && snap.index < queue.items.size) {
             queue = queue.jumpTo(snap.index)
             durationMs = 0
             reaction++
+            saveQueue()
+        }
+        // Aleatorio y sonando la última: se mezcla la vuelta siguiente sin cortar la que suena.
+        if (queue.needsReshuffle) {
+            queue = queue.reshuffled()
+            engine.reorder(tracks(queue.items), queue.index)
             saveQueue()
         }
         if (snap.transitions != lastTransitions) {
@@ -975,13 +1189,13 @@ class AppState(
                     items = items,
                     index = if (index >= 0) index else 0,
                     shuffle = store.setting("queue.shuffle") == "true",
-                    repeat = RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.Off,
+                    repeat = (RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.All).effective,
                     original = ids("queue.original").ifEmpty { items },
                 )
                 queueSource = store.setting("queue.source").orEmpty()
                 positionMs = if (index >= 0) store.setting("queue.position")?.toLongOrNull() ?: 0L else 0L
             } else {
-                queue = PlayQueue(repeat = RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.Off)
+                queue = PlayQueue(repeat = (RepeatMode.entries.firstOrNull { it.name == store.setting("queue.repeat") } ?: RepeatMode.All).effective)
             }
         }
         engine.setRepeat(queue.repeat)
@@ -1046,6 +1260,9 @@ class AppState(
     var previewDurationMs by mutableLongStateOf(0L)
         private set
     private var previewResult: SearchResult? = null
+
+    /** El resultado que suena en la vista previa (para añadirlo desde el reproductor). */
+    val previewTarget: SearchResult? get() = previewResult.takeIf { preview != null }
     private var previewJob: Job? = null
     private var resumeAfterPreview = false
 
@@ -1103,6 +1320,8 @@ class AppState(
         if (preview == null) return
         previewJob?.cancel()
         engine.stopPreview()
+        // Si el reproductor enseñaba la vista previa, se cierra con ella.
+        playerOpen = false
         preview = null
         previewResult = null
         previewPlaying = false
@@ -1137,6 +1356,11 @@ class AppState(
         private set
     var albumResults by mutableStateOf(TabResults<AlbumResult>())
         private set
+    var playlistResults by mutableStateOf(TabResults<PlaylistResult>())
+        private set
+
+    /** Si lo escrito en el buscador es el enlace de una lista de YouTube, su dirección (no se busca). */
+    val linkedList: String? get() = YouTubeLinks.playlistUrl(query)
 
     /** Sube al pedir «Reintentar» en el buscador. */
     private var searchRetry by mutableIntStateOf(0)
@@ -1151,28 +1375,33 @@ class AppState(
             SearchTab.Songs -> songResults.query
             SearchTab.Videos -> videoResults.query
             SearchTab.Albums -> albumResults.query
+            SearchTab.Playlists -> playlistResults.query
         }
         val failed = when (tab) {
             SearchTab.Songs -> songResults.error
             SearchTab.Videos -> videoResults.error
             SearchTab.Albums -> albumResults.error
+            SearchTab.Playlists -> playlistResults.error
         }
         val busy = when (tab) {
             SearchTab.Songs -> songResults.loading
             SearchTab.Videos -> videoResults.loading
             SearchTab.Albums -> albumResults.loading
+            SearchTab.Playlists -> playlistResults.loading
         }
         if (current == q && failed == null && !busy) return
         when (tab) {
             SearchTab.Songs -> songResults = songResults.copy(query = q, loading = true, error = null)
             SearchTab.Videos -> videoResults = videoResults.copy(query = q, loading = true, error = null)
             SearchTab.Albums -> albumResults = albumResults.copy(query = q, loading = true, error = null)
+            SearchTab.Playlists -> playlistResults = playlistResults.copy(query = q, loading = true, error = null)
         }
         try {
             when (tab) {
                 SearchTab.Songs -> songResults = TabResults(q, services.source.searchSongs(q))
                 SearchTab.Videos -> videoResults = TabResults(q, services.source.searchVideos(q))
                 SearchTab.Albums -> albumResults = TabResults(q, services.source.searchAlbums(q))
+                SearchTab.Playlists -> playlistResults = TabResults(q, services.source.searchPlaylists(q))
             }
         } catch (e: CancellationException) {
             throw e
@@ -1182,6 +1411,7 @@ class AppState(
                 SearchTab.Songs -> songResults = songResults.copy(loading = false, error = kind)
                 SearchTab.Videos -> videoResults = videoResults.copy(loading = false, error = kind)
                 SearchTab.Albums -> albumResults = albumResults.copy(loading = false, error = kind)
+                SearchTab.Playlists -> playlistResults = playlistResults.copy(loading = false, error = kind)
             }
         }
     }
@@ -1191,10 +1421,14 @@ class AppState(
     private val albumAsked = mutableSetOf<String>()
     private val albumPermits = Semaphore(3)
 
+    /** Álbumes cuyas canciones no se han podido pedir, y por qué (para el aviso dentro del álbum). */
+    val albumFailed = mutableStateMapOf<String, FailureKind>()
+
     /** Pide (una vez) las canciones de un álbum que se ve en la lista. */
     fun loadAlbumTracks(album: AlbumResult) {
         if (album.key in albumTracks || album.key in albumAsked || !online) return
         albumAsked += album.key
+        albumFailed -= album.key
         scope?.launch {
             try {
                 val list = albumPermits.withPermit { services.source.albumTracks(album) }
@@ -1202,14 +1436,94 @@ class AppState(
             } catch (e: CancellationException) {
                 albumAsked -= album.key
                 throw e
-            } catch (_: Throwable) {
+            } catch (e: Throwable) {
                 albumAsked -= album.key
+                albumFailed[album.key] = e.failureKind()
             }
         }
     }
 
+    /** El álbum abierto (o el último que se abrió). */
+    var openedAlbum by mutableStateOf<AlbumResult?>(null)
+        private set
+
+    /** Tocar un álbum en Buscar: se abre con sus canciones, para elegir una a una. */
+    fun openAlbum(album: AlbumResult) {
+        openedAlbum = album
+        loadAlbumTracks(album)
+        go(Screen.AlbumDetail(album.key))
+    }
+
+    /** «REINTENTAR» dentro de un álbum que no se pudo abrir. */
+    fun retryAlbum() {
+        openedAlbum?.let(::loadAlbumTracks)
+    }
+
     private suspend fun tracksOf(album: AlbumResult): List<SearchResult> =
         albumTracks[album.key] ?: services.source.albumTracks(album).also { albumTracks[album.key] = it }
+
+    // ---------- Listas de otros ----------
+
+    /** La lista de otra persona abierta (o la última que se abrió). */
+    var otherList by mutableStateOf<OtherListState?>(null)
+        private set
+
+    /**
+     * Abre una lista de otra persona (de la pestaña Listas o de un enlace pegado) para elegir
+     * canciones sueltas. [hint] son los datos que ya se conocen, para enseñarlos mientras carga.
+     */
+    fun openOtherList(url: String, hint: PlaylistResult? = null) {
+        val open = otherList
+        if (open == null || open.url != url || (open.error != null && !open.loading)) {
+            val st = OtherListState(url, hint)
+            otherList = st
+            scope?.launch { loadOtherList(st) }
+        }
+        go(Screen.OtherListDetail(url))
+    }
+
+    /** «REINTENTAR» en una lista que no se pudo abrir. */
+    fun retryOtherList() {
+        val st = otherList ?: return
+        if (st.loading) return
+        scope?.launch { loadOtherList(st) }
+    }
+
+    internal suspend fun loadOtherList(st: OtherListState) {
+        st.loading = true
+        st.error = null
+        try {
+            st.list = services.source.otherList(st.url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            st.error = e.failureKind()
+        } finally {
+            st.loading = false
+        }
+    }
+
+    /** La descarga de «+ AÑADIR TODAS» de una lista (para su barra). */
+    fun otherListJob(url: String): DownloadJob? = downloads.firstOrNull { it.isCollection && it.albumKey == "list:$url" }
+
+    private fun addWholeList(list: OtherList, playlistId: String?) {
+        val key = "list:${list.info.url}"
+        if (otherListJob(list.info.url) != null) return
+        val have = list.tracks.mapNotNull { librarySongFor(it) }
+        if (playlistId != null && have.isNotEmpty()) addToPlaylist(playlistId, have.map { it.id })
+        val missing = list.tracks.filter { librarySongFor(it) == null && downloadFraction(it.id) == null }.distinctBy { it.id }
+        if (missing.isEmpty()) {
+            val p = playlist(playlistId)
+            toast(if (p != null) "Añadidas a «${p.name}»: ya las tenías todas." else "Ya tienes todas las de «${list.info.title}».", Mood.Uwu, Tone.Jade)
+            return
+        }
+        missing.forEach { if (it.id !in addedIds) addedIds.add(it.id) }
+        enqueue(
+            DownloadJob(newId(), list.info.title, playlistId, isCollection = true, albumKey = key).apply {
+                items.addAll(missing.map { requestFor(it) })
+            },
+        )
+    }
 
     // ---------- Añadir y descargar ----------
 
@@ -1292,6 +1606,7 @@ class AppState(
                 enqueue(DownloadJob(newId(), request.title, playlistId, isCollection = false).apply { items.add(request) })
             }
             is AddTarget.Album -> addAlbum(target.album, playlistId)
+            is AddTarget.WholeList -> addWholeList(target.list, playlistId)
         }
     }
 
@@ -1467,8 +1782,10 @@ class AppState(
         val i = playlists.indexOfFirst { it.id == id }
         if (i < 0) return
         val p = playlists[i]
-        val updated = p.copy(songIds = p.songIds + songIds.filter { it !in p.songIds }.distinct())
-        if (updated == p) return
+        val added = songIds.filter { it !in p.songIds }.distinct()
+        if (added.isEmpty()) return
+        val now = nowMillis()
+        val updated = p.copy(songIds = p.songIds + added, addedAt = p.addedAt + added.associateWith { now })
         playlists[i] = updated
         savePlaylistAt(i)
     }
@@ -1580,6 +1897,68 @@ class AppState(
     var statsTab by mutableStateOf(StatsTab.Recent)
     var statsMonth by mutableStateOf<YearMonth?>(null)
     var panelFilter by mutableStateOf("")
+
+    // ---------- Wrapped ----------
+
+    /** El periodo del Wrapped (null = el último mes con escuchas). */
+    var wrappedPeriod by mutableStateOf<WrappedPeriod?>(null)
+
+    /** Los periodos con escuchas: cada año seguido de sus meses, de lo más reciente a lo más antiguo. */
+    fun wrappedPeriods(): List<WrappedPeriod> = Wrapped.periods(playLog, ::utcOffsetMillis)
+
+    /** El resumen de [period] (null si no sonó nada). */
+    fun wrappedReport(period: WrappedPeriod): WrappedReport? = Wrapped.report(songs, playLog, period, ::utcOffsetMillis)
+
+    /** Abre el Wrapped (en el último mes con escuchas). La primera vez gana el fantasma «Fiesta». */
+    fun openWrapped() {
+        wrappedPeriod = null
+        settings.wrappedSeen = true
+        go(Screen.Wrapped)
+    }
+
+    // ---------- Fantasmas coleccionables ----------
+
+    /** Lo que llevas para ganar cada fantasma. */
+    fun ghostFacts(): GhostFacts = GhostCollection.facts(songs, playLog, settings.wrappedSeen, ::utcOffsetMillis)
+
+    /** Los fantasmas que tienes: los ganados ahora y los que ya ganaste (no se pierden). */
+    fun ownedGhosts(facts: GhostFacts = ghostFacts()): Set<GhostSkin> =
+        GhostCollection.unlocked(facts) + (settings.ghostsAnnounced ?: emptySet())
+
+    /** Ponerse un fantasma (solo uno que se tenga). */
+    fun chooseGhost(skin: GhostSkin) {
+        if (skin !in ownedGhosts()) return
+        if (settings.ghostSkin == skin) return
+        settings.ghostSkin = skin
+        toast("Ahora eres el fantasma ${skin.label}", Mood.Owo, Tone.Neon)
+    }
+
+    private var ghostKey: Triple<Int, Int, Boolean>? = null
+    private val ghostsToAnnounce = ArrayDeque<GhostSkin>()
+
+    /**
+     * Mira si se ha ganado algún fantasma (solo cuando cambia el historial, la biblioteca o el
+     * Wrapped) y lo anuncia cuando no haya otro aviso en pantalla, con «VER» a la colección.
+     */
+    private fun checkGhosts() {
+        if (isDemo) return
+        val key = Triple(historyVersion, songs.size, settings.wrappedSeen)
+        if (key != ghostKey) {
+            ghostKey = key
+            val won = GhostCollection.unlocked(ghostFacts())
+            val told = settings.ghostsAnnounced
+            if (told == null) {
+                // La primera vez (o al actualizar desde una versión sin fantasmas): sin avisos.
+                settings.ghostsAnnounced = won
+            } else {
+                (won - told).filter { it !in ghostsToAnnounce }.forEach { ghostsToAnnounce.addLast(it) }
+            }
+        }
+        if (ghostsToAnnounce.isEmpty() || toast != null) return
+        val skin = ghostsToAnnounce.removeFirst()
+        settings.ghostsAnnounced = (settings.ghostsAnnounced ?: emptySet()) + skin
+        toast("¡Nuevo fantasma: ${skin.label}!", Mood.Contento, Tone.Neon, actionLabel = "VER", millis = 5_000) { go(Screen.Ghosts) }
+    }
     val spotify = SpotifyImportState()
 
     /**
@@ -1719,6 +2098,99 @@ class AppState(
             engine.pause()
             isPlaying = false
             dropPreview()
+        }
+    }
+
+    // ---------- Actualizaciones ----------
+
+    /** Versión de esta app («0.4.0»; «dev» al compilarla en el ordenador). La pone cada plataforma. */
+    var appVersion by mutableStateOf("dev")
+
+    /** Versión publicada más nueva que la instalada, si la hay. */
+    var update by mutableStateOf<AppRelease?>(null)
+        private set
+
+    /** Progreso de la descarga de [update] (0–1), o null si no se está descargando. */
+    var updateProgress by mutableStateOf<Float?>(null)
+        private set
+
+    var checkingUpdates by mutableStateOf(false)
+        private set
+
+    /** «LUEGO»: esa versión ya no vuelve a salir sola (sí al buscar a mano en Ajustes). */
+    private var dismissedUpdate by mutableStateOf(store.setting("update.dismissed"))
+
+    /** El aviso de versión nueva abajo: la hay, no se ha dejado para luego, o se está descargando. */
+    val showUpdateNotice: Boolean
+        get() = updateProgress != null || update.let { it != null && it.version != dismissedUpdate }
+
+    val canUpdate: Boolean get() = services.updates != null && !isDemo
+
+    /** Busca una versión nueva. [manual] = desde Ajustes: dice el resultado aunque no haya nada. */
+    fun checkForUpdates(manual: Boolean = true) {
+        val s = scope ?: return
+        s.launch { findUpdate(manual) }
+    }
+
+    internal suspend fun findUpdate(manual: Boolean) {
+        val updates = services.updates ?: return
+        if (isDemo || checkingUpdates) return
+        checkingUpdates = true
+        try {
+            val latest = updates.latest()
+            val newer = latest?.takeIf { AppVersions.isNewer(it.version, appVersion) }
+            update = newer
+            if (manual) {
+                if (newer != null) dismissedUpdate = null
+                else toast("Ya tienes la última versión (${appVersion}).", Mood.Uwu, Tone.Jade)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (manual) showError("No se pudo buscar si hay versión nueva", e.failureKind().explain()) { checkForUpdates() }
+        } finally {
+            checkingUpdates = false
+        }
+    }
+
+    /** Al abrir la app y cada pocas horas, si hay red. */
+    private suspend fun watchUpdates() {
+        if (services.updates == null || isDemo) return
+        delay(4_000)
+        while (true) {
+            while (!online) delay(1_000)
+            findUpdate(manual = false)
+            delay(UPDATE_CHECK_EVERY_MS)
+        }
+    }
+
+    fun dismissUpdate() {
+        val v = update?.version ?: return
+        dismissedUpdate = v
+        store.setSetting("update.dismissed", v)
+    }
+
+    /** «ACTUALIZAR»: descarga el instalador y lo abre (en Android pide confirmación al sistema). */
+    fun installUpdate() {
+        val release = update ?: return
+        val updates = services.updates ?: return
+        val s = scope ?: return
+        if (updateProgress != null) return
+        updateProgress = 0f
+        s.launch {
+            val path = try {
+                updates.download(release) { p -> updateProgress = p.coerceIn(0f, 1f) }
+            } catch (e: CancellationException) {
+                updateProgress = null
+                throw e
+            } catch (e: Throwable) {
+                updateProgress = null
+                showError("No se pudo descargar la versión ${release.version}", e.failureKind().explain()) { installUpdate() }
+                return@launch
+            }
+            updateProgress = null
+            val problem = updates.install(path)
+            if (problem != null) showError("No se pudo instalar la versión ${release.version}", problem) { installUpdate() }
         }
     }
 
@@ -2010,6 +2482,7 @@ class AppState(
         engine.tick(elapsedMs)
         sync(elapsedMs)
         tickSleep(elapsedMs)
+        checkGhosts()
     }
 
     /**
@@ -2021,13 +2494,14 @@ class AppState(
             scope = this
             launch {
                 snapshotFlow { Triple(query.trim(), searchTab, online to searchRetry) }.collectLatest { (q, tab, net) ->
-                    if (q.isEmpty() || !net.first) return@collectLatest
+                    if (q.isEmpty() || !net.first || YouTubeLinks.playlistUrl(q) != null) return@collectLatest
                     delay(if (isDemo) 50 else 350)
                     search(q, tab)
                 }
             }
             if (downloads.isNotEmpty() && worker?.isActive != true) worker = launch { work() }
             launch { measureLoudness() }
+            launch { watchUpdates() }
             // Ya vinculado con otro dispositivo: se sincroniza solo al abrir la app.
             if (services.sync != null && store.setting(SYNC_PEER) != null) startSync()
             try {

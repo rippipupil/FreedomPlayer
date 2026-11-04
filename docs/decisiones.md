@@ -311,6 +311,51 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 
 ## Hito 5: decisiones técnicas
 
+### Actualizarse desde la app
+
+- La app mira las releases de GitHub del repositorio (es público: sin clave) al abrirse y cada
+  6 horas mientras está abierta. Usa la lista de releases y no «latest», porque las v0.* salen
+  como pre-release y «latest» no las devuelve. Se queda con la más nueva que trae instalador para
+  esa plataforma (`-android.apk` o `-windows.msi`).
+- Solo avisa si la publicada es más nueva que la instalada, comparando X.Y.Z número a número
+  (una beta va antes que su versión final). Las compilaciones de prueba (0.5.<n.º de ejecución>)
+  no ven la 0.5.0 como nueva. Compilada en el ordenador («dev»), nunca avisa.
+- El aviso sale abajo, como los demás, con «ACTUALIZAR» y «LUEGO». «LUEGO» guarda esa versión y
+  ya no vuelve a salir sola; «Ajustes › Buscar actualizaciones» la enseña otra vez.
+- **Android:** el APK se baja a la caché de la app (seguir donde se quedó si se corta) y se abre
+  con el instalador del sistema mediante un `FileProvider`, que pide confirmación. Antes se
+  comprueba que esté firmado con la misma clave que la app instalada (si no, Android lo rechaza
+  con un «App no instalada» sin explicación) y que la app tenga permiso de «Instalar apps
+  desconocidas» (si no, se abre ese ajuste y se explica).
+- **Windows:** se baja el `.msi`, se abre con `msiexec` y la app se cierra para que el instalador
+  pueda reemplazar sus archivos (el `upgradeUuid` es siempre el mismo). Fuera de Windows no hay
+  instalador publicado y no se buscan versiones.
+- **Firma:** para que una versión se instale encima de otra tienen que llevar la misma clave. Sin
+  los secretos de la clave de publicación, el CI firma con una clave de depuración guardada en su
+  caché, que caduca si pasa una semana sin compilar. Las versiones publicadas exigen la clave de
+  publicación (el workflow falla sin ella o si el APK sale con la de depuración): la de depuración
+  es pública y Play Protect avisa de las apps firmadas con ella. La 0.5.0 es la primera firmada
+  con la clave de publicación; desde la 0.4.0 hay que desinstalar una vez.
+
+### Notificación
+
+- En Android 13+ los mandos de la notificación, del panel rápido y de la pantalla de bloqueo los
+  pinta el sistema, y saca los colores de la imagen de la canción. Por eso la app le da la
+  carátula ya montada en el tema (`ThemedArtwork`): la noche del callejón, el halo de la farola,
+  los edificios con ventanas de neón, la carátula con las esquinas cortadas y el marco desplazado,
+  la ✦ y el fantasmita. Las canciones sin carátula también llevan esa imagen.
+- Se hace en el cargador de imágenes de la sesión de Media3 (`ThemedBitmapLoader`), así sirve
+  igual para la notificación, el panel rápido y la pantalla de bloqueo.
+- El icono pequeño es el fantasma (blanco, con los ojos huecos; Android lo tiñe) y el canal se
+  llama «Reproducción».
+
+### Mini-reproductor
+
+- Botón «atrás» a la izquierda de reproducir: un toque vuelve al principio de la canción; otro
+  toque enseguida (600 ms) va a la anterior, y cada toque rápido más sigue hacia atrás. Si no hay
+  anterior, vuelve a empezar la misma. El botón «anterior» del reproductor grande y del PC sigue
+  como estaba (más de 3 s: al principio; si no, la anterior).
+
 ### Descargas: calidad y carpeta
 
 - **Calidad:** Máxima, Normal y Ahorro. Se aplica al elegir la pista de audio que da NewPipe, igual
@@ -435,3 +480,130 @@ las del hito 2, concretan las 16 decisiones de arriba sin cambiarlas.
 - Ver y quitar los dispositivos vinculados.
 - Sincronizar la música que se descarga en otra carpeta elegida en el PC: solo se comparte la
   carpeta de la app (la de `freedomplayer-musica`), así que esas canciones se quedan en el PC.
+
+## Hito 6: actualizar, playlists y reproductor
+
+### Actualizar sin perder nada
+
+- La biblioteca vive en SQLite (SQLDelight) dentro de los datos de la app. Android los conserva al
+  instalar una versión encima si lleva la misma firma (la clave de publicación, desde la 0.5.0) y
+  el mismo `applicationId`; en Windows están en la carpeta del usuario, fuera de lo que toca el
+  instalador.
+- Cambiar la base de datos se hace siempre con una migración (`1.sqm`, `2.sqm`…), nunca borrando y
+  creando de nuevo. Los drivers miran la versión guardada (`PRAGMA user_version` en el PC, la del
+  `SQLiteOpenHelper` en Android) y solo aplican los pasos que faltan.
+- `MigrationTest` crea una biblioteca con las tablas de la versión 1 (canciones, notas, playlists,
+  rankings, escuchas, letras y ajustes), la abre con la de ahora y comprueba que no falta nada.
+
+### Orden de las playlists
+
+- `playlist_song.added_at` (versión 2 de la base de datos): cuándo entró cada canción en cada
+  playlist. La migración rellena las que ya estaban con cuándo entraron en la biblioteca.
+- El orden es uno para todas las playlists (`playlist.order` en los ajustes): Fecha o Nota, de
+  mayor a menor o al revés. Con la misma fecha manda el orden guardado de la playlist; en Nota, las
+  que no tienen nota van al final y los empates, las más nuevas primero.
+- La cola sigue el orden de la pantalla: lo que se ve es lo que suena.
+- La fecha no viaja al sincronizar (el JSON de la sincronización no cambia, para no romper la
+  compatibilidad con el otro dispositivo): cada uno guarda las suyas y las que llegan se ordenan
+  por cuándo entraron en la biblioteca.
+
+### Repetir en la notificación
+
+- Un botón propio de la sesión de Media3 (`com.freedomplayer.REPEAT`), con los iconos de repetir de
+  Media3 (nada, todo, una). Cambia el modo del reproductor en el mismo orden que el botón de la app.
+  El mando estándar de repetir sigue quitado: el orden de la cola lo decide la app.
+- La app se entera en el siguiente vistazo al reproductor (`EngineSnapshot.repeat`) y lo guarda con
+  la cola. El icono se actualiza al cambiar el modo, venga de donde venga.
+
+### Reproductor
+
+- Las ✦ bajo el título se tocan para puntuar (`StarsInput`, como en Ranking), con el aviso de
+  «DESHACER».
+- La vista previa también se abre en el reproductor: misma carátula y barra, sin nota, cola ni
+  herramientas, y «+» para añadirla con el selector de siempre. Al cerrarla se cierra el
+  reproductor.
+
+## Hito 7: listas de otra gente
+
+- **Buscar listas:** la pestaña «LISTAS» usa el filtro `music_playlists` de NewPipe (listas de
+  YouTube Music hechas por la comunidad y por YouTube Music). Va la última para no mover las
+  pestañas de siempre; en el móvil las pestañas se desplazan de lado porque no caben.
+- **Abrir una lista:** `PlaylistInfo` de NewPipe, página a página, hasta 500 canciones. Las de
+  YouTube Music llegan como canciones; las de YouTube, como vídeos (al añadirlos se limpia el
+  título con `TitleCleaner`, igual que en la pestaña Vídeos). No se importan: se abren y se elige.
+- **Enlaces:** `YouTubeLinks.playlistUrl` reconoce `playlist?list=`, `watch?v=…&list=` y
+  `youtu.be/…?list=` de youtube.com, m.youtube.com y music.youtube.com, y los deja en su forma
+  normal (se queda en YouTube Music si venía de ahí). Las mezclas automáticas (`RD…`) dependen
+  del vídeo y se abren tal cual. Un enlace en el buscador no se busca: se ofrece abrirlo.
+- **Añadir:** cada canción usa el «+» de siempre (biblioteca o playlist). «+ AÑADIR TODAS» es
+  como un álbum: lo que ya tienes va directo a la playlist elegida y lo demás se descarga en un
+  solo trabajo (`albumKey = "list:<dirección>"`, para su barra y para no repetirlo).
+- **Álbumes por dentro (0.8):** tocar un álbum en Buscar abre `AlbumScreen`, con las canciones
+  que ya pide la fila (`albumTracks`, la misma caché), cada una con el `ResultRow` de Buscar. El
+  botón del álbum entero es el mismo en la fila y dentro (`AlbumAction`). Si no se pueden pedir
+  sus canciones, se guarda por qué (`albumFailed`) para el aviso con «REINTENTAR».
+
+## La cola nunca se para (0.9)
+
+- Al acabar la última, la cola vuelve a empezar: «repetir» queda en seguir (`RepeatMode.All`) ⇄
+  repetir una. `RepeatMode.Off` se queda en el enum para leer lo guardado por versiones de antes y
+  para los motores, pero la app lo trata como `All` (`effective`); si el reproductor llega a estar
+  en «no repetir», la app le vuelve a poner el suyo.
+- Sin aleatorio, el reproductor da la vuelta solo (`REPEAT_MODE_ALL` en Android, lo mismo en el PC),
+  sin huecos.
+- Con aleatorio, al empezar a sonar la última se mezcla la vuelta siguiente: la que suena pasa a
+  ser la primera y las demás se barajan (`PlayQueue.reshuffled`), y el motor solo reordena la cola
+  sin cortar (`reorder`). Así cada canción suena una vez por vuelta y cada vuelta lleva otro orden.
+- «Atrás» del mini-reproductor en la primera canción sigue volviendo a empezar la misma (como se
+  pidió en la 0.5); el «anterior» del reproductor grande sí salta a la última.
+
+## Letra y notificación (0.10)
+
+- **Letra que se mueve a mano:** la caja de la letra se desplaza (`verticalScroll`). Lo que cuenta
+  como «a mano» son los toques, arrastres y la rueda (`pointerInput` en la pasada inicial), no el
+  valor del desplazamiento, para no confundirlo con el movimiento automático. Después de tocarla,
+  deja de seguir a la canción durante 4 s desde el último movimiento.
+- **Letra a pantalla completa:** `lyricsOpen` en `AppState`, encima del reproductor (con su
+  callejón, título, reproducir/pausar y la barra). «Atrás» la cierra antes que el reproductor, y
+  se cierra sola si se cierra el reproductor.
+- **Notificación:** la tarjeta de Android 13+ pone la imagen de fondo recortada a lo ancho por el
+  centro (≈ 1,9 : 1 en un móvil, una franja del 53 % del alto). La carátula entera (encajada, sin
+  recortar) mide el 42 % del lado, a la derecha y centrada en vertical, así cabe en esa franja y no
+  tapa el texto, que el sistema pone a la izquierda. De fondo va la propia carátula oscurecida con
+  la noche del tema, para que los colores que saca Android sean los de la canción y los del tema.
+  El icono pequeño sigue siendo el fantasma.
+- **Saltar segundos:** `AppState.seekBy` mueve dentro de la canción (de 0 al final menos 1 s, sin
+  pasar de canción) los segundos de `Settings.seekSeconds` (5, 10, 15 o 30; 10 por defecto). Los
+  botones (`SeekButton`) llevan el número dentro de la vuelta. No van en la notificación: Android
+  solo enseña dos botones propios y ahí está repetir.
+- **Animaciones:** `Mood.Buscando` (ojos de remolino que giran en sentidos contrarios) con
+  `SearchingGhost` mientras se busca o se abre una lista o un álbum. La barra de avance anima solo
+  al dibujar (una fase de 2,4 s leída en el `Canvas`), así que no recompone nada; parada en pausa y
+  con «reducir movimiento».
+
+## Velocidad, Wrapped y fantasmas (0.11)
+
+- **Velocidad y tono:** `Tempo` (en `core`) guarda la velocidad en % y los semitonos; con
+  «el tono va con la velocidad» se comporta como un vinilo (slowed, nightcore). Se guarda en
+  Ajustes y llega al motor en `SoundSettings.speed` y `.pitch`. En Android son los
+  `PlaybackParameters` de Media3 (velocidad y tono por separado, con Sonic), también para el
+  reproductor de reserva del fundido. En el PC se cambia la velocidad remuestreando (interpolación
+  lineal entre muestras, después del ecualizador), así que el tono va siempre con ella:
+  `AudioEngine.separatePitch` es false y el panel lo explica en vez de enseñar los semitonos. La
+  posición tiene en cuenta la velocidad desde el último cambio.
+- **Fantasmas coleccionables:** `GhostSkin` (colores de cuerpo, cara y mofletes y un accesorio)
+  y `GhostCollection`, que saca de la biblioteca y del historial lo que cuenta (escuchas, notas,
+  dieces, canciones, escuchas de madrugada en hora local, racha de días y si se ha visto el
+  Wrapped). Un fantasma ganado no se pierde aunque luego deje de cumplirse (se apunta en
+  `ghost.announced`). Al estrenar la versión los que ya se tenían se apuntan sin avisar; los nuevos
+  se anuncian de uno en uno cuando no hay otro aviso en pantalla (así no se pisa el «DESHACER» de
+  una nota). El que se lleva puesto llega a todos los fantasmas por `LocalGhostSkin`; las caras
+  blancas (errores, pausa) siguen blancas, que avisan de algo. Con sombrero, el fantasma se
+  encoge un 12 % hacia los pies para que quepa en su caja.
+- **Wrapped:** `Wrapped.report` calcula un mes o un año con la hora local: minutos, escuchas,
+  canciones y artistas distintos, las 5 más escuchadas, a qué hora se escucha (madrugada, mañana,
+  tarde o noche), la mejor puntuada, la racha y las que sonaron por primera vez. Cuentan solo las
+  canciones que siguen en la biblioteca. Las tarjetas (proporción de historia, 0,62) se pasan con
+  un `HorizontalPager` y cada una se graba en una `GraphicsLayer`, de la que sale la imagen al
+  tocar «COMPARTIR» (Android: PNG en la caché, compartido por el FileProvider) o «GUARDAR IMAGEN»
+  (PC: PNG en Imágenes › FreedomPlayer).

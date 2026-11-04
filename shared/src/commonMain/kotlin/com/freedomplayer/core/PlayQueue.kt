@@ -2,16 +2,19 @@ package com.freedomplayer.core
 
 import kotlin.random.Random
 
-/** Repetir: nada, toda la cola o solo la canción que suena. */
+/**
+ * Repetir. La cola nunca se para al acabar: [All] es «seguir» (vuelve a empezar; en aleatorio, con
+ * otro orden) y [One] repite la canción que suena. [Off] es de las versiones de antes de la 0.9,
+ * que paraban al acabar: se trata como [All] (ver [effective]); los motores aún lo entienden.
+ */
 enum class RepeatMode {
     Off, All, One;
 
-    /** Orden del botón: nada → todo → una → nada. */
-    fun next(): RepeatMode = when (this) {
-        Off -> All
-        All -> One
-        One -> Off
-    }
+    /** Lo que de verdad hace: «no repetir» ya no existe y vale como «seguir». */
+    val effective: RepeatMode get() = if (this == Off) All else this
+
+    /** Orden del botón: seguir ⇄ repetir una. */
+    fun next(): RepeatMode = if (this == One) All else One
 }
 
 /**
@@ -24,7 +27,7 @@ data class PlayQueue(
     /** Posición en [items] de la que suena ahora; -1 si la cola está vacía. */
     val index: Int = -1,
     val shuffle: Boolean = false,
-    val repeat: RepeatMode = RepeatMode.Off,
+    val repeat: RepeatMode = RepeatMode.All,
     /** Orden sin aleatorio, para volver a él al quitarlo. */
     val original: List<String> = items,
 ) {
@@ -36,27 +39,32 @@ data class PlayQueue(
     val isEmpty: Boolean get() = items.isEmpty()
 
     /**
-     * Pasa a la siguiente canción. [auto] indica que la actual ha terminado sola:
-     * con «repetir una» vuelve a sonar la misma. Devuelve null cuando se acaba la cola sin repetir.
+     * Pasa a la siguiente canción. [auto] indica que la actual ha terminado sola: con «repetir
+     * una» vuelve a sonar la misma. Después de la última viene la primera (la cola nunca se para).
+     * Devuelve null solo si la cola está vacía.
      */
     fun next(auto: Boolean = false): PlayQueue? {
         if (items.isEmpty()) return null
         if (auto && repeat == RepeatMode.One) return this
-        return when {
-            index < items.lastIndex -> copy(index = index + 1)
-            repeat != RepeatMode.Off -> copy(index = 0)
-            else -> null
-        }
+        return if (index < items.lastIndex) copy(index = index + 1) else copy(index = 0)
     }
 
-    /** Vuelve a la anterior. Con «repetir todo», desde la primera salta a la última. */
+    /** Vuelve a la anterior. Desde la primera salta a la última. */
     fun previous(): PlayQueue {
         if (items.isEmpty()) return this
-        return when {
-            index > 0 -> copy(index = index - 1)
-            repeat == RepeatMode.All -> copy(index = items.lastIndex)
-            else -> copy(index = 0)
-        }
+        return if (index > 0) copy(index = index - 1) else copy(index = items.lastIndex)
+    }
+
+    /**
+     * Aleatorio, sonando la última: la que suena pasa a ser la primera y las demás se mezclan otra
+     * vez, así la vuelta siguiente lleva otro orden y cada canción suena una vez por vuelta.
+     */
+    val needsReshuffle: Boolean
+        get() = shuffle && repeat != RepeatMode.One && items.size > 2 && index == items.lastIndex
+
+    fun reshuffled(random: Random = Random.Default): PlayQueue {
+        val now = current ?: return this
+        return copy(items = listOf(now) + items.filterIndexed { i, _ -> i != index }.shuffled(random), index = 0)
     }
 
     fun jumpTo(position: Int): PlayQueue = if (position in items.indices) copy(index = position) else this
@@ -134,7 +142,7 @@ data class PlayQueue(
             ids: List<String>,
             startId: String? = ids.firstOrNull(),
             shuffle: Boolean = false,
-            repeat: RepeatMode = RepeatMode.Off,
+            repeat: RepeatMode = RepeatMode.All,
             random: Random = Random.Default,
         ): PlayQueue {
             if (ids.isEmpty()) return PlayQueue(shuffle = shuffle, repeat = repeat)

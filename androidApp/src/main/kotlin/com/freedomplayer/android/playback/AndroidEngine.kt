@@ -10,6 +10,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -241,6 +242,12 @@ class AndroidEngine(context: Context) : AudioEngine {
         if (before.eqGains != sound.eqGains) applyEq()
         if (before.normalize != sound.normalize && tail == null) applyVolume()
         if (sound.crossfadeMs <= 0) dropStandby()
+        if (before.speed != sound.speed || before.pitch != sound.pitch) {
+            // Velocidad y tono por separado (ExoPlayer estira el tiempo sin cambiar el tono).
+            val params = PlaybackParameters(sound.speed, sound.pitch)
+            player.playbackParameters = params
+            tail?.playbackParameters = params
+        }
     }
 
     /** Las 5 bandas de la app sobre las del ecualizador del sistema (suelen ser las mismas 5). */
@@ -343,6 +350,7 @@ class AndroidEngine(context: Context) : AudioEngine {
         if (s == null || standbyId != item.mediaId) {
             dropStandby()
             s = Players.tail(app, player.audioSessionId)
+            s.playbackParameters = player.playbackParameters
             s.setMediaItem(item)
             s.prepare()
             s.seekTo(at)
@@ -427,6 +435,12 @@ class AndroidEngine(context: Context) : AudioEngine {
             transitions = transitions,
             error = error,
             errorSerial = errorSerial,
+            // Se puede cambiar desde la notificación (ver PlaybackService).
+            repeat = when (player.repeatMode) {
+                Player.REPEAT_MODE_ALL -> RepeatMode.All
+                Player.REPEAT_MODE_ONE -> RepeatMode.One
+                else -> RepeatMode.Off
+            },
             preview = preview?.let { p ->
                 val ps = p.playbackState
                 PreviewSnapshot(
@@ -464,7 +478,8 @@ class AndroidEngine(context: Context) : AudioEngine {
                     .setTitle(title)
                     .setArtist(artist)
                     .setAlbumTitle(album)
-                    .setArtworkUri(artworkUri?.let(::uriOf))
+                    // Siempre una imagen: sin carátula, la del tema (ThemedBitmapLoader la pinta).
+                    .setArtworkUri(artworkUri?.let(::uriOf) ?: ThemedArtwork.PLACEHOLDER)
                     .build(),
             )
             .build()

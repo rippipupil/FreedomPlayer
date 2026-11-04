@@ -73,17 +73,28 @@ object FpIcons {
     val Play = FpIcon(null, "M7 4 L20 12 L7 20 Z")
     val Pause = FpIcon(null, "M6 5 H10 V19 H6 Z M14 5 H18 V19 H14 Z")
     val NextMini = FpIcon(null, "M6 5 L15 12 L6 19 Z M17 5 H19.6 V19 H17 Z")
+    val PreviousMini = FpIcon(null, "M18 5 L9 12 L18 19 Z M4.4 5 H7 V19 H4.4 Z")
     val Next = FpIcon(null, "M6 5 L15 12 L6 19 Z M16.4 5 H19 V19 H16.4 Z")
     val Previous = FpIcon(null, "M18 5 L9 12 L18 19 Z M5 5 H7.6 V19 H5 Z")
+    /** «⟲» y «⟳»: una vuelta casi entera con su flecha; el número de segundos va dentro (ver SeekButton). */
+    val SeekBack = FpIcon("M7.05 8.05 A7 7 0 1 1 5 13 M7 3.8 V8.05 H11.2", strokeWidth = 1.9f)
+    val SeekForward = FpIcon("M16.95 8.05 A7 7 0 1 0 19 13 M17 3.8 V8.05 H12.8", strokeWidth = 1.9f)
     val Shuffle = FpIcon("M3 7 H7 L15 17 H21 M3 17 H7 L9.5 14 M13 10 L15 7 H21 M18 4 L21 7 L18 10 M18 14 L21 17 L18 20")
+    /** Orden de mayor a menor (flecha abajo) y de menor a mayor (flecha arriba). */
+    val SortDown = FpIcon("M12 4 V19 M6 13 L12 19 L18 13", strokeWidth = 2f)
+    val SortUp = FpIcon("M12 20 V5 M6 11 L12 5 L18 11", strokeWidth = 2f)
     val Repeat = FpIcon("M4 11 V7 H18 M15 4 L18 7 L15 10 M20 13 V17 H6 M9 20 L6 17 L9 14")
     val ChevronDown = FpIcon("M6 9 L12 15 L18 9", strokeWidth = 2f)
     val Back = FpIcon("M15 5 L8 12 L15 19", strokeWidth = 2f)
     val More = FpIcon(null, "M4 11 H7 V14 H4 Z M10.5 11 H13.5 V14 H10.5 Z M17 11 H20 V14 H17 Z")
     val Equalizer = FpIcon("M6 4 V20 M12 4 V20 M18 4 V20 M4 14 H8 M10 8 H14 M16 16 H20")
+    /** Velocidad: medio cuentarrevoluciones con su aguja. */
+    val Speed = FpIcon("M4 17 A8 8 0 1 1 20 17 M12 17 L16.5 10.5", strokeWidth = 2f)
     val Moon = FpIcon("M20 14.5 A8 8 0 1 1 9.5 4 A6.5 6.5 0 0 0 20 14.5 Z")
     val Pencil = FpIcon("M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11")
     val Queue = FpIcon("M4 6 H20 M4 12 H14 M4 18 H11 M17 15 V21 L21 18 Z")
+    /** Abrir en grande (dos esquinas hacia fuera). */
+    val Expand = FpIcon("M14 4 H20 V10 M20 4 L13 11 M10 20 H4 V14 M4 20 L11 13", strokeWidth = 2f)
     val Lyrics = FpIcon("M4 5 H20 V16 H11 L6 20 V16 H4 Z M8 9 H16 M8 12 H13")
     val Volume = FpIcon("M4 9 H8 L13 5 V19 L8 15 H4 Z M16.5 9 Q18.5 12 16.5 15")
     val Mute = FpIcon("M4 9 H8 L13 5 V19 L8 15 H4 Z M16 9.5 L21 14.5 M21 9.5 L16 14.5")
@@ -92,6 +103,8 @@ object FpIcons {
     val Plus = FpIcon("M12 5 V19 M5 12 H19", strokeWidth = 2.4f)
     val Check = FpIcon("M5 12.5 L10 17 L19 7", strokeWidth = 2.6f)
     val Close = FpIcon("M6 6 L18 18 M18 6 L6 18", strokeWidth = 2f)
+    /** Versión nueva: dos flechas en ángulo, como el resto. */
+    val Update = FpIcon("M20 8 A8 8 0 0 0 5 7 M4 4 V8 H8 M4 16 A8 8 0 0 0 19 17 M20 20 V16 H16")
     val Download = FpIcon("M12 4 V15 M7 10 L12 15 L17 10 M5 20 H19", strokeWidth = 2f)
     val Folder = FpIcon("M3 5.5 H9.5 L11.5 8 H21 V19 H3 Z M3 11 H21")
     val Link = FpIcon(

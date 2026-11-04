@@ -29,6 +29,11 @@ data class Playlist(
     val name: String,
     val songIds: List<String>,
     val coverColor: Long,
+    /**
+     * Cuándo entró cada canción en la playlist (milisegundos desde 1970). Puede faltar alguna
+     * (las de antes de la 0.6 o las que llegan al sincronizar): ver [PlaylistOrder].
+     */
+    val addedAt: Map<String, Long> = emptyMap(),
 )
 
 /** Ranking personal ordenado a mano («Top gym», «Para noches tristes»…). */

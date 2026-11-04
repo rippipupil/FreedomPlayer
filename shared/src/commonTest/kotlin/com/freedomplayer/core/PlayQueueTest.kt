@@ -17,10 +17,11 @@ class PlayQueueTest {
     }
 
     @Test
-    fun nextStopsAtTheEndWithoutRepeat() {
+    fun afterTheLastComesTheFirst() {
         val q = PlayQueue.of(ids, "c")
+        assertEquals(RepeatMode.All, q.repeat, "lo normal es seguir")
         assertEquals("d", q.next()?.current)
-        assertNull(q.next()!!.next())
+        assertEquals("a", q.next()!!.next()?.current, "la cola nunca se para")
     }
 
     @Test
@@ -38,17 +39,37 @@ class PlayQueueTest {
     }
 
     @Test
-    fun previousStaysOnTheFirstSongWithoutRepeat() {
-        assertEquals("a", PlayQueue.of(ids, "a").previous().current)
+    fun previousFromTheFirstGoesToTheLast() {
+        assertEquals("d", PlayQueue.of(ids, "a").previous().current)
         assertEquals("b", PlayQueue.of(ids, "c").previous().current)
     }
 
     @Test
-    fun repeatButtonCyclesOffAllOne() {
+    fun repeatButtonSwitchesBetweenGoingOnAndRepeatingOne() {
         val q = PlayQueue.of(ids)
-        assertEquals(RepeatMode.All, q.cycleRepeat().repeat)
-        assertEquals(RepeatMode.One, q.cycleRepeat().cycleRepeat().repeat)
-        assertEquals(RepeatMode.Off, q.cycleRepeat().cycleRepeat().cycleRepeat().repeat)
+        assertEquals(RepeatMode.One, q.cycleRepeat().repeat)
+        assertEquals(RepeatMode.All, q.cycleRepeat().cycleRepeat().repeat)
+        // «No repetir» guardado por versiones de antes: vale como seguir.
+        assertEquals(RepeatMode.All, RepeatMode.Off.effective)
+        assertEquals(RepeatMode.One, RepeatMode.Off.next())
+    }
+
+    @Test
+    fun shuffledQueueIsShuffledAgainWhenTheLastSongStarts() {
+        val many = (1..12).map { "s$it" }
+        val q = PlayQueue.of(many, "s1", shuffle = true, random = Random(5))
+        val atLast = q.jumpTo(q.items.lastIndex)
+        assertTrue(atLast.needsReshuffle)
+        val again = atLast.reshuffled(Random(9))
+        assertEquals(atLast.current, again.current, "la que suena sigue sonando")
+        assertEquals(0, again.index)
+        assertEquals(many.toSet(), again.items.toSet(), "están todas, una vez")
+        assertEquals(many.size, again.items.size)
+        assertTrue(again.items.drop(1) != atLast.items.dropLast(1), "la vuelta siguiente lleva otro orden")
+        assertTrue(!again.needsReshuffle)
+
+        assertTrue(!PlayQueue.of(many, many.last()).needsReshuffle, "sin aleatorio, vuelve a empezar en el mismo orden")
+        assertTrue(!atLast.cycleRepeat().needsReshuffle, "con repetir una, no se mezcla")
     }
 
     @Test

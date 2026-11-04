@@ -16,6 +16,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,13 +42,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -56,18 +58,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.ResultKind
 import com.freedomplayer.core.SearchResult
 import com.freedomplayer.core.formatTime
 import com.freedomplayer.core.songCount
-import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.data.FailureKind
 import com.freedomplayer.data.explain
+import com.freedomplayer.ui.AddTarget
 import com.freedomplayer.ui.AppState
-import com.freedomplayer.ui.TabResults
 import com.freedomplayer.ui.Screen
 import com.freedomplayer.ui.SearchTab
 import com.freedomplayer.ui.Side
+import com.freedomplayer.ui.TabResults
 import com.freedomplayer.ui.components.AddButton
 import com.freedomplayer.ui.components.AddState
 import com.freedomplayer.ui.components.Chakra
@@ -86,6 +89,7 @@ import com.freedomplayer.ui.components.Nunito
 import com.freedomplayer.ui.components.PrimaryButton
 import com.freedomplayer.ui.components.ScreenHeader
 import com.freedomplayer.ui.components.SearchBox
+import com.freedomplayer.ui.components.SearchingGhost
 import com.freedomplayer.ui.components.SecondaryButton
 import com.freedomplayer.ui.components.SegmentBar
 import com.freedomplayer.ui.components.StackedCover
@@ -99,9 +103,10 @@ import com.freedomplayer.ui.theme.Fp
 import com.freedomplayer.ui.theme.LocalWide
 
 /**
- * Buscar (YouTube Music y YouTube): canciones, álbumes y vídeos. La carátula (o la miniatura)
- * es la vista previa; «+» abre el selector de playlist. En el móvil el contenido va a 46 dp de los
- * bordes para que la pestaña derecha no pise los «+».
+ * Buscar (YouTube Music y YouTube): canciones, álbumes, vídeos y listas de otra gente. La carátula
+ * (o la miniatura) es la vista previa; «+» abre el selector de playlist. Pegar el enlace de una
+ * lista de YouTube la abre. En el móvil el contenido va a 46 dp de los bordes para que la pestaña
+ * derecha no pise los «+».
  */
 @Composable
 fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
@@ -125,15 +130,21 @@ fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
                 enabled = state.online,
                 onSubmit = { keyboard?.hide() },
             )
+            // Cuatro pestañas: en el móvil no caben y se desplazan de lado.
             FpTabs(
-                labels = listOf("CANCIONES", "ÁLBUMES", "VÍDEOS"),
+                labels = listOf("CANCIONES", "ÁLBUMES", "VÍDEOS", "LISTAS"),
                 selected = state.searchTab.ordinal,
                 onSelect = { state.searchTab = SearchTab.entries[it] },
+                modifier = if (wide) Modifier else Modifier.horizontalScroll(rememberScrollState()),
+                tabPadding = if (wide) 14.dp else 10.dp,
             )
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
+            val link = state.linkedList
             if (!state.online) {
                 OfflineSearch(state, Modifier.then(if (wide) Modifier.padding(pad.sidesOnly()) else side).padding(top = 16.dp))
+            } else if (link != null) {
+                LinkedList(state, link, Modifier.then(if (wide) Modifier.padding(pad.sidesOnly()) else side).padding(top = 16.dp))
             } else {
                 val reduce = LocalReduceMotion.current
                 AnimatedContent(
@@ -154,6 +165,7 @@ fun SearchScreen(state: AppState, modifier: Modifier = Modifier) {
                         SearchTab.Songs -> SongResults(state, listPad)
                         SearchTab.Albums -> AlbumResults(state, listPad)
                         SearchTab.Videos -> VideoResults(state, listPad)
+                        SearchTab.Playlists -> PlaylistResults(state, listPad)
                     }
                 }
             }
@@ -204,7 +216,10 @@ private fun <T> TabContent(
         when (mode) {
             1 -> SearchFailed(state, error ?: FailureKind.Unknown, pad)
             2 -> content(results.items)
-            3 -> Box(Modifier.padding(pad)) { skeleton() }
+            3 -> Column(Modifier.padding(pad), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                SearchingNote("BUSCANDO «${q.uppercase()}»…")
+                skeleton()
+            }
             else -> NoResults(state, tab, pad)
         }
     }
@@ -240,6 +255,63 @@ private fun VideoResults(state: AppState, pad: PaddingValues) {
 }
 
 @Composable
+private fun PlaylistResults(state: AppState, pad: PaddingValues) {
+    TabContent(state, SearchTab.Playlists, state.playlistResults, pad, skeleton = { SkeletonRows(76.dp, 76.dp, gap = 24.dp, rows = 4) }) { lists ->
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item(key = "note") {
+                HintNote("Listas que ha hecho otra gente. Ábrela y añade solo las canciones que quieras.", barColor = Fp.Violet)
+            }
+            items(lists, key = { it.key }) { list ->
+                OtherListRow(state, list, itemMotion())
+            }
+        }
+    }
+}
+
+/** Fila de una lista de otra persona: carátulas apiladas, nombre, «QUIÉN · N CANCIONES» y «VER CANCIONES ›». */
+@Composable
+private fun OtherListRow(state: AppState, list: PlaylistResult, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .fpClickable(onClickLabel = "Ver las canciones de ${list.title}", pressedScale = 0.98f) { state.openOtherList(list.url, list) },
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StackedCover(list.coverColor, front = 76.dp, back = 74.dp, backX = 8.dp, frontY = 9.dp, image = list.cover)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Nunito(list.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 2)
+            Chakra(
+                listOfNotNull(list.owner.uppercase().ifBlank { null }, list.count?.let { songCount(it) } ?: "LISTA").joinToString(" · "),
+                11.sp,
+                color = Fp.Mist,
+                spacing = 1.sp,
+                weight = FontWeight.Medium,
+            )
+            Chakra("VER CANCIONES ›", 11.sp, color = Fp.Pink, spacing = 1.5.sp)
+        }
+    }
+}
+
+/** Lo escrito es el enlace de una lista de YouTube: en vez de buscarlo, se ofrece abrirla. */
+@Composable
+private fun LinkedList(state: AppState, url: String, modifier: Modifier) {
+    EmptyState(
+        title = "Enlace de una lista",
+        body = if ("music.youtube.com" in url) {
+            "Es una lista de YouTube Music. Ábrela para escuchar sus canciones y añadir las que quieras."
+        } else {
+            "Es una lista de YouTube. Ábrela para escuchar sus vídeos y añadir los que quieras como canciones."
+        },
+        modifier = modifier,
+        ghosts = { Ghost(Mood.Owo, 52.dp, Modifier.fpBob()) },
+    ) {
+        PrimaryButton("ABRIR LISTA", { state.openOtherList(url) }, Modifier.width(220.dp), fill = true, icon = FpIcons.Link)
+        SecondaryButton("BORRAR", { state.query = "" }, Modifier.width(220.dp))
+    }
+}
+
+@Composable
 private fun VideoList(state: AppState, videos: List<SearchResult>, pad: PaddingValues) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item(key = "note") {
@@ -252,7 +324,7 @@ private fun VideoList(state: AppState, videos: List<SearchResult>, pad: PaddingV
 }
 
 /** El «+» de un resultado: añadir, descargando (con su %) o ✓. */
-private fun AppState.addStateFor(r: SearchResult): AddState {
+internal fun AppState.addStateFor(r: SearchResult): AddState {
     val fraction = downloadFraction(r.id)
     return when {
         fraction != null -> AddState.Downloading(fraction)
@@ -263,7 +335,7 @@ private fun AppState.addStateFor(r: SearchResult): AddState {
 
 /** Fila de canción: vista previa en la carátula, título, «Artista · Álbum · 3:05» y «+» o EN BIBLIO. */
 @Composable
-private fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Modifier) {
+internal fun ResultRow(state: AppState, r: SearchResult, modifier: Modifier = Modifier) {
     val previewing = state.preview?.id == r.id
     val inLibrary = state.librarySongFor(r) != null && r.id !in state.addedIds
     Row(
@@ -394,70 +466,93 @@ private fun EqCanvas(level: (Int) -> Float) {
     }
 }
 
-/** Fila de álbum: carátulas apiladas, título, «ARTISTA · AÑO · N CANCIONES» y «+ ÁLBUM ENTERO». */
+/**
+ * Fila de álbum: carátulas apiladas, título, «ARTISTA · AÑO · N CANCIONES» y «+ ÁLBUM ENTERO».
+ * Tocar la carátula o el nombre abre el álbum para ver sus canciones una a una.
+ */
 @Composable
 private fun AlbumRow(state: AppState, album: AlbumResult, modifier: Modifier = Modifier) {
     LaunchedEffect(album.key) { state.loadAlbumTracks(album) }
     val results = state.albumTracks[album.key]
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        StackedCover(
+            album.coverColor,
+            front = 76.dp,
+            back = 74.dp,
+            backX = 8.dp,
+            frontY = 9.dp,
+            image = album.cover,
+            modifier = Modifier.fpClickable(onClickLabel = "Ver las canciones de ${album.title}", pressedScale = 0.97f) { state.openAlbum(album) },
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                Modifier.fpClickable(onClickLabel = "Ver las canciones de ${album.title}", pressedScale = 0.98f) { state.openAlbum(album) },
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Nunito(album.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 1)
+                Chakra(
+                    listOfNotNull(album.artist.uppercase().ifBlank { null }, album.year, results?.let { songCount(it.size) } ?: "ÁLBUM").joinToString(" · ") + "  ›",
+                    11.sp,
+                    color = Fp.Mist,
+                    spacing = 1.sp,
+                    weight = FontWeight.Medium,
+                )
+            }
+            AlbumAction(state, album)
+        }
+    }
+}
+
+/** «+ ÁLBUM ENTERO», cómo va su descarga o «ÁLBUM EN TU BIBLIO» (en Buscar y dentro del álbum). */
+@Composable
+internal fun AlbumAction(state: AppState, album: AlbumResult) {
+    val results = state.albumTracks[album.key]
     val have = results?.count { state.librarySongFor(it) != null } ?: 0
     val job = state.albumJob(album)
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        StackedCover(album.coverColor, front = 76.dp, back = 74.dp, backX = 8.dp, frontY = 9.dp, image = album.cover)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Nunito(album.title, 15.sp, weight = FontWeight.ExtraBold, maxLines = 1)
-            Chakra(
-                listOfNotNull(album.artist.uppercase().ifBlank { null }, album.year, results?.let { songCount(it.size) } ?: "ÁLBUM").joinToString(" · "),
-                11.sp,
-                color = Fp.Mist,
-                spacing = 1.sp,
-                weight = FontWeight.Medium,
-            )
-            Crossfade(
-                targetState = when {
-                    job != null -> 1
-                    results != null && have == results.size && results.isNotEmpty() -> 2
-                    else -> 0
-                },
-                animationSpec = tween(Motion.STANDARD),
-                label = "albumAction",
-            ) { mode ->
-                when (mode) {
-                    1 -> {
-                        val j = state.albumJob(album)
-                        Column(Modifier.heightIn(min = 44.dp), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
-                            Chakra(
-                                when {
-                                    j == null -> "LISTO"
-                                    j.resolving -> "BUSCANDO CANCIONES…"
-                                    else -> "DESCARGANDO ${minOf(j.done + 1, j.total)} DE ${j.total}"
-                                },
-                                11.sp,
-                                color = Fp.JadeLight,
-                                spacing = 1.5.sp,
-                            )
-                            SegmentBar(
-                                count = (j?.total ?: 12).coerceIn(4, 24),
-                                fraction = j?.fraction ?: 1f,
-                                modifier = Modifier.widthIn(max = 180.dp),
-                                color = Fp.Jade,
-                                height = 3.dp,
-                            )
-                        }
-                    }
-                    2 -> Box(Modifier.heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
-                        InLibraryBadge(text = "ÁLBUM EN TU BIBLIO")
-                    }
-                    else -> PrimaryButton(
-                        "+ ÁLBUM ENTERO",
-                        { state.requestAdd(AddTarget.Album(album)) },
-                        height = 36.dp,
-                        cutSize = 9.dp,
-                        fontSize = 11.sp,
+    Crossfade(
+        targetState = when {
+            job != null -> 1
+            results != null && have == results.size && results.isNotEmpty() -> 2
+            else -> 0
+        },
+        animationSpec = tween(Motion.STANDARD),
+        label = "albumAction",
+    ) { mode ->
+        when (mode) {
+            1 -> {
+                val j = state.albumJob(album)
+                Column(Modifier.heightIn(min = 44.dp), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
+                    Chakra(
+                        when {
+                            j == null -> "LISTO"
+                            j.resolving -> "BUSCANDO CANCIONES…"
+                            else -> "DESCARGANDO ${minOf(j.done + 1, j.total)} DE ${j.total}"
+                        },
+                        11.sp,
+                        color = Fp.JadeLight,
                         spacing = 1.5.sp,
-                        horizontalPadding = 14.dp,
+                    )
+                    SegmentBar(
+                        count = (j?.total ?: 12).coerceIn(4, 24),
+                        fraction = j?.fraction ?: 1f,
+                        modifier = Modifier.widthIn(max = 180.dp),
+                        color = Fp.Jade,
+                        height = 3.dp,
                     )
                 }
             }
+            2 -> Box(Modifier.heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
+                InLibraryBadge(text = "ÁLBUM EN TU BIBLIO")
+            }
+            else -> PrimaryButton(
+                "+ ÁLBUM ENTERO",
+                { state.requestAdd(AddTarget.Album(album)) },
+                height = 36.dp,
+                cutSize = 9.dp,
+                fontSize = 11.sp,
+                spacing = 1.5.sp,
+                horizontalPadding = 14.dp,
+            )
         }
     }
 }
@@ -504,9 +599,11 @@ private fun VideoRow(state: AppState, v: SearchResult, modifier: Modifier = Modi
 private fun NoResults(state: AppState, tab: SearchTab, pad: PaddingValues) {
     val q = state.query.trim()
     val (title, body) = when {
-        q.isEmpty() -> "Busca algo" to "Escribe una canción, un artista o un álbum. Los vídeos traen directos, remixes y covers."
+        q.isEmpty() -> "Busca algo" to
+            "Escribe una canción, un artista o un álbum, o pega el enlace de una lista de YouTube. Los vídeos traen directos, remixes y covers."
         tab == SearchTab.Songs -> "Nada por aquí" to "Ninguna canción coincide con «$q». Prueba en la pestaña Vídeos."
         tab == SearchTab.Albums -> "Nada por aquí" to "Ningún álbum coincide con «$q». Prueba con el nombre del artista."
+        tab == SearchTab.Playlists -> "Nada por aquí" to "Ninguna lista coincide con «$q». También puedes pegar aquí el enlace de una lista de YouTube."
         else -> "Nada por aquí" to "Ningún vídeo coincide con «$q»."
     }
     EmptyState(
@@ -561,12 +658,21 @@ private fun SpotifyLink(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/** El fantasmita de ojos de remolino y qué se está buscando o cargando. */
+@Composable
+internal fun SearchingNote(text: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SearchingGhost(40.dp)
+        Chakra(text, 11.sp, color = Fp.Mist, spacing = 1.5.sp, maxLines = 1)
+    }
+}
+
 /**
  * Mientras se busca: filas fantasma (carátula y dos rayas) que laten despacio. Quietas si se
  * reduce el movimiento.
  */
 @Composable
-private fun SkeletonRows(coverWidth: Dp, coverHeight: Dp, gap: Dp, rows: Int = 7) {
+internal fun SkeletonRows(coverWidth: Dp, coverHeight: Dp, gap: Dp, rows: Int = 7) {
     val reduce = LocalReduceMotion.current
     val pulse = if (reduce) {
         null

@@ -20,6 +20,8 @@ fun realServices(
     engine: AudioEngine,
     loudness: LoudnessAnalyzer? = null,
     locale: Locale = Locale.getDefault(),
+    /** Cómo se instala una versión nueva en esta plataforma; sin él, no se buscan versiones. */
+    updater: UpdateInstaller? = null,
     sync: SyncBackend? = null,
 ): Services {
     val youtube = YouTubeSource(locale)
@@ -32,6 +34,7 @@ fun realServices(
         engine = engine,
         loudness = loudness,
         spotify = SpotifyPages(),
+        updates = updater?.let { GitHubUpdates(it) },
         sync = sync,
     )
 }

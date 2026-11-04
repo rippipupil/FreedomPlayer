@@ -139,9 +139,15 @@ class SyncExchange(
         }
         val ids = songs.map { it.id }.toSet()
         val colors = local.playlists.associate { it.id to it.coverColor }
+        // Cuándo entró cada canción en cada playlist no viaja: se queda lo de este dispositivo
+        // (las que llegan del otro se ordenan por cuándo entraron en la biblioteca).
+        val added = local.playlists.associate { it.id to it.addedAt }
         return LibraryData(
             songs = songs,
-            playlists = merged.playlists.map { p -> Playlist(p.id, p.name, p.songIds.filter { it in ids }, p.coverColor ?: colors[p.id] ?: 0xFF7A1F55) },
+            playlists = merged.playlists.map { p ->
+                val songIds = p.songIds.filter { it in ids }
+                Playlist(p.id, p.name, songIds, p.coverColor ?: colors[p.id] ?: 0xFF7A1F55, added[p.id].orEmpty().filterKeys { it in songIds })
+            },
             rankings = merged.rankings.map { r -> CustomRanking(r.id, r.name, r.songIds.filter { it in ids }) },
             plays = merged.plays.filter { it.songId in ids },
         )

@@ -1,11 +1,14 @@
 package com.freedomplayer.data
 
 import com.freedomplayer.core.AlbumResult
+import com.freedomplayer.core.AppRelease
 import com.freedomplayer.core.AudioQuality
 import com.freedomplayer.core.CustomRanking
 import com.freedomplayer.core.EqBands
 import com.freedomplayer.core.LyricsData
+import com.freedomplayer.core.OtherList
 import com.freedomplayer.core.PlayEvent
+import com.freedomplayer.core.PlaylistResult
 import com.freedomplayer.core.Playlist
 import com.freedomplayer.core.RepeatMode
 import com.freedomplayer.core.SearchResult
@@ -28,6 +31,8 @@ class Services(
     val loudness: LoudnessAnalyzer? = null,
     /** Lee las playlists públicas de Spotify (para importarlas); sin él, no se puede importar. */
     val spotify: SpotifyReader? = null,
+    /** Versiones nuevas de la app (GitHub Releases); sin él, no se buscan. */
+    val updates: UpdateService? = null,
     /** Sincronizar con el otro dispositivo (Syncthing); sin él, no se puede vincular. */
     val sync: SyncBackend? = null,
 ) {
@@ -116,6 +121,15 @@ interface MusicSource {
 
     /** Las canciones de un álbum, en orden. */
     suspend fun albumTracks(album: AlbumResult): List<SearchResult>
+
+    /** Listas que ha hecho otra gente en YouTube Music (para elegir canciones sueltas). */
+    suspend fun searchPlaylists(query: String): List<PlaylistResult> = emptyList()
+
+    /**
+     * Una lista de YouTube o YouTube Music por su dirección: sus datos y sus canciones, en orden.
+     * Lanza [SourceException] ([FailureKind.Unavailable] si es privada o ya no existe).
+     */
+    suspend fun otherList(url: String): OtherList = throw SourceException(FailureKind.Unavailable, "Este buscador no abre listas")
 
     /** El audio de un resultado para escucharlo ya (vista previa). */
     suspend fun stream(result: SearchResult): StreamSource
@@ -232,6 +246,10 @@ data class SoundSettings(
     val normalize: Boolean = true,
     /** Fundido entre canciones (0 = sin fundido). */
     val crossfadeMs: Long = 0,
+    /** Velocidad (1 = tal cual). */
+    val speed: Float = 1f,
+    /** Tono (1 = el de siempre); ver [com.freedomplayer.core.Tempo.pitch]. */
+    val pitch: Float = 1f,
 )
 
 /** Mide la sonoridad de una canción (LUFS integrados, ver [com.freedomplayer.core.LoudnessMeter]). */
@@ -264,6 +282,11 @@ data class EngineSnapshot(
     val error: String? = null,
     val errorSerial: Int = 0,
     val preview: PreviewSnapshot? = null,
+    /**
+     * Cómo repite el reproductor, si se puede cambiar desde fuera de la app (el botón de la
+     * notificación en Android); null si solo lo cambia la app.
+     */
+    val repeat: RepeatMode? = null,
 )
 
 /**
@@ -309,8 +332,34 @@ interface AudioEngine {
     /** El ecualizador funciona (en algunos móviles el del sistema no está o no deja usarse). */
     val equalizerAvailable: Boolean get() = true
 
+    /**
+     * El tono se puede cambiar aparte de la velocidad. Si no (el PC), el tono va siempre con la
+     * velocidad, como un vinilo, y [SoundSettings.pitch] no se usa.
+     */
+    val separatePitch: Boolean get() = true
+
     /** Para el audio simulado: el tiempo que ha pasado. Los de verdad no lo necesitan. */
     fun tick(elapsedMs: Long) {}
 
     fun release() {}
+}
+
+// ---------- Actualizaciones ----------
+
+/**
+ * Versiones nuevas de la app: las busca en GitHub Releases, descarga el instalador de esta
+ * plataforma y lo abre. Puede lanzar [SourceException] (sin red, GitHub no responde…).
+ */
+interface UpdateService {
+    /** La versión publicada más reciente que trae instalador para esta plataforma, o null. */
+    suspend fun latest(): AppRelease?
+
+    /** Descarga el instalador de [release]; devuelve dónde ha quedado. [progress] va de 0 a 1. */
+    suspend fun download(release: AppRelease, progress: (Float) -> Unit): String
+
+    /**
+     * Abre el instalador descargado. Devuelve null si se ha abierto, o por qué no (para el aviso):
+     * falta el permiso de instalar apps, está firmado con otra clave…
+     */
+    fun install(path: String): String?
 }
